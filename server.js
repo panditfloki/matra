@@ -12,6 +12,11 @@ const fx = require('./fx');
 const { watchCacheChanges } = require('./refresh-sync');
 
 const PORT = Number(process.env.PORT || 4317);
+// Loopback by default. `.listen(PORT)` with no host binds 0.0.0.0 AND [::], which put
+// this dashboard - plan tier, quota percentages, equivalent cost - on the local network
+// while this file's own log line, and every mention in the README, said "localhost".
+// Set MATRA_HOST=0.0.0.0 to opt back into LAN access deliberately.
+const HOST = process.env.MATRA_HOST || '127.0.0.1';
 const clients = new Set();
 let codexPending;
 let geminiPending;
@@ -137,6 +142,7 @@ http.createServer(async (req, res) => {
   });
   // Same file the extension panel loads — one dashboard, two hosts.
   res.end(fs.readFileSync(path.join(__dirname, 'media', 'dashboard.html')));
-}).listen(PORT, () => {
-  console.log(`Claude + Codex + Gemini usage dashboard → http://localhost:${PORT}`);
+}).listen(PORT, HOST, () => {
+  // Print the host actually bound, not the one we wish we had bound.
+  console.log(`Claude + Codex + Gemini usage dashboard → http://localhost:${PORT}  (bound ${HOST})`);
 });

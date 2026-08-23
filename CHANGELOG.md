@@ -8,6 +8,44 @@ versioning is [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.4] — 2026-08-23
+
+The Windows release. Every item below was found by running Mātrā on Windows, not by reading it
+on a Mac — and two of them were impossible to hit on macOS at all.
+
+### Fixed
+- **The Codex panel was dead on every Windows install.** npm ships `ccusage` as a `.cmd` shim, and
+  Node refuses to spawn a `.cmd`/`.bat` directly — `execFile` throws `spawn EINVAL` before the
+  command runs. `commandPath()` was already win32-aware enough to *find* `ccusage.cmd`; nothing was
+  win32-aware enough to *launch* it. Now routed through `cmd.exe /d /s /c` with the argv array
+  preserved (deliberately not `shell: true`, which re-parses the string and breaks install paths
+  containing a space). On macOS `ccusage` is a shebang script, so this could only ever fail here.
+- The two failure messages this produced — `ccusage unavailable`, then `ccusage refresh failed` —
+  both blamed ccusage, which was working perfectly the whole time.
+
+### Security
+- **The web app bound `0.0.0.0` and `[::]` while its own log line, and every mention in this README,
+  said `localhost`.** Plan tier, quota percentages and spend were readable by anything on the
+  network. It now binds `127.0.0.1` by default; set `MATRA_HOST=0.0.0.0` to opt back in
+  deliberately. The startup line prints the host **actually bound**, because a program understating
+  its own exposure is the part that made this hard to notice.
+  ⚠️ **Behaviour change:** if you reached the dashboard from another machine, set `MATRA_HOST`.
+
+### Documentation
+- **Corrected: Windows quota bars work.** *Platform support* claimed *"❌ untested — credentials are
+  stored differently"*. They are not: win32 takes the same `~/.claude/.credentials.json` fallback as
+  Linux, and live plan/session/weekly figures have now been read on three separate Windows machines.
+- **Corrected: the Gemini section's "macOS and Linux only" applied to one half, not both.** Quota %
+  needs `ps`/`lsof` and remains mac/Linux. Tokens and cost need only `sqlite3` on `PATH` and work on
+  Windows — verified against raw `gen_metadata` row counts.
+- Documented `MATRA_HOST`, and the optional `ccusage` / `sqlite3` companions as independent of each other.
+- Noted the Windows trap that installing either does not help an already-running Mātrā: a process
+  inherits its parent's environment block, not the registry. Restart after installing.
+
+### Notes
+- No CHANGELOG entries exist for 1.7.0, 1.7.1 or 1.7.3. Rather than reconstruct them from memory
+  they are left absent — an honest gap beats an invented history.
+
 ## [1.7.2] — 2026-08-18
 
 ### Added

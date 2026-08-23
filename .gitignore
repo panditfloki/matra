@@ -15,6 +15,15 @@ GEMINI.md
 # Local agent plans and project-working adapters are not public product source.
 agents/
 
+# Machine-local launcher glue and its output. These carry absolute paths for one
+# specific device (drive letters, node install location, user profile). They are how
+# Matra is started on that machine, not how the app works, so they are not product
+# source. Added 2026-08-23: all three sat untracked and un-ignored, one `git add -A`
+# away from a public commit - the same gap that put GEMINI.md on the remote in v1.7.1.
+start-matra.ps1
+_make-shortcut.ps1
+server.log
+
 # Build artifacts — the .vsix is produced by `npm run package`, attach it to a
 # GitHub Release rather than committing a binary on every version bump.
 *.vsix

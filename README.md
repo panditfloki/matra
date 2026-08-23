@@ -60,6 +60,15 @@ cd live-claude-usage-ui
 node server.js          # → http://localhost:4317
 ```
 
+The web app binds **loopback only** (`127.0.0.1`). It shows your plan tier, quota percentages
+and spend, so it is not something to put on a network by accident. To reach it from another
+device on purpose:
+
+```bash
+MATRA_HOST=0.0.0.0 node server.js    # deliberate LAN exposure
+PORT=4318 node server.js             # different port
+```
+
 **Build the extension yourself** (if you'd rather not trust a binary):
 
 ```bash
@@ -76,10 +85,22 @@ see *What it cannot know* below. Skip it and those tiles simply don't appear.
 |---|---|---|
 | **macOS** | ✅ reads Keychain item `Claude Code-credentials` | ✅ |
 | **Linux** | ✅ falls back to `~/.claude/.credentials.json` | ✅ |
-| **Windows** | ❌ **untested** — credentials are stored differently | ✅ |
+| **Windows** | ✅ same `~/.claude/.credentials.json` fallback | ✅ |
 
-On Windows the quota bars will be absent, but the cost/model/project dashboard works fine,
-because it needs no credentials at all. PRs welcome.
+**Windows quota bars work.** This table used to say *"❌ untested — credentials are stored
+differently"*, and that was wrong: win32 takes the same `.credentials.json` path as Linux, and
+real plan/session/weekly numbers have now been read on three separate Windows machines. If you
+were put off by the old caveat, it cost you nothing but the caveat.
+
+Two optional companions are looked up on `PATH`, and each is independent:
+
+| You want | You need | Without it |
+|---|---|---|
+| Codex history | [`ccusage`](https://github.com/ryoppippi/ccusage) | Codex panel says so plainly |
+| Gemini tokens/cost | `sqlite3` | Gemini panel says so plainly |
+
+⚠️ On Windows, installing either **does not** help a Mātrā that is already running — a process
+inherits its parent's environment, not the registry. Restart it after installing.
 
 ---
 
@@ -132,8 +153,16 @@ Reads locally, from two places that need Antigravity to be running at least once
   conversation logs (`~/.gemini/antigravity-cli/conversations/*.db`), using the
   protobuf schema recovered from its `language_server` binary.
 
-**macOS and Linux only** (`ps`/`lsof`) — Windows is refused with that reason
-stated up front, never silently reported as zero usage.
+**The two halves have different requirements — do not read one limit as both:**
+
+- **Quota %** is **macOS and Linux only**, because finding the running
+  `language_server` and its `--csrf_token` uses `ps`/`lsof`. Windows is refused
+  with that reason stated up front, never silently reported as zero usage.
+- **Tokens and cost** work anywhere `sqlite3` is on `PATH`, **Windows included**
+  — verified there against the raw `gen_metadata` row counts.
+
+Either half being unavailable is always *stated*, never rendered as a zero. A
+missing reading and a real zero are different facts and this tool keeps them apart.
 
 ## Currency toggle (₹ / $)
 

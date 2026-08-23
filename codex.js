@@ -54,9 +54,24 @@ function commandPath() {
   return 'ccusage';
 }
 
+// ⚠ WINDOWS: npm installs ccusage as a `.cmd` shim, and Node refuses to spawn a
+// .cmd/.bat directly - `execFile` throws `spawn EINVAL` before the command ever
+// runs. The old code surfaced that as "ccusage refresh failed", which reads like a
+// broken ccusage rather than a batch file we declined to launch. Route those through
+// `cmd.exe /c` with the argv ARRAY preserved (never shell:true, which would re-parse
+// the string and break any install path containing a space).
+function spawnArgs(args) {
+  const cmd = commandPath();
+  if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd)) {
+    return { file: process.env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', cmd, ...args] };
+  }
+  return { file: cmd, args };
+}
+
 function run(args) {
   return new Promise((resolve, reject) => {
-    execFile(commandPath(), args, { timeout: TIMEOUT_MS, maxBuffer: MAX_BUFFER, env: execEnv() }, (err, stdout) => {
+    const { file, args: argv } = spawnArgs(args);
+    execFile(file, argv, { timeout: TIMEOUT_MS, maxBuffer: MAX_BUFFER, env: execEnv() }, (err, stdout) => {
       if (err) return reject(err);
       try { resolve(JSON.parse(stdout)); }
       catch (parseErr) { reject(parseErr); }
@@ -66,7 +81,8 @@ function run(args) {
 
 function version() {
   return new Promise(resolve => {
-    execFile(commandPath(), ['--version'], { timeout: 5_000, env: execEnv() }, (err, stdout) => {
+    const { file, args: argv } = spawnArgs(['--version']);
+    execFile(file, argv, { timeout: 5_000, env: execEnv() }, (err, stdout) => {
       if (err) return resolve(null);
       const m = /ccusage\s+([^\s]+)/.exec(stdout);
       resolve(m ? m[1] : stdout.trim() || null);
