@@ -6,6 +6,15 @@ AGENTS.md
 GEMINI.md
 .gitignore
 
+# Machine-local launcher glue and its output — absolute paths for one device.
+# Added 2026-08-23 after a v1.7.4 package run swept start-matra.ps1 and server.log
+# into the .vsix: they had just been added to .gitignore, and the warning three
+# lines above (vsce reads THIS file, not .gitignore) is there because this is the
+# second time this exact mistake has shipped.
+start-matra.ps1
+_make-shortcut.ps1
+server.log
+
 # Dev-only + repo artifacts
 server.js
 .vscodeignore
