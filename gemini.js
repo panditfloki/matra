@@ -219,6 +219,44 @@ function usageFromBuf(buf) {
   return null;
 }
 
+// ⚠ Never call bare `sqlite3` and trust PATH. A process inherits its parent's
+// environment BLOCK, not the live registry/profile, so a host started before
+// sqlite3 was installed can never see it — no reload fixes that, only a full
+// relaunch of the parent. On Windows the VS Code extension host inherits from
+// Explorer and stays stale until logoff; on macOS launchd hands us a bare PATH.
+// Both produce the same lie: "sqlite3 not found" while sqlite3 sits on disk,
+// installed and working. Resolve it from known locations, exactly as codex.js
+// already does for ccusage, and fall back to the bare name last.
+function sqliteDirs() {
+  const local = process.env.LOCALAPPDATA;
+  return [...new Set([
+    ...(process.env.PATH || '').split(path.delimiter),
+    local ? path.join(local, 'Microsoft', 'WinGet', 'Links') : null,
+    local ? path.join(local, 'Microsoft', 'WinGet', 'Packages') : null,
+    '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin',
+  ].filter(Boolean))];
+}
+
+function sqlitePath() {
+  const names = process.platform === 'win32' ? ['sqlite3.exe'] : ['sqlite3'];
+  for (const dir of sqliteDirs()) {
+    for (const name of names) {
+      const direct = path.join(dir, name);
+      try { fs.accessSync(direct, fs.constants.F_OK); return direct; } catch {}
+    }
+    // WinGet nests portable packages one level down under a versioned folder.
+    if (process.platform === 'win32' && /WinGet[\\/]+Packages$/i.test(dir)) {
+      let subs = [];
+      try { subs = fs.readdirSync(dir).filter(d => /^SQLite\.SQLite/i.test(d)); } catch {}
+      for (const sub of subs) {
+        const nested = path.join(dir, sub, 'sqlite3.exe');
+        try { fs.accessSync(nested, fs.constants.F_OK); return nested; } catch {}
+      }
+    }
+  }
+  return process.platform === 'win32' ? 'sqlite3.exe' : 'sqlite3';
+}
+
 function scanConversations() {
   const cwds = cwdMap();
   let files = [];
@@ -239,7 +277,7 @@ function scanConversations() {
 
     let rows = [];
     try {
-      const raw = execFileSync('sqlite3', [fullPath, 'SELECT hex(data) FROM gen_metadata;'], { encoding: 'utf8', timeout: TIMEOUT_MS });
+      const raw = execFileSync(sqlitePath(), [fullPath, 'SELECT hex(data) FROM gen_metadata;'], { encoding: 'utf8', timeout: TIMEOUT_MS });
       rows = raw.trim().split('\n').filter(Boolean);
     } catch (err) {
       // ENOENT is "no sqlite3 on this machine"; anything else is one bad file.
@@ -920,6 +958,10 @@ module.exports = {
   normalise,
   present,
   scanConversations,
+  // Exported so the resolution can be tested with a deliberately empty PATH —
+  // the one condition under which the old bare-`sqlite3` call silently failed.
+  sqlitePath,
+  sqliteDirs,
   parseGenMetadataBuf,
   costOf,
   // Live quota (RetrieveUserQuotaSummary over Antigravity's own local RPC).

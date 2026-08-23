@@ -8,6 +8,26 @@ versioning is [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.7.5] — 2026-08-23
+
+### Fixed
+- **Gemini reported `sqlite3 not found` while sqlite3 sat on disk, installed and working.**
+  `scanConversations()` called bare `sqlite3` and trusted `PATH`. A process inherits its parent's
+  environment **block**, not the live registry or profile — so any host launched before sqlite3 was
+  installed can never see it, and no amount of reloading fixes that. On Windows the VS Code
+  extension host inherits from Explorer and stays stale until logoff; on macOS `launchd` hands the
+  process a bare PATH. Both produce the same false message.
+  `sqlite3` is now resolved from known locations first (including WinGet's `Links` and its nested
+  `Packages\SQLite.SQLite*` layout), falling back to the bare name last — the same defence
+  `codex.js` has always had for `ccusage`. Verified by running the reader with `PATH` **undefined**:
+  it still resolves the binary and returns all three conversations.
+- `sqlitePath` / `sqliteDirs` are exported so that resolution can be tested under an empty PATH,
+  which was the one condition the old code failed under and no test covered.
+
+### Notes
+- This is the third bug in two releases whose cause was an inherited-environment assumption rather
+  than the logic it appeared to break. The failure text named the wrong thing every time.
+
 ## [1.7.4] — 2026-08-23
 
 The Windows release. Every item below was found by running Mātrā on Windows, not by reading it
