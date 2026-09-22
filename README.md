@@ -8,7 +8,7 @@ each limit window and reset time; live activity shows whether an agent is workin
 
 ## Download for Windows
 
-### [Download Mātrā v2 for Windows](https://github.com/panditfloki/matra/releases/latest/download/Matra-Setup.exe)
+### [Download Mātrā v1.8 for Windows](https://github.com/panditfloki/matra/releases/latest/download/Matra-Setup.exe)
 
 The installer is named `Matra-Setup.exe` in every release, so this link always points to the newest
 Windows build. It installs for the current user and does not require administrator rights.
