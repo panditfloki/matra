@@ -15,6 +15,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional existing release tag to receive Matra-Setup.exe"
+        required: false
+        type: string
 
 jobs:
   package:
@@ -63,8 +68,10 @@ jobs:
           path: native/Matra-Setup.exe
           if-no-files-found: error
       - name: Attach installer to release
-        if: github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v')
+        if: >-
+          (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v')) ||
+          (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
         run: gh release upload $env:TAG Matra-Setup.exe --clobber
