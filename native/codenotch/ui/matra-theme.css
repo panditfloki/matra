@@ -103,7 +103,13 @@ html[data-matra-theme] body.expanding[data-edge="right"] #pill{animation:matra-u
 @keyframes matra-unfold{0%{clip-path:var(--clip-rest)}65%{clip-path:var(--clip-rise)}100%{clip-path:var(--clip-open)}}
 html[data-matra-theme] .cell{transition:opacity .24s ease .16s,translate .32s ease .16s}
 html[data-matra-theme] body.folded .cell{translate:0 6px;transition-delay:0s}
-@media(prefers-reduced-motion:reduce){html[data-matra-theme] #pill,html[data-matra-theme] .cell{transition:none!important;animation:none!important}}
+/* The user's explicit notch switch takes precedence over Windows Animation
+   effects. Other activity/ring motion still follows Windows reduced motion. */
+html[data-matra-motion="on"] #pill{transition:clip-path .48s cubic-bezier(.4,0,.2,1)}
+html[data-matra-motion="on"] .cell{transition:opacity .24s ease .16s,translate .32s ease .16s}
+html[data-matra-motion="on"] #rest{transition:opacity .16s ease}
+html[data-matra-motion="off"] #pill,html[data-matra-motion="off"] .cell,html[data-matra-motion="off"] #rest{transition:none!important;animation:none!important}
+@media(prefers-reduced-motion:reduce){html:not([data-matra-motion="on"]) #pill,html:not([data-matra-motion="on"]) .cell,html:not([data-matra-motion="on"]) #rest{transition:none!important;animation:none!important}}
 html[data-matra-theme] body[data-edge="top"] #pill,html[data-matra-theme] body[data-edge="bottom"] #pill{width:auto;padding:8px 14px;border-radius:22px}
 html[data-matra-theme] body[data-edge="left"] #tail{left:61px}
 html[data-matra-theme] body[data-edge="right"] #tail{right:61px}

@@ -1065,6 +1065,25 @@ fn set_matra_theme(app: AppHandle, theme: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn get_notch_motion(app: AppHandle) -> bool {
+    app.state::<AppState>().cfg.lock().unwrap().notch_motion
+}
+
+#[tauri::command]
+fn set_notch_motion(app: AppHandle, on: bool) -> Result<bool, String> {
+    {
+        let state = app.state::<AppState>();
+        let mut cfg = state.cfg.lock().unwrap();
+        let mut next = cfg.clone();
+        next.notch_motion = on;
+        config::save_checked(&next).map_err(|_| "Could not save notch animation preference.".to_string())?;
+        *cfg = next;
+    }
+    let _ = app.emit("matra-notch-motion", on);
+    Ok(on)
+}
+
+#[tauri::command]
 fn get_scale(app: AppHandle) -> f64 {
     ui_scale(&app)
 }
@@ -1730,6 +1749,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_matra_theme,
             set_matra_theme,
+            get_notch_motion,
+            set_notch_motion,
             get_state,
             get_usage,
             claude_sign_in,

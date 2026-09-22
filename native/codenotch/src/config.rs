@@ -96,6 +96,10 @@ pub struct Config {
     /// `load`), so nobody's notch starts folding on an update.
     #[serde(default = "yes")]
     pub notch_on_hover: bool,
+    /// An explicit per-app choice: keep the notch reveal visible even when Windows
+    /// Animation effects are off. The user can switch it off in Appearance.
+    #[serde(default = "yes")]
+    pub notch_motion: bool,
     /// false = the tray icon is hidden. Refused while the notch is also hidden, because that would
     /// leave the app running with no way to reach it.
     #[serde(default = "yes")]
@@ -223,6 +227,7 @@ impl Default for Config {
             extra_providers: Vec::new(),
             notch_visible: true,
             notch_on_hover: true,
+            notch_motion: true,
             tray_visible: true,
             show_move_handle: true,
         }
@@ -319,6 +324,20 @@ mod tests {
         assert_eq!(restored.theme, "system");
         assert_eq!(restored.port, 48676);
         assert!(restored.notch_on_hover);
+    }
+
+    #[test]
+    fn notch_motion_defaults_on_for_existing_configs_and_keeps_explicit_choice() {
+        let mut value = serde_json::to_value(Config::default()).unwrap();
+        value.as_object_mut().unwrap().remove("notch_motion");
+        let upgraded: Config = serde_json::from_value(value.clone()).unwrap();
+        assert!(upgraded.notch_motion);
+
+        for chosen in [true, false] {
+            value["notch_motion"] = serde_json::json!(chosen);
+            let restored: Config = serde_json::from_value(value.clone()).unwrap();
+            assert_eq!(restored.notch_motion, chosen);
+        }
     }
 
     /// Show on hover is the Mac's default, so a fresh install gets it — but an update must not start

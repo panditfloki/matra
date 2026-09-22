@@ -1,6 +1,16 @@
 /* Mātrā customisation. Original notch behaviour is maintained upstream. */
 (() => {
   const media = matchMedia('(prefers-color-scheme: dark)');
+  function applyMotion(on) {
+    const enabled = on !== false;
+    document.documentElement.dataset.matraMotion = enabled ? 'on' : 'off';
+    const button = document.getElementById('sw-notch-motion');
+    if (button) {
+      button.classList.toggle('on', enabled);
+      button.setAttribute('aria-checked', String(enabled));
+    }
+  }
+  applyMotion(true);
   let choice = localStorage.getItem('matra-theme') || 'system';
   function apply(value) {
     choice = ['light', 'dark', 'glass', 'system'].includes(value) ? value : 'system';
@@ -17,7 +27,17 @@
   if (api) {
     api.event.listen('matra-theme', e => apply(e.payload));
     api.core.invoke('get_matra_theme').then(apply).catch(console.error);
+    api.event.listen('matra-notch-motion', e => applyMotion(e.payload));
+    api.core.invoke('get_notch_motion').then(applyMotion).catch(() => {});
   }
+  document.getElementById('sw-notch-motion')?.addEventListener('click', async () => {
+    const button = document.getElementById('sw-notch-motion');
+    const next = button.getAttribute('aria-checked') !== 'true';
+    button.disabled = true;
+    try { applyMotion(api ? await api.core.invoke('set_notch_motion', { on: next }) : next); }
+    catch { /* Keep the saved state when the bridge rejects the change. */ }
+    finally { button.disabled = false; }
+  });
   document.querySelectorAll('#matra-theme button').forEach(button => {
     button.addEventListener('click', async () => {
       try {

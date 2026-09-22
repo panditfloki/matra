@@ -13,6 +13,12 @@ app.whenReady().then(async()=>{
   win.webContents.session.webRequest.onBeforeRequest((d,done)=>done({cancel:/^https?:/.test(d.url)}));
   const js=code=>win.webContents.executeJavaScript(code);
   await win.loadFile(path.join(root,'native/codenotch/ui/settings.html'));await sleep(400);
+  await js("showTab('appearance')");
+  assert.equal(await js("document.querySelector('#sw-notch-motion').getAttribute('aria-checked')"),'true');
+  await js("document.querySelector('#sw-notch-motion').click()");await sleep(30);
+  assert.equal(await js("document.querySelector('#sw-notch-motion').getAttribute('aria-checked')"),'false');
+  await js("document.querySelector('#sw-notch-motion').click()");await sleep(30);
+  assert.equal(await js("document.querySelector('#sw-notch-motion').getAttribute('aria-checked')"),'true');
   await js("showTab('accounts')");
   for(const id of ['copilot','opencode','commandcode','kimi']){
     assert.equal(await js(`document.querySelector('[data-extra="${id}"]').getAttribute('aria-checked')`),'false');
@@ -69,7 +75,9 @@ app.whenReady().then(async()=>{
   assert.equal(await js("weeklyOf(extraSnaps.kimi,'kimi').used"),.8);
   assert.equal(await js("headlineOf({windows:[{id:'weekly',used:.8}]},'opencode')"),null);
   win.webContents.debugger.attach('1.3');
-  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+  assert.equal(await js("document.documentElement.dataset.matraMotion"),'on');
+  assert.equal(await js("matchMedia('(prefers-reduced-motion: reduce)').matches"),true);
   await js(`window.fixture={status:'ok',fetched_at:Date.now(),windows:[{id:'session',used:.12},{id:'seven_day',used:.17}]};
     providers=()=>[{id:'claude',base:'claude',name:'Claude',glyph:'C',snap:window.fixture}];
     onHover=true;pointerIn=false;carrying=false;dragging=false;menuOpen=false;applyEdge('left');renderRing();setFolded(true);`);
@@ -103,7 +111,12 @@ app.whenReady().then(async()=>{
   await js("window.fixture.windows[0].used=.27;renderRing()");
   assert.equal(await js("getComputedStyle(document.querySelector('.feedback')).animationName"),'none');
   assert.equal(await js("document.querySelector('.quota-current').getAnimations().length"),0);
+  assert.equal(await js("getComputedStyle(pill).animationName"),'matra-unfold');
+  await js("setFolded(true);window.__test.emit('matra-notch-motion',false);setFolded(false)");
   assert.equal(await js("getComputedStyle(pill).animationName"),'none');
+  assert.equal(await js("getComputedStyle(pill).transitionDuration"),'0s');
+  await js("setFolded(true);window.__test.emit('matra-notch-motion',true);setFolded(false)");
+  assert.equal(await js("getComputedStyle(pill).animationName"),'matra-unfold');
   // Ten providers must remain reachable on every screen edge.
   await js("providers=()=>Array.from({length:10},(_,i)=>({id:'fixture'+i,base:'claude',name:'Fixture '+i,glyph:'C',snap:{status:'ok',fetched_at:Date.now(),windows:[{id:'session',used:.2}]}}));setFolded(false)");
   for(const edge of ['left','right','top','bottom']){
