@@ -1,0 +1,45 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "native/**"
+      - "scripts/build-native-installer.ps1"
+      - ".github/workflows/windows.yml"
+  pull_request:
+    paths:
+      - "native/**"
+      - "scripts/build-native-installer.ps1"
+      - ".github/workflows/windows.yml"
+
+jobs:
+  test:
+    if: github.repository == 'panditfloki/matra'
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v7
+      - name: Parse UI scripts
+        run: node scripts/check-ui-scripts.mjs
+      - name: Test Claude authentication UI
+        run: node scripts/test-claude-auth-ui.cjs
+      - name: Test localization
+        run: node --test scripts/test-ko-i18n.cjs
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      - name: Build
+        run: cargo build --locked
+      - name: Test
+        run: cargo test --locked
+      - name: Test Codex headline selection
+        run: node --test test-codex-headline.cjs
+      - name: Clippy report
+        continue-on-error: true
+        run: cargo clippy --all-targets --locked

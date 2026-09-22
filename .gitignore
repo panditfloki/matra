@@ -32,5 +32,6 @@ dist/
 .desktop-test/
 upstream-codenotch/
 native/target/
+artifacts/
 
 .DS_Store

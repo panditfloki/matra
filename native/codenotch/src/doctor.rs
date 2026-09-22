@@ -1,6 +1,6 @@
-//! `codenotch.exe doctor` — self-diagnosis: look instead of guessing.
+//! `matra.exe doctor` — self-diagnosis: look instead of guessing.
 //! Checks the config, port occupancy, watch roots, the newest session file and how its tail parses,
-//! and writes to stdout plus %APPDATA%\codenotch\doctor.log.
+//! and writes to stdout plus %APPDATA%\matra-notch\doctor.log.
 
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -33,7 +33,7 @@ fn age_secs(t: SystemTime) -> u64 {
 
 pub fn run() -> String {
     let mut o = String::new();
-    o += &format!("== Codenotch doctor v{} ==\n", env!("CARGO_PKG_VERSION"));
+    o += &format!("== Matra doctor v{} ==\n", env!("CARGO_PKG_VERSION"));
 
     let cfg = crate::config::load();
     o += &crate::hooks_install::diagnostics();
@@ -45,7 +45,7 @@ pub fn run() -> String {
     );
 
     match std::net::TcpListener::bind(("127.0.0.1", cfg.port)) {
-        Ok(_) => o += "port: free — no Codenotch instance is running\n",
+        Ok(_) => o += "port: free — no Matra instance is running\n",
         Err(_) => o += "port: in use — an instance is already running (quit it from the tray before starting a new build)\n",
     }
 
@@ -86,7 +86,7 @@ pub fn run() -> String {
 
     o += "\nwatch.log (the most recent watcher log, if any):\n";
     if let Some(dir) = dirs::config_dir() {
-        let p = dir.join("codenotch").join("watch.log");
+        let p = dir.join("matra-notch").join("watch.log");
         match std::fs::read_to_string(&p) {
             Ok(t) if !t.trim().is_empty() => {
                 for line in t.lines().rev().take(20).collect::<Vec<_>>().into_iter().rev() {

@@ -196,7 +196,7 @@ fn fetch_usage(cred: &Credential) -> Result<serde_json::Value, LiveErr> {
         .set("ChatGPT-Account-Id", &cred.account_id)
         .set("Accept", "application/json")
         .set("Cache-Control", "no-cache, no-store")
-        .set("User-Agent", concat!("codenotch/", env!("CARGO_PKG_VERSION"), " (Windows)"))
+        .set("User-Agent", concat!("matra/", env!("CARGO_PKG_VERSION"), " (Windows)"))
         .timeout(Duration::from_secs(15))
         .call();
     match resp {
@@ -565,7 +565,7 @@ fn read_app_server() -> Option<UsageSnapshot> {
                 if tx.send(line).is_err() { break; }
             }
         });
-        writeln!(input, "{}", serde_json::json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"codenotch","version":env!("CARGO_PKG_VERSION")}}})).ok()?;
+        writeln!(input, "{}", serde_json::json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"matra","version":env!("CARGO_PKG_VERSION")}}})).ok()?;
         input.flush().ok()?;
         let deadline = std::time::Instant::now() + Duration::from_secs(20);
         loop {

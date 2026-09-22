@@ -1,0 +1,70 @@
+name: Windows Package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "native/**"
+      - "scripts/build-native-installer.ps1"
+      - ".github/workflows/windows-package.yml"
+  pull_request:
+    paths:
+      - "native/**"
+      - "scripts/build-native-installer.ps1"
+      - ".github/workflows/windows-package.yml"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  package:
+    if: github.repository == 'panditfloki/matra' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      - name: Build the hook
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --release --locked -p codenotch-hook --target-dir target/hook
+      - name: Build the installer
+        working-directory: native/codenotch
+        run: npx --yes @tauri-apps/cli@2.11.4 build --config tauri.bundle.conf.json -- --locked
+      - name: Give the installer a stable name
+        run: |
+          $setup = @(Get-ChildItem target/release/bundle/nsis/*-setup.exe)
+          if ($setup.Count -ne 1) { throw "Expected one installer, found $($setup.Count)." }
+          Copy-Item $setup[0].FullName Matra-Setup.exe
+      - name: Install, run doctor, uninstall
+        run: |
+          Start-Process -FilePath .\Matra-Setup.exe -ArgumentList '/S' -Wait
+          $hook = Get-ChildItem $env:LOCALAPPDATA -Filter matra-hook.exe -Recurse -Depth 5 -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $hook) { throw 'The installer did not install matra-hook.exe.' }
+          $dir = $hook.DirectoryName
+          foreach ($file in 'matra.exe', 'uninstall.exe') {
+            if (-not (Test-Path (Join-Path $dir $file))) { throw "$file is missing from $dir." }
+          }
+          Start-Process -FilePath (Join-Path $dir 'matra.exe') -ArgumentList 'doctor' -RedirectStandardOutput doctor.txt -Wait
+          $doctor = "$(Get-Content doctor.txt -Raw -ErrorAction SilentlyContinue)$(Get-Content (Join-Path $env:APPDATA 'matra-notch\doctor.log') -Raw -ErrorAction SilentlyContinue)"
+          if ($doctor -notmatch 'Matra doctor') { throw "matra.exe doctor did not run: $doctor" }
+          Start-Process -FilePath (Join-Path $dir 'uninstall.exe') -ArgumentList '/S' -Wait
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Matra-Setup-${{ github.sha }}
+          path: native/Matra-Setup.exe
+          if-no-files-found: error
+      - name: Attach installer to release
+        if: github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload $env:TAG Matra-Setup.exe --clobber

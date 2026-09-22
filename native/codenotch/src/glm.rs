@@ -260,7 +260,7 @@ fn fetch(cred: &Credential) -> Result<serde_json::Value, FetchErr> {
         // looks like from here.
         .set("Authorization", &cred.token)
         .set("Accept", "application/json")
-        .set("User-Agent", concat!("codenotch/", env!("CARGO_PKG_VERSION"), " (Windows)"))
+        .set("User-Agent", concat!("matra/", env!("CARGO_PKG_VERSION"), " (Windows)"))
         .timeout(Duration::from_secs(15))
         .call();
     match resp {

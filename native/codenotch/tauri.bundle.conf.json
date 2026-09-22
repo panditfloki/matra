@@ -1,7 +1,7 @@
 {
   "bundle": {
     "resources": {
-      "../target/hook/release/codenotch-hook.exe": "codenotch-hook.exe"
+      "../target/hook/release/matra-hook.exe": "matra-hook.exe"
     }
   }
 }

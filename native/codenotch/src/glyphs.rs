@@ -1,7 +1,7 @@
 //! Provider glyphs.
 //!
 //! Rule: **no vendor logo is drawn by hand here**; only existing artwork is used, in this order:
-//!   1. User override: `%APPDATA%\codenotch\glyphs\<id>.svg|.png`, or `glyphs\` next to the exe;
+//!   1. User override: `%APPDATA%\matra-notch\glyphs\<id>.svg|.png`, or `glyphs\` next to the exe;
 //!   2. Built in: the `glyphs/*.svg` compiled into the exe, from npm `@lobehub/icons-static-svg`
 //!      1.95.0 (MIT), files unmodified; trademark notice in glyphs/NOTICE.md;
 //!   3. The installed application's own icon (PrivateExtractIconsW on the exe resources, 64 px → PNG).

@@ -16,6 +16,7 @@ _make-shortcut.ps1
 server.log
 
 # Dev-only + repo artifacts
+.github/**
 server.js
 .vscodeignore
 node_modules/**

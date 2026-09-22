@@ -1,10 +1,10 @@
 [package]
-name = "codenotch"
-version = "2.2.0-preview.12"
+name = "matra"
+version = "2.2.0"
 edition = "2021"
-description = "Codenotch for Windows — usage notch for Claude, Codex, Cursor and Antigravity"
+description = "Matra for Windows — AI usage and activity notch"
 license = "MIT"
-repository = "https://github.com/Im-Midi/codenotch-windows"
+repository = "https://github.com/panditfloki/matra"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

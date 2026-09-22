@@ -122,6 +122,7 @@
     "dev": "node server.js",
     "native:build": "cargo build --release --locked --manifest-path native/Cargo.toml",
     "native:test": "cargo test --release --locked --manifest-path native/Cargo.toml",
+    "native:bundle": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native-installer.ps1",
     "native:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-native.ps1",
     "desktop": "electron desktop/main.js",
     "desktop:build": "node scripts/build-desktop.js",

@@ -1,17 +1,67 @@
-# Mātrā — live Claude + Codex + Gemini usage UI
+# Mātrā
 
-**मात्रा** — *measure*. Your Claude and Codex plan limits, tokens and equivalent API cost in
-one local dashboard, inside VS Code or any fork (Cursor, Antigravity, Windsurf).
+**मात्रा** — *measure*. A lightweight AI usage and activity notch for Windows.
 
-- **Status bar** — live session quota (`47% · 2h 11m`), amber past 80%. Click to open the dashboard.
-- **Provider views** — switch between Claude, Codex and a provenance-preserving Combined view.
-- **Dashboard** — plan-limit bars, cost KPIs, per-day stacked token chart with per-model pricing
-  on hover, date-range tabs (All / 30d / 7d / custom), activity heatmap, streaks, per-project
-  burn, and cache hit rate.
+It stays folded into the edge of your desktop, opens on hover, and shows the limits that matter
+without becoming another dashboard window. Rings show quota pressure; the hover card explains
+each limit window and reset time; live activity shows whether an agent is working or waiting.
 
-Also runs as a plain web app at `localhost:4317`, with no IDE at all.
+## Download for Windows
+
+### [Download Mātrā 2.2 for Windows](https://github.com/panditfloki/matra/releases/latest/download/Matra-Setup.exe)
+
+The installer is named `Matra-Setup.exe` in every release, so this link always points to the newest
+Windows build. It installs for the current user and does not require administrator rights.
+
+The current installer is not code-signed. Windows SmartScreen may show **Windows protected your
+PC** on first launch; choose **More info → Run anyway**. Source and build workflow are public here.
+
+## What Mātrā watches
+
+| Provider | Reading |
+|---|---|
+| Claude Code | Session and weekly limits, account-aware activity and attention state |
+| Codex | Primary and weekly limits, including additional reported buckets |
+| Cursor | Included usage, API usage and billing-cycle reset |
+| Antigravity | Gemini/Claude/GPT quota lanes from the official CLI when available |
+| Grok | Weekly Grok Build allowance from the signed-in CLI session |
+| GLM | Z.ai Coding Plan utilization |
+
+Providers that are not installed or signed in stay out of the notch. Missing data is shown as
+missing—not invented as zero.
+
+## Product design
+
+- A thin edge notch at rest; compact, readable expansion on hover.
+- System, Light, Dark and DYDX FX glass appearances.
+- Left, right, top or bottom placement with per-edge position memory.
+- Small, medium and large sizes, optional weekly rings, tray controls and startup support.
+- Separate hover-revealed move and settings controls, without permanent desktop clutter.
+- Local-first provider reads. Credentials are borrowed from the tools that own them and are never logged.
+
+Mātrā's Windows app is adapted from the MIT-licensed Windows implementation in
+[CodeNotch](https://github.com/vinzdg/codenotch). The inverse-notch interaction, provider semantics
+and upstream notices are retained; Mātrā adds its own identity, isolation, DYDX FX themes, glass
+design and Windows release path. Exact provenance is recorded in [`native/UPSTREAM.md`](native/UPSTREAM.md).
+
+## Build the native app
+
+```powershell
+npm run native:test
+npm run native:build
+npm run native:bundle
+npm run native:install
+```
+
+The native source is under `native/`. The older Electron experiment remains under `desktop/` for
+history and is not the selected Windows implementation.
 
 ---
+
+## Legacy VS Code and local-web dashboard
+
+The original extension remains in this repository for existing users. It runs inside VS Code,
+Cursor, Antigravity or Windsurf, and can also run as a local web app at `localhost:4317`.
 
 ## It uses *your* account, automatically
 

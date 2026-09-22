@@ -11,7 +11,7 @@ pub fn start(app: AppHandle, port: u16) {
         let server = match tiny_http::Server::http(("127.0.0.1", port)) {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("[codenotch] failed to bind port {port}: {e} (is another instance running?)");
+                eprintln!("[matra] failed to bind port {port}: {e} (is another instance running?)");
                 return;
             }
         };

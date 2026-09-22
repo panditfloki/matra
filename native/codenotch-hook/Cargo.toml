@@ -2,9 +2,9 @@
 name = "codenotch-hook"
 version = "0.3.0"
 edition = "2021"
-description = "Codenotch hook launcher: report Claude Code hook events, auto-start main app"
+description = "Matra hook launcher: report Claude Code hook events, auto-start main app"
 license = "MIT"
-repository = "https://github.com/Im-Midi/codenotch-windows"
+repository = "https://github.com/panditfloki/matra"
 
 [dependencies]
 

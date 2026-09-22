@@ -505,27 +505,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e4de3bc4ea267985becf712dc6d9eed8b04c953b3fcfb339ebc87acd9804901"
 
 [[package]]
-name = "codenotch"
-version = "2.2.0-preview.12"
-dependencies = [
- "chrono",
- "dirs 5.0.1",
- "native-tls",
- "notify",
- "png 0.17.16",
- "rusqlite",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-single-instance",
- "tauri-plugin-updater",
- "tiny_http",
- "ureq",
- "windows 0.58.0",
-]
-
-[[package]]
 name = "codenotch-hook"
 version = "0.3.0"
 
@@ -2244,6 +2223,27 @@ dependencies = [
  "log",
  "tendril",
  "web_atoms",
+]
+
+[[package]]
+name = "matra"
+version = "2.2.0"
+dependencies = [
+ "chrono",
+ "dirs 5.0.1",
+ "native-tls",
+ "notify",
+ "png 0.17.16",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-updater",
+ "tiny_http",
+ "ureq",
+ "windows 0.58.0",
 ]
 
 [[package]]

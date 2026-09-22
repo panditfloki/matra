@@ -4,20 +4,24 @@ $repo = Split-Path $PSScriptRoot -Parent
 $meta = Get-Content (Join-Path $repo 'native/codenotch/tauri.conf.json') -Raw | ConvertFrom-Json
 $destination = Join-Path $env:LOCALAPPDATA ('Programs\MatraNotch\' + $meta.version)
 $source = Join-Path $repo 'native/target/release'
-foreach ($binary in @('codenotch.exe', 'matra-hook.exe')) {
+foreach ($binary in @('matra.exe', 'matra-hook.exe')) {
     if (!(Test-Path -LiteralPath (Join-Path $source $binary))) { throw "Build first: npm run native:build" }
 }
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
 # Stop only direct version children of our verified installation root.
 $installRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\MatraNotch'))
-$executable = Join-Path $destination 'codenotch.exe'
-foreach ($runningMatra in (Get-Process codenotch -ErrorAction SilentlyContinue | Where-Object {
+$executable = Join-Path $destination 'matra.exe'
+$runningCandidates = @(
+    Get-Process matra -ErrorAction SilentlyContinue
+    Get-Process codenotch -ErrorAction SilentlyContinue
+)
+foreach ($runningMatra in ($runningCandidates | Where-Object {
     $_.Path -and ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($_.Path))) -eq $installRoot)
 })) {
     Stop-Process -InputObject $runningMatra
     if (!$runningMatra.WaitForExit(10000)) { throw 'Matra did not exit; installation stopped.' }
 }
-Copy-Item -LiteralPath (Join-Path $source 'codenotch.exe') -Destination $destination -Force
+Copy-Item -LiteralPath (Join-Path $source 'matra.exe') -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $source 'matra-hook.exe') -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $repo 'native/LICENSE') -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $repo 'native/UPSTREAM.md') -Destination $destination -Force
@@ -63,7 +67,7 @@ if (!$NoLaunch) {
     if(Test-Path -LiteralPath $configPath){$currentConfig=Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json;if($currentConfig.port){$eventPort=[int]$currentConfig.port}}
     $listener=Get-NetTCPConnection -LocalPort $eventPort -State Listen -ErrorAction SilentlyContinue
     if (!($listener | Where-Object OwningProcess -EQ $verified.Id)) {throw "New version does not own its event port $eventPort."}
-    $sourceHash=(Get-FileHash -LiteralPath (Join-Path $source 'codenotch.exe')).Hash
+    $sourceHash=(Get-FileHash -LiteralPath (Join-Path $source 'matra.exe')).Hash
     if ((Get-FileHash -LiteralPath $verified.Path).Hash -ne $sourceHash) {throw 'Running executable hash does not match build.'}
     Write-Output "Verified running: PID=$($verified.Id) $($verified.Path)"
 }

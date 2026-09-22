@@ -39,7 +39,7 @@ pub fn show(app: &AppHandle, screen: &crate::Screen, zones: &Zones) {
     // to where the notch may actually land is what keeps a zone's promise true on the taskbar's edge.
     let (ax, ay, aw, ah) = screen.area();
     let builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("dropzones.html".into()))
-        .title("Codenotch drop zones")
+        .title("Matra drop zones")
         .position(ax as f64 / screen.scale, ay as f64 / screen.scale)
         .inner_size(aw as f64 / screen.scale, ah as f64 / screen.scale)
         .decorations(false)

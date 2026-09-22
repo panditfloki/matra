@@ -1,6 +1,6 @@
-# Codenotch for Windows
+# Mātrā for Windows
 
-A Windows port of [Codenotch](https://github.com/vinzdg/codenotch) — the usage notch that
+A DYDX FX adaptation of [CodeNotch](https://github.com/vinzdg/codenotch) — the usage notch that
 sits on the edge of your screen and answers two questions at a glance:
 **how much of my AI allowance is left**, and **is Claude still working**.
 
@@ -91,50 +91,25 @@ shows an error or the last reading marked stale. Codenotch does not automate sig
 
 ## Install / build
 
-Download [`Codenotch-Setup.exe`](https://github.com/vinzdg/codenotch/releases/latest/download/Codenotch-Setup.exe)
+Download [`Matra-Setup.exe`](https://github.com/panditfloki/matra/releases/latest/download/Matra-Setup.exe)
 from the latest release. It installs for the current user without administrator rights, puts
-`codenotch-hook.exe` beside the app where **Install hooks** looks for it, and fetches WebView2 if
+`matra-hook.exe` beside the app where **Install hooks** looks for it, and fetches WebView2 if
 Windows does not already have it. The installer is not code-signed, so SmartScreen stops it the
 first time with *Windows protected your PC*: choose **More info**, then **Run anyway**.
 
 ### Updates
 
-Codenotch looks for a newer release about twenty seconds after it starts, and again whenever
-**Check for updates** is pressed in Settings → General. The feed is `latest.json` on the newest
-release, written by the Windows Package workflow beside the installer it describes, so publishing
-a release is the whole of shipping an update.
-
-Nothing about this nags. A check that fails — no network, an unreachable feed — leaves the app
-as it was and says so only next to the version. There is no dialogue and no badge.
-
-The download is a minisign-signed archive, and the signature is checked against the public key in
-`tauri.conf.json` before anything is run. This is what stands in for code signing here: the
-installer itself is unsigned, so SmartScreen still warns on a first manual install, but an update
-delivered to an already-installed copy is verified.
-
-Before the first signed release, the key has to exist:
-
-```powershell
-npx --yes @tauri-apps/cli@2.11.4 signer generate -w $env:USERPROFILE\.tauri\codenotch.key
-```
-
-Put the **private** key in the repository secret `TAURI_SIGNING_PRIVATE_KEY` and its password in
-`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and paste the **public** key into `plugins.updater.pubkey`
-in `codenotch/tauri.conf.json`, replacing `REPLACE_WITH_TAURI_PUBLIC_KEY`. Until that is done the
-app skips the check entirely rather than reporting a failure nobody can act on; the packaging job
-builds an ordinary installer and warns that it made no feed, and a `v*` release fails loudly rather
-than going out with an update path nobody can use.
-
-Keep the private key. Losing it means no installed copy can be updated again, because every one of
-them checks against the public key it shipped with — they would all have to reinstall by hand.
+Automatic updates stay disabled until Mātrā has a dedicated Tauri signing key and published update
+feed. For now, download the newest `Matra-Setup.exe` from the latest GitHub release. The stable asset
+name means the download link does not change between versions.
 
 To build from source instead — prerequisites: Rust (MSVC toolchain), WebView2 runtime (ships with Windows 11).
 
 ```powershell
 # from this directory (the repo root here; `windows/` inside the upstream repo)
 cargo build --release
-.\target\release\codenotch.exe          # pill appears on the right edge of the primary monitor
-.\target\release\codenotch.exe doctor   # self-diagnosis: credentials, data sources, icons, hooks
+.\target\release\matra.exe          # pill appears on the right edge of the primary monitor
+.\target\release\matra.exe doctor   # self-diagnosis: credentials, data sources, icons, hooks
 ```
 
 To build the installer the way the Windows Package workflow does:
@@ -144,7 +119,7 @@ To build the installer the way the Windows Package workflow does:
 cargo build --release --locked -p codenotch-hook --target-dir target/hook
 cd codenotch
 npx @tauri-apps/cli@2 build --config tauri.bundle.conf.json
-# → ..\target\release\bundle\nsis\Codenotch_<version>_x64-setup.exe
+# → ..\target\release\bundle\nsis\dy-dx.f(Mātrā)_<version>_x64-setup.exe
 ```
 
 Tray menu: the readings themselves — a line per provider with its headline figure, and under it
@@ -152,7 +127,7 @@ one line per limit window — then **Refresh all**, **Settings…** and **Quit C
 provider's line re-reads that provider. Everything else is in the settings window: which rings the
 notch shows, its size, the weekly ring, which screen edge it sits on and which screen,
 start with Windows, the language, Claude Code hooks, reset
-position, and the data folder (`%APPDATA%\codenotch` — logs, persisted readings, icon overrides).
+position, and the data folder (`%APPDATA%\matra-notch` — logs, persisted readings, icon overrides).
 
 Notch: clicking a ring re-reads that provider, as on the Mac. Right-clicking the notch or its card
 offers **Refresh now**, the provider's usage page (**Open claude.ai**, **Open chatgpt.com**, …) and
@@ -178,7 +153,7 @@ attached falls back to the primary one, so unplugging a screen cannot strand the
 
 Provider marks are the SVGs from [`@lobehub/icons-static-svg`](https://github.com/lobehub/lobe-icons)
 (MIT), embedded unmodified — see `codenotch/glyphs/NOTICE.md`. Drop your own
-`claude|codex|cursor|gemini.svg` (or `.png`) into `%APPDATA%\codenotch\glyphs\` to override.
+`claude|codex|cursor|gemini.svg` (or `.png`) into `%APPDATA%\matra-notch\glyphs\` to override.
 The marks remain the trademarks of their owners.
 
 ### Translations
@@ -218,11 +193,12 @@ inside forks until the pull request is opened here.
 
 ## Relationship to upstream
 
-This port follows the upstream design and provider semantics. It is developed at
-[Im-Midi/codenotch-windows](https://github.com/Im-Midi/codenotch-windows) and offered to the
-upstream project as its `windows/` tree; the two are kept in sync. Session detection
-originated in [Im-Midi/Pac-Man](https://github.com/Im-Midi/Pac-Man) (MIT).
+Mātrā follows the upstream design and provider semantics. Its Windows foundation comes from
+[CodeNotch](https://github.com/vinzdg/codenotch), including the Windows work developed by
+[Im-Midi/codenotch-windows](https://github.com/Im-Midi/codenotch-windows). The exact imported
+revision and Mātrā-specific changes are documented in `UPSTREAM.md`. Session detection originated
+in [Im-Midi/Pac-Man](https://github.com/Im-Midi/Pac-Man) (MIT).
 
 ## License
 
-MIT — see `LICENSE`. The Codenotch design and name belong to the upstream author.
+MIT — see `LICENSE`. CodeNotch attribution and third-party notices are retained.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "dy-dx.f(Mātrā)",
-  "version": "2.2.0-preview.12",
+  "version": "2.2.0",
   "identifier": "com.dydxfx.matra.notch",
   "build": {
     "frontendDist": "ui"

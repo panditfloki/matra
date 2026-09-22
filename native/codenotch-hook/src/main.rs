@@ -1,4 +1,4 @@
-//! codenotch-hook: the minimal client Claude Code's hooks call.
+//! matra-hook: the minimal client Claude Code's hooks call.
 //! Duties: 1) report the event plus stdin JSON to the main app; 2) launch the main app if it is not running.
 //! Iron rule: never block Claude Code — ~2 s total budget, and every failure exits 0 silently.
 
@@ -77,7 +77,7 @@ fn send(port: u16, event: &str, ppid: u32, body: &str) -> std::io::Result<()> {
 fn spawn_main() {
     let Ok(me) = std::env::current_exe() else { return };
     let Some(dir) = me.parent() else { return };
-    let exe = dir.join("codenotch.exe");
+    let exe = dir.join("matra.exe");
     if !exe.exists() {
         return;
     }

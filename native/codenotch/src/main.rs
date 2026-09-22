@@ -1605,7 +1605,9 @@ fn ack_scan(app: &AppHandle) -> bool {
     }
     let maps = focus::proc_maps();
     let fg_name = maps.name.get(&fg).cloned().unwrap_or_default();
-    let fg_is_claude_desktop = fg_name.contains("claude") && !fg_name.contains("codenotch");
+    let fg_is_claude_desktop = fg_name.contains("claude")
+        && !fg_name.contains("codenotch")
+        && !fg_name.contains("matra");
     let st = app.state::<AppState>();
     let mut store = st.store.lock().unwrap();
     store.ack_done(|s| {
@@ -1671,7 +1673,7 @@ fn main() {
                 let r = match args.get(2).map(|s| s.as_str()) {
                     Some("on") => autostart::enable(),
                     Some("off") => autostart::disable(),
-                    _ => Err("usage: codenotch.exe autostart on|off".into()),
+                    _ => Err("usage: matra.exe autostart on|off".into()),
                 };
                 report(r);
                 return;
@@ -1830,7 +1832,7 @@ fn main() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("Codenotch failed to start");
+        .expect("Matra failed to start");
 }
 
 #[cfg(test)]
