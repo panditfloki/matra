@@ -66,6 +66,10 @@ html[data-matra-theme] body[data-edge="bottom"] #pill::after{background:radial-g
 .matra-about strong{font-size:22px;font-weight:600}
 .matra-about p{margin:3px 0 6px;color:var(--matra-text);font-size:13px}
 .matra-about small{font-family:Consolas,monospace;font-size:11px;color:var(--matra-muted)}
+.matra-update-row{flex-wrap:wrap;gap:8px}
+.matra-update-row #btn-update{margin-left:auto}
+.matra-update-row #update-status{flex-basis:100%;font-size:12px;white-space:normal;text-align:left}
+.matra-update-row progress{width:100%;height:5px;accent-color:var(--matra-accent)}
 /* Explicit material choice: only Glass uses transparent surfaces. */
 html[data-matra-material="solid"]{--matra-glass:var(--matra-bg);--matra-card-glass:var(--matra-card);--pane:var(--matra-card);--side:var(--matra-bg);--group:var(--matra-ring)}
 html[data-matra-material="solid"] #pill,html[data-matra-material="solid"] #rest,html[data-matra-material="solid"] .h-disc{background:var(--matra-bg);backdrop-filter:none;box-shadow:none}
@@ -100,6 +104,13 @@ html[data-matra-theme] .handle .h-disc,html[data-matra-theme] .handle .h-glyph{t
 html[data-matra-theme] .handle:not(.hover):not(.armed) .h-disc,html[data-matra-theme] .handle:not(.hover):not(.armed) .h-glyph{transform:scale(.88)}
 @media(prefers-reduced-motion:reduce){html[data-matra-theme] .handle,html[data-matra-theme] .handle>*{transition:none}}
 html[data-matra-theme] #move{cursor:grab}
+html[data-matra-theme] .handle .matra-control-icon{fill:none!important;stroke:var(--matra-muted);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+html[data-matra-theme] .handle.hover .matra-control-icon{stroke:var(--matra-accent)}
+.ringwrap .feedback{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;transform-origin:center}
+.ringwrap .feedback circle{fill:none;stroke:var(--matra-text);stroke-width:1.8;stroke-linecap:round;stroke-dasharray:25 114}
+.ringwrap.reading-updated .feedback{opacity:1;animation:matra-complete 1s steps(18) both}
+@keyframes matra-complete{0%{transform:rotate(-90deg);opacity:0}15%{opacity:1}85%{opacity:1}100%{transform:rotate(270deg);opacity:0}}
+@media(prefers-reduced-motion:reduce){.ringwrap.reading-updated .feedback{animation:none;opacity:.75}.ringwrap.reading-updated .feedback circle{stroke-dasharray:none}}
 html[data-matra-theme] #move.armed{cursor:grabbing}
 html[data-matra-theme] #move.armed .h-disc{border:1px solid var(--matra-accent)}
 html[data-matra-theme] #side .row[aria-selected="true"]{background:var(--sel-soft)}

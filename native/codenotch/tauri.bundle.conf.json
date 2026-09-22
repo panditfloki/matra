@@ -1,7 +1,10 @@
 {
   "bundle": {
     "resources": {
-      "../target/hook/release/matra-hook.exe": "matra-hook.exe"
+      "../target/hook/release/matra-hook.exe": "matra-hook.exe",
+      "../../LICENSE": "LICENSE.txt",
+      "../LICENSE": "THIRD-PARTY-NOTICES.txt",
+      "glyphs/NOTICE.md": "PROVIDER-NOTICES.txt"
     }
   }
 }

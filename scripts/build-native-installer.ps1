@@ -37,3 +37,6 @@ Copy-Item -LiteralPath $setups[0].FullName -Destination $output -Force
 
 Write-Output "Installer: $output"
 Get-FileHash -LiteralPath $output -Algorithm SHA256
+$checksum = (Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash.ToLowerInvariant()
+[IO.File]::WriteAllText((Join-Path $artifactDir 'SHA256SUMS.txt'), "$checksum  Matra-Setup.exe`r`n", (New-Object Text.UTF8Encoding($false)))
+& (Join-Path $PSScriptRoot 'prepare-share-folder.ps1') -Installer $output -Version $meta.version

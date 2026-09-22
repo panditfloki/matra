@@ -235,9 +235,9 @@
       <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
     </svg>
     <div class="h-disc"></div>
-    <!-- A hand, as on the Mac: the gesture is a carry, not a nudge, which is what arrows would say -->
-    <svg class="h-glyph" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="8" cy="5" r="2"/><circle cx="16" cy="5" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="19" r="2"/><circle cx="16" cy="19" r="2"/>
+    <!-- Compact grip, sharing the settings sliders' geometry and stroke weight. -->
+    <svg class="h-glyph matra-control-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 8h10M7 12h10M7 16h10"/>
     </svg>
   </div>
   <div id="orb" class="handle">
@@ -246,12 +246,13 @@
       <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
     </svg>
     <div class="h-disc"></div>
-    <svg class="h-glyph" viewBox="0 0 12 12" aria-hidden="true"><path fill-rule="evenodd" d="M5.1.6h1.8l.3 1.5 1.1.5 1.3-.8 1.3 1.3-.8 1.3.5 1.1 1.5.3v1.8l-1.5.3-.5 1.1.8 1.3-1.3 1.3-1.3-.8-1.1.5-.3 1.5H5.1l-.3-1.5-1.1-.5-1.3.8-1.3-1.3.8-1.3-.5-1.1L.6 6.9V5.1l1.5-.3.5-1.1-.8-1.3 1.3-1.3 1.3.8 1.1-.5zM6 4.1a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8z"/></svg>
+    <svg class="h-glyph matra-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h3m4 0h7M5 16h7m4 0h3"/><circle cx="10" cy="8" r="2"/><circle cx="14" cy="16" r="2"/></svg>
   </div>
   <div id="pill"></div><!-- one .cell per provider, stacked vertically (upstream: data-driven, the same layout for 1–5 cells) -->
   <div id="rest"></div><!-- after the pill, so its outline is drawn over the clipped pill -->
   <div id="notice"></div>
 </div>
+<script src="matra-motion.js"></script>
 <script>
 const invoke = window.__TAURI__.core.invoke;
 const listen = window.__TAURI__.event.listen;
@@ -994,6 +995,48 @@ function weeklyOf(snap,id){
 // "old enough not to trust". A provider that knows its own reading is stale still says so in status.
 function staleOf(snap){ if(snap.status==='stale') return true; return snap.fetched_at>0 && (Date.now()-snap.fetched_at)>15*60*1000; }
 let stateSnap={sessions:[],agg:'idle'};
+const motionTracker = new window.MatraMotionTracker();
+let peekUntil=0, peekStarted=0, peekTimer=null;
+const feedbackTimers = new Map(), completionRefresh = new Map();
+function peekReading(){
+  if(!onHover || carrying || dragging || menuOpen) return;
+  const now=Date.now(); if(now>=peekUntil) peekStarted=now;
+  peekUntil=Math.min(now+1800,peekStarted+3500);
+  unfold(); clearTimeout(peekTimer);
+  peekTimer=setTimeout(()=>{peekUntil=0;scheduleFold();},Math.max(0,peekUntil-now));
+}
+function ringFeedback(id, label){
+  const cell=Array.from(pill.querySelectorAll('.cell')).find(c=>c.dataset.p===id);
+  if(!cell) return;
+  const wrap=cell.querySelector('.ringwrap'); clearTimeout(feedbackTimers.get(id));
+  wrap.classList.remove('reading-updated'); void wrap.offsetWidth; wrap.classList.add('reading-updated');
+  wrap.setAttribute('aria-label',label);
+  feedbackTimers.set(id,setTimeout(()=>{wrap.classList.remove('reading-updated');wrap.removeAttribute('aria-label');feedbackTimers.delete(id);},1100));
+  peekReading();
+}
+function receiveSessionState(next){
+  const started=stateSnap.agg!=='running'&&next.agg==='running'&&motionTracker.initialized;
+  const completed=motionTracker.claude(next.sessions);
+  stateSnap=next;setUiLanguage(stateSnap.lang_resolved);renderRing();
+  if(started) peekReading();
+  if(completed){
+    for(const p of providers().filter(p=>p.base==='claude')) ringFeedback(p.id,'Claude turn complete. Waiting for refreshed usage.');
+    const now=Date.now();
+    if(now-(completionRefresh.get('claude')||0)>30000){completionRefresh.set('claude',now);invoke('refresh_ring',{provider:'claude'}).catch(()=>{});}
+  }
+}
+function receiveActivity(next){
+  const wasBusy=new Set(activity.filter(a=>a.state==='busy').map(a=>a.provider));
+  const started=motionTracker.activityInitialized&&next.some(a=>a.state==='busy'&&!wasBusy.has(a.provider));
+  const completed=motionTracker.activity(next);
+  activity=next;renderRing();
+  if(started) peekReading();
+  for(const base of completed){
+    for(const p of providers().filter(p=>p.base===base)) ringFeedback(p.id,`${p.name} turn complete. Waiting for refreshed usage.`);
+    const now=Date.now();
+    if(now-(completionRefresh.get(base)||0)>30000){completionRefresh.set(base,now);invoke('refresh_ring',{provider:base}).catch(()=>{});}
+  }
+}
 
 function svgArc(r,frac,color,width,extra=''){
   // Nothing at all at zero: a zero-length dash still paints a dot once the caps are round, where the
@@ -1013,7 +1056,7 @@ function renderRing(){
   const want=ps.map(p=>p.id+':'+(glyphs[p.base]?glyphs[p.base].kind:'-')).join(',');
   if(pill.dataset.cells!==want){
     pill.innerHTML=ps.map((p,i)=>`<div class="cell" data-p="${p.id}" style="--i:${i}">
-      <div class="ringwrap"><svg class="ring" viewBox="0 0 56 56"></svg><svg class="reading" viewBox="0 0 56 56"></svg><svg class="activity" viewBox="0 0 56 56"></svg><div class="glyph ${(!glyphs[p.base]&&p.glyph.length>1)?'small':''}">${glyphHtml(p)}</div></div>
+      <div class="ringwrap"><svg class="ring" viewBox="0 0 56 56"></svg><svg class="reading" viewBox="0 0 56 56"></svg><svg class="activity" viewBox="0 0 56 56"></svg><svg class="feedback" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="22"/></svg><div class="glyph ${(!glyphs[p.base]&&p.glyph.length>1)?'small':''}">${glyphHtml(p)}</div></div>
       <div class="pct">—</div></div>`).join('');
     pill.dataset.cells=want;
   }
@@ -1025,6 +1068,15 @@ function renderRing(){
     let inner=`<circle cx="28" cy="28" r="33" fill="var(--matra-ring)"/><circle class="quota-track" cx="28" cy="28" r="25" fill="none" stroke="${TRACK}" stroke-width="5.1" ${available?'':'stroke-dasharray="3 4"'}/>`;
     wrap.classList.toggle('pressed',!!refreshing[p.id]);
     reading.innerHTML=available?svgArc(25,Math.min(h.used,1),tone(h.used),5.1,'class="quota-current"'):'';
+    const delta=motionTracker.reading(p.id,h&&h.id,available?h.used:NaN,available&&p.snap.status==='ok'&&!staleOf(p.snap));
+    if(delta){
+      const arc=reading.querySelector('.quota-current');
+      if(arc&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+        const c=2*Math.PI*25;
+        arc.animate([{strokeDasharray:`${c*Math.min(delta.from,1)} ${c}`},{strokeDasharray:`${c*Math.min(delta.to,1)} ${c}`}],{duration:650,easing:'ease-out'});
+      }
+      ringFeedback(p.id,`${p.name} usage updated to ${pctText(h.used)}%.`);
+    }
     if(weeklyRing!=='off'){ // the week, thinner and at its own radius, in its own colour: a session at 12% beside a week at 91% is the case this exists for
       const wk=weeklyOf(p.snap,p.base);
       // Inside, it shares the gap with the working indicator, so it stands down while that is showing
@@ -1510,7 +1562,7 @@ listen('move_end',()=>{ carrying=false; moveHandle.classList.remove('armed'); se
    never folds mid-carry, mid-drag or under the right-click menu, all of which take the pointer off the
    notch on purpose — folding under them is what #239's reviewers caught, so it is ruled out here. */
 const FOLD_GRACE=450; // NotchWindowController.foldGrace
-function foldAllowed(){ return onHover&&!pointerIn&&!carrying&&!dragging&&!menuOpen; }
+function foldAllowed(){ return onHover&&!pointerIn&&!carrying&&!dragging&&!menuOpen&&Date.now()>=peekUntil; }
 function setFolded(f){
   if(f===folded) return;
   folded=f;
@@ -1533,7 +1585,7 @@ invoke('get_move_handle').then(v=>{ showMove=v!==false; reportHot(); }).catch(()
 
 listen('usage',e=>{usage=e.payload||usage;claudeActionMessage='';settle('claude');renderRing();if(card.classList.contains('show'))renderCard();})
   .catch(e=>notice('listen(usage) failed: '+e));
-listen('state',e=>{stateSnap=e.payload||stateSnap;setUiLanguage(stateSnap.lang_resolved);renderRing();if(card.classList.contains('show'))renderCard();})
+listen('state',e=>{receiveSessionState(e.payload||stateSnap);if(card.classList.contains('show'))renderCard();})
   .catch(e=>notice('listen(state) failed: '+e));
 listen('notice',e=>notice(e.payload)).catch(()=>{});
 listen('codex',e=>{codexSnap=e.payload||codexSnap;settle('codex');renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
@@ -1557,8 +1609,8 @@ invoke('get_weekly_ring').then(v=>{if(typeof v==='string'){weeklyRing=v;renderRi
 listen('weekly_ring',e=>{if(typeof e.payload==='string'){weeklyRing=e.payload;renderRing();}}).catch(()=>{});
 listen('antigravity_prefs',e=>{if(e.payload){agPrefs=e.payload;renderRing();}}).catch(()=>{});
 listen('glyphs',e=>{glyphs=e.payload||glyphs;renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
-listen('activity',e=>{activity=e.payload||activity;renderRing();if(card.classList.contains('show'))renderCard();}).catch(()=>{});
-invoke('get_activity').then(a=>{activity=a||activity;renderRing();}).catch(()=>{});
+listen('activity',e=>{receiveActivity(e.payload||activity);if(card.classList.contains('show'))renderCard();}).catch(()=>{});
+invoke('get_activity').then(a=>receiveActivity(a||activity)).catch(()=>{});
 invoke('get_glyphs').then(g=>{glyphs=g||glyphs;renderRing();}).catch(()=>{});
 // The edge: pushed on every placement (a drag that snapped elsewhere, or Settings), and asked for once
 // at startup in case the placement happened before this page was listening.
@@ -1568,7 +1620,7 @@ listen('notch_edge',e=>applyEdge(e.payload)).catch(()=>{});
 invoke('get_notch_edge').then(e=>{applyEdge(e);reportDpr();}).catch(()=>reportDpr());
 invoke('get_codex').then(u=>{codexSnap=u||codexSnap;renderRing();}).catch(()=>{});
 invoke('get_usage').then(u=>{usage=u||usage;renderRing();}).catch(e=>notice('get_usage failed: '+e));
-invoke('get_state').then(s=>{stateSnap=s||stateSnap;setUiLanguage(stateSnap.lang_resolved);renderRing();}).catch(()=>{});
+invoke('get_state').then(s=>receiveSessionState(s||stateSnap)).catch(()=>{});
 setInterval(renderRing,30_000); // stale state and reset copy move with time
 setInterval(async()=>{
   if(!claudeAuth.busy&&!(hoverId==='claude'&&card.classList.contains('show'))) return;

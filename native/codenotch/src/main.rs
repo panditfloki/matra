@@ -1721,6 +1721,7 @@ fn main() {
             get_claude_auth,
             updater::get_update_state,
             updater::check_for_update,
+            updater::download_update,
             updater::install_update,
             get_codex,
             get_cursor,
@@ -1771,7 +1772,8 @@ fn main() {
             dropzones::get_zones,
             settings_window::get_system_look,
             settings_window::quit_app,
-            settings_window::open_author_page
+            settings_window::open_author_page,
+            settings_window::open_github_page
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

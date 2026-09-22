@@ -117,6 +117,7 @@
 <link rel="stylesheet" href="matra-theme.css">
 <link rel="icon" href="matra-logo.png">
 <script src="matra-copy.js"></script>
+<script src="matra-update-view.js"></script>
 <script defer src="matra-theme.js"></script>
 </head>
 <body>
@@ -201,15 +202,15 @@
           <div class="item"><span>Open Codenotch at login</span><button class="switch" id="sw-autostart" role="switch" aria-checked="false" aria-label="Open Codenotch at login"></button></div>
           <div class="item cap">Codenotch opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open Codenotch yourself.</div>
           <div class="item"><span>Version</span><span class="value" id="about-version" data-dynamic>Unavailable</span></div>
-          <div class="item"><span>Updates</span><span class="value" id="update-status" data-dynamic></span><button class="btn" id="btn-update" data-dynamic>Check for updates</button></div>
-          <div class="item cap">Automatic updates are disabled for this Mātrā preview. Install locally reviewed builds from the Mātrā repository.</div>
+          <div class="item matra-update-row"><span>Updates</span><button class="btn" id="btn-update" data-dynamic>Check for updates</button><span class="value" id="update-status" role="status" aria-live="polite" data-dynamic></span><progress id="update-progress" max="100" hidden aria-label="Update download progress"></progress></div>
+          <div class="item cap">Checks the Mātrā GitHub release. Download first, then choose Install &amp; restart. Setup shows installation progress. SHA-256 verifies the download; the installer is not publisher-signed.</div>
         </div>
         <div class="group">
           <div class="item"><span>Data folder</span><button class="btn" id="btn-data">Open folder</button></div>
           <div class="item cap">Everything Codenotch remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.</div>
         </div>
         <div class="group">
-          <div class="item cap"><span>Developed by</span> <button class="link" id="author" title="https://github.com/panditfloki">Pandit Floki</button><br><span>github.com/panditfloki</span></div>
+          <div class="item cap"><span>Developed by</span> <a class="link" id="author" href="https://x.com/panditftw" title="Pandit Floki on X">Pandit Floki</a><br><a class="link" id="github" href="https://github.com/panditfloki" title="Pandit Floki on GitHub">GitHub</a></div>
           <div class="item cap">Based on CodeNotch by vinzdg and the Windows port by Im-Midi and contributors. Original MIT notices are included with this app.</div>
         </div>
       </section>
@@ -1372,8 +1373,13 @@ document.getElementById('lang').addEventListener('change', e => {
 document.getElementById('btn-data').addEventListener('click', () => {
   invoke('open_data_dir').catch(e => strip('open_data_dir failed: ' + errText(e)));
 });
-document.getElementById('author').addEventListener('click', () => {
+document.getElementById('author').addEventListener('click', e => {
+  e.preventDefault();
   invoke('open_author_page').catch(e => strip('open_author_page failed: ' + errText(e)));
+});
+document.getElementById('github').addEventListener('click', e => {
+  e.preventDefault();
+  invoke('open_github_page').catch(e => strip('open_github_page failed: ' + errText(e)));
 });
 (function realVersion(){
   const api = window.__TAURI__ && window.__TAURI__.app;
@@ -1389,26 +1395,19 @@ document.getElementById('author').addEventListener('click', () => {
    was asked for rather than interrupting anything. */
 const updBtn = document.getElementById('btn-update');
 const updStatus = document.getElementById('update-status');
+let updateAction = 'check_for_update';
 function renderUpdate(st){
-  st = st || {};
-  const busy = !!(st.checking || st.installing);
-  updBtn.disabled = busy;
-  if(st.installing){ updStatus.textContent = ui('Installing…', 'Installing…'); updBtn.textContent = ui('Update', 'Update'); return; }
-  if(st.checking){ updStatus.textContent = ui('Checking…', 'Checking…'); updBtn.textContent = ui('Check for updates', 'Check for updates'); return; }
-  if(st.available){
-    // The version is a number, so it is shown as one rather than translated into a sentence.
-    updStatus.textContent = st.available;
-    updBtn.textContent = ui('Update', 'Update');
-    return;
-  }
-  updStatus.textContent = st.message ? ui('Could not check for updates', 'Could not check for updates')
-                                     : ui('Up to date', 'Up to date');
-  updBtn.textContent = ui('Check for updates', 'Check for updates');
+  const view = window.matraUpdateView(st);
+  updateAction = view.command; updBtn.disabled = view.busy;
+  updBtn.textContent = view.button; updStatus.textContent = view.message;
+  const progress = document.getElementById('update-progress');
+  progress.hidden = view.phase !== 'downloading';
+  if(view.percent == null) progress.removeAttribute('value'); else progress.value = view.percent;
 }
 updBtn.addEventListener('click', () => {
-  const available = updStatus.textContent && updBtn.textContent === ui('Update', 'Update');
-  invoke(available ? 'install_update' : 'check_for_update')
-    .catch(e => strip('update failed: ' + errText(e)));
+  if(updBtn.disabled) return;
+  updBtn.disabled = true;
+  invoke(updateAction).catch(e => renderUpdate({phase:'error', message:'Could not start update action: '+errText(e)}));
 });
 invoke('get_update_state').then(renderUpdate).catch(() => {});
 try { window.__TAURI__.event.listen('update_state', e => renderUpdate(e.payload)); }

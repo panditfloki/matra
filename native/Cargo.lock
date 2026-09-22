@@ -2227,7 +2227,7 @@ dependencies = [
 
 [[package]]
 name = "matra"
-version = "1.8.1"
+version = "1.8.2"
 dependencies = [
  "chrono",
  "dirs 5.0.1",
@@ -2235,14 +2235,17 @@ dependencies = [
  "notify",
  "png 0.17.16",
  "rusqlite",
+ "semver",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
  "tiny_http",
  "ureq",
+ "url",
  "windows 0.58.0",
 ]
 

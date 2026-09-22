@@ -128,7 +128,7 @@
     "desktop:build": "node scripts/build-desktop.js",
     "desktop:smoke": "electron desktop/main.js --smoke-test",
     "package": "vsce package",
-    "test": "node --test test/*.test.js && node native/scripts/check-ui-scripts.mjs && node native/scripts/test-claude-auth-ui.cjs && node native/scripts/test-ko-i18n.cjs && node native/test-codex-headline.cjs"
+    "test": "node --test test/*.test.js && node native/scripts/check-ui-scripts.mjs && node native/scripts/test-claude-auth-ui.cjs && node native/scripts/test-ko-i18n.cjs && node native/test-codex-headline.cjs && node native/scripts/test-matra-interactions.cjs"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",

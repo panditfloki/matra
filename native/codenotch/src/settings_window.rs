@@ -73,17 +73,29 @@ pub fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
-/// The credit line's link, as on the Mac.
+const AUTHOR_URL: &str = "https://x.com/panditftw";
+const GITHUB_URL: &str = "https://github.com/panditfloki";
+
+/// Fixed destinations only; renderer input cannot become a shell argument.
 #[tauri::command]
-pub fn open_author_page() {
+pub fn open_author_page() -> Result<(), String> {
+    open_credit_page(AUTHOR_URL)
+}
+
+#[tauri::command]
+pub fn open_github_page() -> Result<(), String> {
+    open_credit_page(GITHUB_URL)
+}
+
+fn open_credit_page(url: &'static str) -> Result<(), String> {
     let mut cmd = std::process::Command::new("cmd");
-    cmd.args(["/C", "start", "", "https://github.com/panditfloki"]);
+    cmd.args(["/C", "start", "", url]);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000);
     }
-    let _ = cmd.spawn();
+    cmd.spawn().map(|_| ()).map_err(|e| format!("Could not open browser: {e}"))
 }
 
 fn has_mica() -> bool {
@@ -147,6 +159,15 @@ fn reg_string(_key: &str, _value: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::palette;
+
+    #[test]
+    fn credit_destinations_match_visible_links() {
+        let html = include_str!("../ui/settings.html");
+        assert_eq!(super::AUTHOR_URL, "https://x.com/panditftw");
+        assert_eq!(super::GITHUB_URL, "https://github.com/panditfloki");
+        assert!(html.contains(&format!("id=\"author\" href=\"{}\"", super::AUTHOR_URL)));
+        assert!(html.contains(&format!("id=\"github\" href=\"{}\"", super::GITHUB_URL)));
+    }
 
     #[test]
     fn the_palette_reads_seven_colours_and_drops_the_alpha_byte() {

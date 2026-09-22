@@ -35,7 +35,7 @@ const ANTIGRAVITY_STALE_MS: u64 = 45_000;
 pub struct Activity {
     /// Provider id other than claude: codex / cursor / gemini
     pub provider: String,
-    /// busy | waiting
+    /// busy | waiting | done (explicit completion only)
     pub state: String,
     pub name: String,
     pub detail: String,
@@ -205,6 +205,7 @@ enum CodexStep {
     Thinking,
     AsstMsg,
     Aborted,
+    Complete,
 }
 
 fn codex_last_step(text: &str) -> Option<(CodexStep, u64)> {
@@ -232,7 +233,8 @@ fn codex_last_step(text: &str) -> Option<(CodexStep, u64)> {
                 _ => None,
             },
             "event_msg" => match pt {
-                "turn_aborted" | "task_complete" => Some(CodexStep::Aborted), // newer builds do write task_complete: an explicit end
+                "turn_aborted" => Some(CodexStep::Aborted),
+                "task_complete" => Some(CodexStep::Complete),
                 "task_started" | "item_started" | "exec_command_begin" => Some(CodexStep::Thinking),
                 "user_message" => Some(CodexStep::Thinking),
                 "agent_message" => Some(CodexStep::AsstMsg),
@@ -338,7 +340,7 @@ fn codex_activity(ctx: &mut Ctx) -> Vec<Activity> {
         return ctx
             .rollout_last
             .iter()
-            .filter(|a| now.saturating_sub(a.since) <= 10 * 60_000)
+            .filter(|a| now.saturating_sub(a.since) <= if a.state == "done" { 10_000 } else { 10 * 60_000 })
             .cloned()
             .collect();
     }
@@ -352,10 +354,12 @@ fn codex_activity(ctx: &mut Ctx) -> Vec<Activity> {
                 CodexStep::Tool => quiet <= 10 * 60_000,
                 CodexStep::Thinking => quiet <= 120_000,
                 CodexStep::AsstMsg => quiet <= 4_000,
-                CodexStep::Aborted => false,
+                CodexStep::Aborted | CodexStep::Complete => false,
             };
             if busy {
                 ctx.rollout_last = vec![Activity { provider: "codex".into(), state: "busy".into(), name: "Codex".into(), detail: "Working".into(), since: at }];
+            } else if step == CodexStep::Complete && ts > 0 && now.saturating_sub(ts) <= 10_000 {
+                ctx.rollout_last = vec![Activity { provider: "codex".into(), state: "done".into(), name: "Codex".into(), detail: "Turn complete".into(), since: ts }];
             }
         }
     }
@@ -575,6 +579,18 @@ pub fn probe() -> String {
         step.map(|(s, ts)| format!("{s:?} @{}s ago", now.saturating_sub(ts) / 1000)),
         tail.join(", ")
     )
+}
+
+#[cfg(test)]
+mod completion_tests {
+    use super::*;
+    #[test]
+    fn abort_and_assistant_text_are_not_completion() {
+        for (kind, expected) in [("task_complete", CodexStep::Complete), ("turn_aborted", CodexStep::Aborted), ("agent_message", CodexStep::AsstMsg)] {
+            let line = serde_json::json!({"timestamp":"2026-09-22T12:00:00Z","type":"event_msg","payload":{"type":kind}}).to_string();
+            assert_eq!(codex_last_step(&line).unwrap().0, expected);
+        }
+    }
 }
 
 #[cfg(windows)]
