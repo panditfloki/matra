@@ -19,6 +19,6 @@ window.__TAURI__ = {
     throw new Error('Preview does not implement: ' + name);
   } },
   event: { listen: async () => () => {} },
-  app: { getVersion: async () => '1.8.0' },
+  app: { getVersion: async () => require('../native/codenotch/tauri.conf.json').version },
   window: { getCurrentWindow: () => ({ close() {}, startDragging() {} }) }
 };

@@ -28,7 +28,8 @@ try {
     Pop-Location
 }
 
-$setups = @(Get-ChildItem (Join-Path $native 'target/release/bundle/nsis') -Filter '*-setup.exe' -File)
+$meta = Get-Content (Join-Path $app 'tauri.conf.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$setups = @(Get-ChildItem (Join-Path $native 'target/release/bundle/nsis') -Filter ('*_' + $meta.version + '_x64-setup.exe') -File)
 if ($setups.Count -ne 1) { throw "Expected one NSIS installer, found $($setups.Count)." }
 New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
 $output = Join-Path $artifactDir 'Matra-Setup.exe'

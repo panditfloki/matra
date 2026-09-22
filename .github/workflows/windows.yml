@@ -28,6 +28,8 @@ jobs:
         run: node scripts/test-claude-auth-ui.cjs
       - name: Test localization
         run: node --test scripts/test-ko-i18n.cjs
+      - name: Test Matra product copy
+        run: node scripts/test-matra-copy.cjs
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy

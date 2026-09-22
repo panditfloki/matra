@@ -74,4 +74,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
-        run: gh release upload $env:TAG Matra-Setup.exe --clobber
+        run: |
+          # A locally verified setup can already be attached before publication.
+          # Never silently replace it with a second build of the same release.
+          $release = gh release view $env:TAG --json assets | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read release assets.' }
+          if ($release.assets.name -contains 'Matra-Setup.exe') {
+            Write-Output 'Installer already attached; preserving the published binary.'
+          } else {
+            gh release upload $env:TAG Matra-Setup.exe
+            if ($LASTEXITCODE -ne 0) { throw 'Installer upload failed.' }
+          }

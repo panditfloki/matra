@@ -4,9 +4,8 @@
 
 **AI usage, in proportion.**
 
-Approved branding for the next build. The downloadable v1.8 release installer does
-not yet include these branding changes. Main-branch builds are available as GitHub
-Actions artifacts after the Windows Package workflow succeeds.
+The v1.8.1 Windows installer includes Logo-18, the DYDXFX colour themes and the
+updated Settings vocabulary. No PowerShell command or developer tools are needed.
 
 <img src="docs/screenshots/settings-appearance-dark.png" width="680" alt="Mātrā Display settings, dark theme">
 
@@ -22,10 +21,16 @@ each limit window and reset time; live activity shows whether an agent is workin
 
 ## Download for Windows
 
-### [Download Mātrā v1.8 for Windows](https://github.com/panditfloki/matra/releases/latest/download/Matra-Setup.exe)
+### [Download Mātrā v1.8.1 for Windows](https://github.com/panditfloki/matra/releases/latest/download/Matra-Setup.exe)
 
 The installer is named `Matra-Setup.exe` in every release, so this link always points to the newest
 Windows build. It installs for the current user and does not require administrator rights.
+
+Download and double-click **Matra-Setup.exe**, complete Setup, then launch Mātrā
+from the finish page or Start menu. The app's `matra.exe` is not an installer.
+Setup migrates old Mātrā preview processes and shortcuts, and keeps your existing
+theme, provider preferences and enabled integrations. Fresh installs follow the
+Windows theme; choose Light, Dark, Glass or System in **Display**.
 
 The current installer is not code-signed. Windows SmartScreen may show **Windows protected your
 PC** on first launch; choose **More info → Run anyway**. Source and build workflow are public here.

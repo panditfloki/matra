@@ -1,8 +1,9 @@
 # Logo-18 and Settings copy: local review
 
 Status: approved by the user on 22 September 2026 for publication to GitHub.
-Version remains 1.8.0. These source changes do not replace the existing release
-installer or update an already-installed app.
+Packaged in v1.8.1. The Windows setup includes the approved assets and copy.
+Existing installations need the new installer; a GitHub source push alone does
+not update them.
 
 ## Identity
 
@@ -66,6 +67,5 @@ data. They are not native-window, desktop-blur or live-provider verification.
 ![AI sources](screenshots/settings-accounts-dark.png)
 ![App and data](screenshots/settings-general-dark.png)
 
-Remaining checks: actual native taskbar appearance and installed-app verification.
-GitHub Actions packages the updated source. A new downloadable release must be
-versioned separately; do not replace a released installer silently.
+Screenshots use sample data, not live account readings. v1.8.1 is a separate patch
+release; the older release installer is not silently replaced.
