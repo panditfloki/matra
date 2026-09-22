@@ -25,6 +25,9 @@ pub struct TraySlot {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    /// Additional readers require explicit opt-in before borrowing credentials.
+    #[serde(default)]
+    pub extra_providers: Vec<String>,
     #[serde(default = "default_theme")]
     pub theme: String,
     #[serde(default = "default_port")]
@@ -217,6 +220,7 @@ impl Default for Config {
             antigravity_limit: default_antigravity_limit(),
             antigravity_model: default_antigravity_model(),
             glm_notch_fixed: true, // a fresh install picks from the full list already
+            extra_providers: Vec::new(),
             notch_visible: true,
             notch_on_hover: true,
             tray_visible: true,
@@ -282,13 +286,18 @@ fn migrate_glm_notch(cfg: &mut Config, raw: &Option<String>) {
 }
 
 pub fn save(cfg: &Config) {
+    let _ = save_checked(cfg);
+}
+
+pub fn save_checked(cfg: &Config) -> Result<(), String> {
     let path = config_path();
     if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
+        std::fs::create_dir_all(dir).map_err(|e|e.to_string())?;
     }
-    if let Ok(txt) = serde_json::to_string_pretty(cfg) {
-        let _ = std::fs::write(path, txt);
-    }
+    let txt=serde_json::to_string_pretty(cfg).map_err(|e|e.to_string())?;
+    let temporary=path.with_extension("json.pending");
+    std::fs::write(&temporary,txt).map_err(|e|e.to_string())?;
+    std::fs::rename(&temporary,&path).map_err(|e|e.to_string())
 }
 
 #[cfg(test)]

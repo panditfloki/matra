@@ -75,6 +75,10 @@ pub fn quit_app(app: AppHandle) {
 
 const AUTHOR_URL: &str = "https://x.com/panditftw";
 const GITHUB_URL: &str = "https://github.com/panditfloki";
+#[tauri::command]
+pub fn open_brand_page() -> Result<(), String> {
+    open_credit_page("https://dydxfx.com")
+}
 
 /// Fixed destinations only; renderer input cannot become a shell argument.
 #[tauri::command]

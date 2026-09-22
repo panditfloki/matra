@@ -1,4 +1,12 @@
-/* dy/dx brand tokens. Geometry, hit regions and folding remain upstream's. */
+/* dy/dx brand tokens and Matra motion. */
+html[data-matra-theme] .matra-website{color:#b82d22;font-weight:700;text-decoration:underline;text-underline-offset:3px}
+html[data-matra-theme="dark"]:not([data-matra-material="glass"]) .matra-website{color:#ff8b7f}
+#update-dialog{width:min(540px,90vw);max-height:88vh;overflow:auto;background:var(--matra-card);color:var(--matra-text);border:1px solid var(--matra-stroke);border-radius:18px;padding:22px;font:13px/1.5 "Segoe UI",sans-serif;box-shadow:0 20px 60px #0006}
+#update-dialog::backdrop{background:#0006;backdrop-filter:blur(5px)}
+#update-dialog h2{margin:0 0 12px;font-size:21px}
+#update-notes{white-space:pre-wrap;overflow-wrap:anywhere;max-height:190px;overflow:auto;font:inherit;user-select:text}
+.update-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+#dialog-progress{width:100%;accent-color:var(--matra-accent)}
 :root[data-matra-theme="dark"] {
   color-scheme:dark; --matra-bg:#0a0908; --matra-card:#131110; --matra-stroke:rgb(248 244 237 / .20);
   --matra-text:#f8f4ed; --matra-muted:#b6ab9b; --matra-accent:#cc785c; --matra-on-accent:#1c0f09;
@@ -81,7 +89,21 @@ html[data-matra-theme] .handle .h-rest{display:none}
 html[data-matra-theme] .handle .h-glyph{opacity:.65;transform:scale(.65);fill:var(--matra-accent)}
 html[data-matra-theme] .handle.hover .h-glyph{opacity:1;transform:scale(1)}
 /* D: coordinated satellites, outside the capsule and revealed only on hover. */
-html[data-matra-theme] #pill{width:62px;padding:14px 0;gap:10px;border-radius:22px}
+html[data-matra-theme] #pill{width:62px;padding:14px 0;gap:10px;border-radius:22px;transition:clip-path .48s cubic-bezier(.4,0,.2,1)}
+/* Reveal from the resting centre lip upwards first, then settle the lower end.
+   Clip only: provider layout, backdrop and hit-test anchors do not scale. */
+html[data-matra-theme] #pill{max-height:calc(100% - 96px);overflow-y:auto;scrollbar-width:none}
+html[data-matra-theme] #pill .cell{flex-shrink:0}
+html[data-matra-theme] body[data-edge="top"] #pill,
+html[data-matra-theme] body[data-edge="bottom"] #pill{max-height:none;max-width:calc(100% - 96px);overflow-x:auto;overflow-y:hidden}
+html[data-matra-theme] body[data-edge="left"] #pill,
+html[data-matra-theme] body[data-edge="right"] #pill{--clip-rise:inset(-40px -1px calc(50% - 39.5px) -1px round 0)}
+html[data-matra-theme] body.expanding[data-edge="left"] #pill,
+html[data-matra-theme] body.expanding[data-edge="right"] #pill{animation:matra-unfold .5s cubic-bezier(.4,0,.2,1) both}
+@keyframes matra-unfold{0%{clip-path:var(--clip-rest)}65%{clip-path:var(--clip-rise)}100%{clip-path:var(--clip-open)}}
+html[data-matra-theme] .cell{transition:opacity .24s ease .16s,translate .32s ease .16s}
+html[data-matra-theme] body.folded .cell{translate:0 6px;transition-delay:0s}
+@media(prefers-reduced-motion:reduce){html[data-matra-theme] #pill,html[data-matra-theme] .cell{transition:none!important;animation:none!important}}
 html[data-matra-theme] body[data-edge="top"] #pill,html[data-matra-theme] body[data-edge="bottom"] #pill{width:auto;padding:8px 14px;border-radius:22px}
 html[data-matra-theme] body[data-edge="left"] #tail{left:61px}
 html[data-matra-theme] body[data-edge="right"] #tail{right:61px}

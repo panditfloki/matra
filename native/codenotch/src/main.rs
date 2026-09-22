@@ -17,6 +17,7 @@ mod claude_auth;
 mod codex;
 mod cursor;
 mod grok;
+mod extra_providers;
 mod antigravity;
 mod glm;
 mod agy_cli;
@@ -675,6 +676,7 @@ pub(crate) fn refresh_provider(app: &AppHandle, provider: &str) -> bool {
         "codex" => codex::request_refresh(),
         "cursor" => cursor::request_refresh(),
         "grok" => grok::request_refresh(),
+        "copilot" | "opencode" | "commandcode" | "kimi" => extra_providers::request_refresh(provider),
         "gemini" => antigravity::request_refresh(),
         "glm" => glm::request_refresh(),
         _ => return false,
@@ -760,6 +762,10 @@ pub(crate) fn provider_page(provider: &str) -> Option<(&'static str, &'static st
         "codex" => ("https://chatgpt.com/#settings/Account", "chatgpt.com"),
         "cursor" => ("https://cursor.com/dashboard", "cursor.com"),
         "grok" => ("https://grok.com/?_s=usage", "grok.com"),
+        "copilot" => ("https://github.com/settings/copilot", "GitHub Copilot"),
+        "opencode" => ("https://opencode.ai", "OpenCode"),
+        "commandcode" => ("https://commandcode.ai", "Command Code"),
+        "kimi" => ("https://www.kimi.com/code/console", "Kimi"),
         "gemini" => ("https://antigravity.google", "antigravity.google"),
         "glm" => ("https://z.ai/manage-apikey/apikey-list", "z.ai"),
         _ => return None,
@@ -1132,6 +1138,9 @@ fn ring_window<'a>(
         // plan falls through to Antigravity's lane picker and the ring shows the
         // tightest window it can find instead of the session.
         "glm" => by_id("session"),
+        "copilot" => by_id("premium_interactions").or_else(||windows.first()),
+        "opencode" | "kimi" => by_id("rolling"),
+        "commandcode" => by_id("monthly"),
         _ => antigravity_lane(windows, antigravity_limit, antigravity_model),
     }
 }
@@ -1188,6 +1197,7 @@ pub(crate) fn snapshot_of(app: &AppHandle, id: &str) -> usage::UsageSnapshot {
         "grok" => st.grok.lock().unwrap().clone(),
         "gemini" => st.antigravity.lock().unwrap().clone(),
         "glm" => st.glm.lock().unwrap().clone(),
+        "copilot" | "opencode" | "commandcode" | "kimi" => extra_providers::snapshot(id),
         _ => st.usage.lock().unwrap().clone(),
     }
 }
@@ -1555,12 +1565,16 @@ pub fn provider_label(id: &str) -> &'static str {
         "grok" => "Grok",
         "gemini" => "Antigravity",
         "glm" => "z.ai",
+        "copilot" => "GitHub Copilot",
+        "opencode" => "OpenCode",
+        "commandcode" => "Command Code",
+        "kimi" => "Kimi",
         _ => "Claude",
     }
 }
 
 /// Every provider the tray menu can offer, in the order the notch shows them.
-pub const TRAY_PROVIDER_IDS: [&str; 6] = ["claude", "codex", "glm", "cursor", "grok", "gemini"];
+pub const TRAY_PROVIDER_IDS: [&str; 10] = ["claude", "codex", "glm", "cursor", "grok", "gemini", "copilot", "opencode", "commandcode", "kimi"];
 
 /// Keeps the tray menu current. macOS rebuilds its menu as it opens; Tauri has no such hook, so it
 /// is rebuilt whenever a reading changes, and once a minute besides — otherwise "Resets in 12 min"
@@ -1694,7 +1708,8 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if args.iter().any(|a| a == "--silent") { return; }
             // Opening Codenotch again while it runs brings Settings forward, as on the Mac: with the
             // tray icon hidden it is the way back. Logged too, for a rebuild that was not picked up.
             applog(&format!("single instance: another launch was refused; the running instance is build={BUILD} — quit it from the tray first if you just rebuilt"));
@@ -1728,6 +1743,8 @@ fn main() {
             get_grok,
             get_antigravity,
             get_glm,
+            extra_providers::get_extra_usage,
+            extra_providers::set_extra_provider,
             get_glyphs,
             get_activity,
             open_data_dir,
@@ -1773,7 +1790,8 @@ fn main() {
             settings_window::get_system_look,
             settings_window::quit_app,
             settings_window::open_author_page,
-            settings_window::open_github_page
+            settings_window::open_github_page,
+            settings_window::open_brand_page
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -1795,6 +1813,7 @@ fn main() {
             grok::start(handle.clone());
             antigravity::start(handle.clone());
             glm::start(handle.clone());
+            extra_providers::start(handle.clone());
             activity::start(handle.clone());
             // Collecting glyphs may read icon resources out of a few executables; do it off the main thread and push when done
             let gh = handle.clone();

@@ -199,18 +199,18 @@
       <section class="pane" id="pane-general" role="tabpanel" aria-labelledby="tab-general" hidden>
         <div class="matra-about"><img src="matra-logo.png" alt="Mātrā logo" width="48" height="48"><div><strong>Mātrā</strong><p>AI usage, in proportion.</p><small>Used / limit × 100 = usage %</small></div></div>
         <div class="group">
-          <div class="item"><span>Open Codenotch at login</span><button class="switch" id="sw-autostart" role="switch" aria-checked="false" aria-label="Open Codenotch at login"></button></div>
-          <div class="item cap">Codenotch opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open Codenotch yourself.</div>
+          <div class="item"><span>Start Mātrā at login</span><button class="switch" id="sw-autostart" role="switch" aria-checked="false" aria-label="Start Mātrā at login"></button></div>
+          <div class="item cap">Launch this installed Mātrā when you sign in to Windows. Your saved notch visibility applies. Disable this to launch it yourself.</div>
           <div class="item"><span>Version</span><span class="value" id="about-version" data-dynamic>Unavailable</span></div>
           <div class="item matra-update-row"><span>Updates</span><button class="btn" id="btn-update" data-dynamic>Check for updates</button><span class="value" id="update-status" role="status" aria-live="polite" data-dynamic></span><progress id="update-progress" max="100" hidden aria-label="Update download progress"></progress></div>
-          <div class="item cap">Checks the Mātrā GitHub release. Download first, then choose Install &amp; restart. Setup shows installation progress. SHA-256 verifies the download; the installer is not publisher-signed.</div>
+          <div class="item cap">Checks GitHub at every app startup. Review what changed, download, then choose Install &amp; restart. Update mode preserves your settings and shows Windows installation progress. SHA-256 verifies the download; the installer is not publisher-signed.</div>
         </div>
         <div class="group">
           <div class="item"><span>Data folder</span><button class="btn" id="btn-data">Open folder</button></div>
           <div class="item cap">Everything Codenotch remembers lives in one folder: your settings, its log file, and the "glyphs" folder where you can drop your own icons. Opens in File Explorer.</div>
         </div>
         <div class="group">
-          <div class="item cap"><span>Developed by</span> <a class="link" id="author" href="https://x.com/panditftw" title="Pandit Floki on X">Pandit Floki</a><br><a class="link" id="github" href="https://github.com/panditfloki" title="Pandit Floki on GitHub">GitHub</a></div>
+          <div class="item cap"><a class="link matra-website" id="website" href="https://dydxfx.com">dydxfx.com</a><br><span>Developed by</span> <a class="link" id="author" href="https://x.com/panditftw" title="Pandit Floki on X">Pandit Floki · X</a><br><a class="link" id="github" href="https://github.com/panditfloki" title="Pandit Floki on GitHub">GitHub</a></div>
           <div class="item cap">Based on CodeNotch by vinzdg and the Windows port by Im-Midi and contributors. Original MIT notices are included with this app.</div>
         </div>
       </section>
@@ -219,6 +219,14 @@
   </main>
 </div>
 <div id="toast" data-dynamic>Saved</div>
+<dialog id="update-dialog" aria-labelledby="update-title" data-dynamic>
+  <h2 id="update-title">Mātrā update</h2>
+  <p id="update-dialog-status" role="status" aria-live="polite"></p>
+  <h3>What's new</h3><pre id="update-notes"></pre>
+  <progress id="dialog-progress" max="100" hidden aria-label="Update download progress"></progress>
+  <p>Install &amp; restart closes Mātrā, applies the update with Windows progress, and reopens it. Your preferences stay in place. This installer is not publisher-signed.</p>
+  <div class="update-actions"><button class="btn" id="update-later">Later</button><button class="btn" id="update-confirm">Download update</button></div>
+</dialog>
 
 <script>
 /* ---------------------------------------------------------------------------
@@ -982,8 +990,19 @@ document.getElementById('close').addEventListener('click', () => {
 });
 
 /* ---- providers ---------------------------------------------------------- */
-const ORDER = ['claude', 'codex', 'glm', 'cursor', 'grok', 'gemini'];
-const FALLBACK_LABEL = { claude:'Claude', codex:'Codex', glm:'z.ai', cursor:'Cursor', grok:'Grok', gemini:'Antigravity' };
+const ORDER = ['claude', 'codex', 'glm', 'cursor', 'grok', 'gemini', 'copilot', 'opencode', 'commandcode', 'kimi'];
+const FALLBACK_LABEL = { claude:'Claude', codex:'Codex', glm:'z.ai', cursor:'Cursor', grok:'Grok', gemini:'Antigravity', copilot:'GitHub Copilot',opencode:'OpenCode',commandcode:'Command Code',kimi:'Kimi' };
+const EXTRA_HELP={
+  copilot:'Sign in with GitHub CLI: gh auth login --hostname github.com. Reads Copilot quotas, not general GitHub usage. Some tokens or plans cannot access this endpoint.',
+  opencode:'Connect the OpenCode Go plan in OpenCode. Reads only opencode-go in its auth.json, never another provider key. Zen pay-as-you-go is not the Go quota.',
+  commandcode:'Sign in with the Command Code app. Reads its .commandcode/auth.json and the current billing period. No browser cookies are read.',
+  kimi:'Run kimi and use /login. Keep its CLI session fresh; Mātrā does not refresh or rewrite its token. Reads the 5-hour and weekly Kimi Code limits.'
+};
+let extraUsage={}, extraBusy=new Set();
+function extraOn(id){return !!extraUsage[id]&&extraUsage[id].status!=='absent';}
+function receiveExtraSettings(v){extraUsage=v||{};refreshOptions();renderAccounts();}
+invoke('get_extra_usage').then(receiveExtraSettings).catch(()=>{});
+try{window.__TAURI__.event.listen('extra_usage',e=>receiveExtraSettings(e.payload));}catch{}
 let options = [];      // [{id,label,status,used}] from get_tray_options
 let glyphs = {};       // id -> {kind:'svg'|'png'|'appicon', svg, url}
 function providerList(){
@@ -1064,6 +1083,12 @@ function agSelect(key, choices, value){
     + '</select>';
 }
 function accountBlock(p, isOn, locked){
+  if(EXTRA_HELP[p.id]){
+    const snap=extraUsage[p.id]||{}; const enabled=extraOn(p.id);
+    return '<div class="acct'+(enabled?'':' off')+'"><div class="acct-line"><span class="acct-name">'+glyphHtml(p)+'<span>'+esc(p.label||p.id)+'</span></span>'
+      +'<button class="switch'+(enabled?' on':'')+'" data-extra="'+p.id+'" role="switch" aria-checked="'+enabled+'" aria-label="Enable '+esc(p.label||p.id)+'"'+(extraBusy.has(p.id)?' disabled':'')+'></button></div>'
+      +'<div class="acct-detail">'+esc(EXTRA_HELP[p.id])+'</div><div class="acct-detail">'+esc(enabled?(snap.note||statusText({status:snap.status})):'Off. No credentials read and no usage requests sent.')+'</div></div>';
+  }
   const st = statusText(p);
   let h = '<div class="acct' + (isOn ? '' : ' off') + '">'
     + '<div class="acct-line"><span class="acct-name">' + glyphHtml(p) + '<span>' + esc(p.label || p.id) + '</span></span>'
@@ -1085,8 +1110,8 @@ function accountBlock(p, isOn, locked){
 function renderAccounts(){
   const list = providerList();
   const onIds = notchOn().map(sl => sl.provider);
-  const connected = list.filter(p => onIds.indexOf(p.id) >= 0);
-  const off = list.filter(p => onIds.indexOf(p.id) < 0);
+  const connected = list.filter(p => EXTRA_HELP[p.id]?extraOn(p.id):onIds.indexOf(p.id) >= 0);
+  const off = list.filter(p => EXTRA_HELP[p.id]?!extraOn(p.id):onIds.indexOf(p.id) < 0);
   document.getElementById('acc-on').innerHTML = connected.map(p => accountBlock(p, true, connected.length === 1)).join('')
     + '<div class="item cap">' + esc(ui(ONE_STAYS, ONE_STAYS)) + '</div>';
   document.getElementById('acc-off-wrap').hidden = !off.length;
@@ -1130,6 +1155,14 @@ accountsPane.addEventListener('change', e => {
   invoke('set_antigravity_prefs', want)
     .then(v => { agPrefs = v; renderAccounts(); toast(); })
     .catch(err => { renderAccounts(); strip('set_antigravity_prefs failed: ' + errText(err)); });
+});
+accountsPane.addEventListener('click',async e=>{
+  const button=e.target.closest('[data-extra]');if(!button)return;
+  const id=button.dataset.extra;if(extraBusy.has(id))return;
+  extraBusy.add(id);renderAccounts();
+  try{await invoke('set_extra_provider',{id,on:!extraOn(id)});receiveExtraSettings(await invoke('get_extra_usage'));}
+  catch(err){strip('Could not change provider: '+errText(err));}
+  finally{extraBusy.delete(id);renderAccounts();}
 });
 
 /* ---- Appearance: Show, and App icon -------------------------------------
@@ -1381,6 +1414,10 @@ document.getElementById('github').addEventListener('click', e => {
   e.preventDefault();
   invoke('open_github_page').catch(e => strip('open_github_page failed: ' + errText(e)));
 });
+document.getElementById('website').addEventListener('click', e => {
+  e.preventDefault();
+  invoke('open_brand_page').catch(e => strip('Could not open website: ' + errText(e)));
+});
 (function realVersion(){
   const api = window.__TAURI__ && window.__TAURI__.app;
   const el = document.getElementById('about-version');
@@ -1389,25 +1426,45 @@ document.getElementById('github').addEventListener('click', e => {
   catch(e) { /* the built-in number stays */ }
 })();
 
-/* ---- updates --------------------------------------------------------------
-   Never a dialogue and never a badge: an update the user has not asked about is
-   a line of text next to the version, and a check that failed says so where it
-   was asked for rather than interrupting anything. */
+/* Release notes are untrusted text, never rendered as HTML. */
 const updBtn = document.getElementById('btn-update');
 const updStatus = document.getElementById('update-status');
+const updateDialog = document.getElementById('update-dialog');
+const updateConfirm = document.getElementById('update-confirm');
+let offeredVersion = null;
+document.getElementById('update-later').onclick = () => updateDialog.close();
 let updateAction = 'check_for_update';
 function renderUpdate(st){
   const view = window.matraUpdateView(st);
   updateAction = view.command; updBtn.disabled = view.busy;
-  updBtn.textContent = view.button; updStatus.textContent = view.message;
+  updBtn.textContent = view.button; updStatus.textContent = [st.installed_message, view.message].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(' ');
   const progress = document.getElementById('update-progress');
   progress.hidden = view.phase !== 'downloading';
   if(view.percent == null) progress.removeAttribute('value'); else progress.value = view.percent;
+  updateConfirm.textContent = view.button; updateConfirm.disabled = view.busy;
+  document.getElementById('update-dialog-status').textContent = view.message;
+  if(st.notes) document.getElementById('update-notes').textContent = st.notes;
+  const dp = document.getElementById('dialog-progress');
+  dp.hidden = progress.hidden;
+  if(view.percent == null) dp.removeAttribute('value'); else dp.value = view.percent;
+  if(view.phase === 'available' && st.available !== offeredVersion){
+    offeredVersion = st.available;
+    document.getElementById('update-title').textContent = 'Mātrā v' + st.available;
+    document.getElementById('update-notes').textContent = st.notes || 'No release notes were supplied.';
+    showTab('general');
+    if(!updateDialog.open) updateDialog.showModal();
+  }
 }
+function runUpdateAction(){
+  if(updateConfirm.disabled) return;
+  updBtn.disabled = true; updateConfirm.disabled = true;
+  invoke(updateAction).catch(e => renderUpdate({phase:'error', message:'Could not start update action: '+errText(e)}));
+}
+updateConfirm.addEventListener('click', runUpdateAction);
 updBtn.addEventListener('click', () => {
   if(updBtn.disabled) return;
-  updBtn.disabled = true;
-  invoke(updateAction).catch(e => renderUpdate({phase:'error', message:'Could not start update action: '+errText(e)}));
+  if(updateAction !== 'check_for_update') { if(!updateDialog.open) updateDialog.showModal(); }
+  else runUpdateAction();
 });
 invoke('get_update_state').then(renderUpdate).catch(() => {});
 try { window.__TAURI__.event.listen('update_state', e => renderUpdate(e.payload)); }

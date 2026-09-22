@@ -1,5 +1,8 @@
 # Local interaction and updater review
 
+Superseded for the local v1.8.3 candidate by [RELEASE-v1.8.3.md](RELEASE-v1.8.3.md).
+The text below records the earlier v1.8.2 review, not current installed state.
+
 Status: v1.8.2 source prepared for the approved GitHub push. No new public release
 or installed-app replacement.
 The installed/public v1.8.1 still has the old, disabled updater. This code must

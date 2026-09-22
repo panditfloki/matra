@@ -7,28 +7,54 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 app.whenReady().then(async()=>{
   fs.mkdirSync(out,{recursive:true});
   const win=new BrowserWindow({width:680,height:620,useContentSize:true,show:false,
-    webPreferences:{preload:path.join(__dirname,'interaction-preview-preload.cjs'),contextIsolation:false,nodeIntegration:false,sandbox:false}});
+    webPreferences:{preload:path.join(__dirname,'interaction-preview-preload.cjs'),contextIsolation:false,nodeIntegration:false,sandbox:false,backgroundThrottling:false}});
   const errors=[];
   win.webContents.on('console-message',(_event,level,message)=>{if(level===3)errors.push(message);});
   win.webContents.session.webRequest.onBeforeRequest((d,done)=>done({cancel:/^https?:/.test(d.url)}));
   const js=code=>win.webContents.executeJavaScript(code);
   await win.loadFile(path.join(root,'native/codenotch/ui/settings.html'));await sleep(400);
+  await js("showTab('accounts')");
+  for(const id of ['copilot','opencode','commandcode','kimi']){
+    assert.equal(await js(`document.querySelector('[data-extra="${id}"]').getAttribute('aria-checked')`),'false');
+    await js(`document.querySelector('[data-extra="${id}"]').click()`);await sleep(50);
+    assert.equal(await js(`document.querySelector('[data-extra="${id}"]').getAttribute('aria-checked')`),'true');
+    await js(`document.querySelector('[data-extra="${id}"]').click()`);await sleep(50);
+    assert.equal(await js(`document.querySelector('[data-extra="${id}"]').getAttribute('aria-checked')`),'false');
+  }
+  await js("document.querySelector('[data-extra=\"copilot\"]').closest('.acct').scrollIntoView({block:'start'})");
+  await sleep(100);
+  fs.writeFileSync(path.join(out,'extra-providers.png'),(await win.webContents.capturePage()).toPNG());
   await js("showTab('general')");
   assert.equal(await js("document.querySelector('#author').href"),'https://x.com/panditftw');
   assert.equal(await js("document.querySelector('#github').href"),'https://github.com/panditfloki');
+  assert.equal(await js("document.querySelector('#website').href"),'https://dydxfx.com/');
+  await js("document.querySelector('#website').click()");
+  assert.equal(await js("window.__test.calls.filter(c=>c==='open_brand_page').length"),1);
+  for(const theme of ['light','dark','glass']){
+    await js(`window.__test.emit('matra-theme',${JSON.stringify(theme)})`);
+    assert.equal(await js("getComputedStyle(document.querySelector('#website')).color"),theme==='dark'?'rgb(255, 139, 127)':'rgb(184, 45, 34)');
+  }
+  await js("window.__test.emit('matra-theme','dark')");
   await js("document.querySelector('#author').click();document.querySelector('#github').click()");
   assert.equal(await js("window.__test.calls.filter(c=>c==='open_author_page').length"),1);
   assert.equal(await js("window.__test.calls.filter(c=>c==='open_github_page').length"),1);
   assert.equal(await js("document.querySelector('#update-status').textContent"),'Not checked yet.');
   await js("document.querySelector('#btn-update').click()");
   assert.equal(await js("document.querySelector('#btn-update').textContent"),'Download update');
-  await js("document.querySelector('#btn-update').click()");
+  assert.equal(await js("document.querySelector('#update-dialog').open"),true);
+  await js("window.__test.emit('update_state',{phase:'available',available:'1.8.3',notes:'<img src=x onerror=alert(1)> New motion'});");
+  assert.equal(await js("document.querySelector('#update-notes img')"),null);
+  assert.match(await js("document.querySelector('#update-notes').textContent"),/New motion/);
+  await js("window.__test.emit('update_state',{phase:'available',available:'1.8.3',notes:'• Smooth centre-up notch reveal\\n• Startup update checks and release notes\\n• Login startup validation\\n• Clickable dydxfx.com and X credit'})");
+  await js("document.querySelector('#update-later').click();document.querySelector('#btn-update').click()");
+  assert.equal(await js("window.__test.calls.filter(c=>c==='download_update').length"),0);
+  await js("document.querySelector('#update-confirm').click()");
   assert.equal(await js("document.querySelector('#update-progress').value"),25);
   assert.equal(await js("document.querySelector('#btn-update').disabled"),true);
   await sleep(200);fs.writeFileSync(path.join(out,'update-download.png'),(await win.webContents.capturePage()).toPNG());
   await js("window.__test.emit('update_state',{phase:'ready',available:'1.8.2',downloaded:100,total:100})");
   assert.equal(await js("document.querySelector('#btn-update').textContent"),'Install & restart');
-  await js("document.querySelector('#btn-update').click()");
+  await js("document.querySelector('#update-confirm').click()");
   assert.equal(await js("window.__test.calls.filter(c=>c==='install_update').length"),1);
   await js("window.__test.emit('update_state',{phase:'error',message:'Verification failed. Nothing installed.'})");
   assert.match(await js("document.querySelector('#update-status').textContent"),/Verification failed/);
@@ -37,11 +63,28 @@ app.whenReady().then(async()=>{
   await sleep(200);fs.writeFileSync(path.join(out,'update-complete.png'),(await win.webContents.capturePage()).toPNG());
   await win.setContentSize(340,460);
   await win.loadFile(path.join(root,'native/codenotch/ui/notch.html'));await sleep(400);
+  await js(`window.__test.emit('extra_usage',Object.fromEntries(['copilot','opencode','commandcode','kimi'].map(id=>[id,{status:'ok',fetched_at:Date.now(),windows:[{id:id==='copilot'?'premium_interactions':id==='commandcode'?'monthly':'rolling',used:.2},{id:'weekly',used:.8}]}])))`);
+  assert.equal(await js("providers().filter(p=>EXTRA_NAMES[p.id]).length"),4);
+  assert.equal(await js("headlineOf(extraSnaps.kimi,'kimi').used"),.2);
+  assert.equal(await js("weeklyOf(extraSnaps.kimi,'kimi').used"),.8);
+  assert.equal(await js("headlineOf({windows:[{id:'weekly',used:.8}]},'opencode')"),null);
+  win.webContents.debugger.attach('1.3');
+  await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
   await js(`window.fixture={status:'ok',fetched_at:Date.now(),windows:[{id:'session',used:.12},{id:'seven_day',used:.17}]};
     providers=()=>[{id:'claude',base:'claude',name:'Claude',glyph:'C',snap:window.fixture}];
     onHover=true;pointerIn=false;carrying=false;dragging=false;menuOpen=false;applyEdge('left');renderRing();setFolded(true);`);
   assert.equal(await js("document.querySelectorAll('.reading-updated').length"),0);
+  await sleep(550);
+  const restingClip=await js("getComputedStyle(pill).clipPath");
   await js("window.fixture.windows[0].used=.25;renderRing()");
+  // Hidden test windows can suspend presentation frames. Sample the actual
+  // browser animation timeline explicitly instead of assuming wall-clock frames.
+  await js("window.unfoldAnimation=pill.getAnimations().find(a=>a.animationName==='matra-unfold');if(!window.unfoldAnimation)throw Error('Missing unfold animation');window.unfoldAnimation.pause();window.unfoldAnimation.currentTime=180");
+  const midClip=await js("getComputedStyle(pill).clipPath");
+  assert.notEqual(midClip,restingClip);
+  assert.equal(await js("getComputedStyle(pill).animationName"),'matra-unfold',await js("JSON.stringify({classes:document.body.className,edge:document.body.dataset.edge,theme:document.documentElement.dataset.matraTheme,reduce:matchMedia('(prefers-reduced-motion: reduce)').matches,folded})"));
+  await js("window.unfoldAnimation.finish()");
+  assert.notEqual(await js("getComputedStyle(pill).clipPath"),midClip);
   assert.equal(await js("document.querySelectorAll('.reading-updated').length"),1);
   assert.equal(await js('folded'),false);
   assert.equal(await js("document.querySelector('.pct').textContent"),'25%');
@@ -56,11 +99,19 @@ app.whenReady().then(async()=>{
   fs.writeFileSync(path.join(out,'drag-control.png'),(await win.webContents.capturePage()).toPNG());
   await js("setHovered('orb')");
   fs.writeFileSync(path.join(out,'settings-control.png'),(await win.webContents.capturePage()).toPNG());
-  await win.webContents.debugger.attach('1.3');
   await win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
   await js("window.fixture.windows[0].used=.27;renderRing()");
   assert.equal(await js("getComputedStyle(document.querySelector('.feedback')).animationName"),'none');
   assert.equal(await js("document.querySelector('.quota-current').getAnimations().length"),0);
+  assert.equal(await js("getComputedStyle(pill).animationName"),'none');
+  // Ten providers must remain reachable on every screen edge.
+  await js("providers=()=>Array.from({length:10},(_,i)=>({id:'fixture'+i,base:'claude',name:'Fixture '+i,glyph:'C',snap:{status:'ok',fetched_at:Date.now(),windows:[{id:'session',used:.2}]}}));setFolded(false)");
+  for(const edge of ['left','right','top','bottom']){
+    await js(`applyEdge('${edge}');renderRing()`);
+    const geometry=await js("(()=>{const p=pill.getBoundingClientRect();return {w:p.width,h:p.height,vw:innerWidth,vh:innerHeight,scrollH:pill.scrollHeight,scrollW:pill.scrollWidth,clientH:pill.clientHeight,clientW:pill.clientWidth}})()");
+    assert.ok(geometry.w<=geometry.vw&&geometry.h<=geometry.vh);
+    assert.ok(['left','right'].includes(edge)?geometry.scrollH>geometry.clientH:geometry.scrollW>geometry.clientW);
+  }
   win.webContents.debugger.detach();
   const unexpected=errors.filter(e=>!e.includes('Content-Security-Policy'));
   if(unexpected.length)throw new Error(unexpected.join('\n'));

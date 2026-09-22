@@ -23,9 +23,13 @@ pub struct UpdateState {
     pub downloaded: u64,
     pub total: u64,
     pub message: Option<String>,
+    pub notes: Option<String>,
+    pub installed_message: Option<String>,
 }
 #[derive(Clone, Deserialize, Debug)]
 struct Release {
+    #[serde(default)]
+    body: Option<String>,
     tag_name: String,
     draft: bool,
     prerelease: bool,
@@ -40,6 +44,7 @@ struct Asset {
 }
 #[derive(Clone, Debug)]
 struct Offer {
+    notes: String,
     version: String,
     url: String,
     size: u64,
@@ -68,7 +73,11 @@ fn with_store<T>(f: impl FnOnce(&mut Store) -> T) -> T {
     let mut lock = STORE.lock().unwrap_or_else(|e| e.into_inner());
     f(lock.get_or_insert_with(Store::default))
 }
-fn emit(app: &AppHandle, ui: UpdateState) {
+fn emit(app: &AppHandle, mut ui: UpdateState) {
+    ui.installed_message = with_store(|s| s.ui.installed_message.clone());
+    if ui.notes.is_none() {
+        ui.notes = with_store(|s| s.offer.as_ref().map(|o| o.notes.clone()));
+    }
     with_store(|s| s.ui = ui.clone());
     let _ = app.emit("update_state", &ui);
 }
@@ -105,6 +114,7 @@ pub fn get_update_state() -> UpdateState {
                 if let Ok(target) = serde_json::from_str::<String>(&raw) {
                     if let Some(message) = confirmation(env!("CARGO_PKG_VERSION"), &target) {
                         s.ui.phase = "updated".into();
+                        s.ui.installed_message = Some(message.clone());
                         s.ui.message = Some(message);
                         let _ = std::fs::remove_file(marker_path());
                     } else {
@@ -154,6 +164,8 @@ fn choose(release: Release, current: &str) -> Result<Option<Offer>, String> {
         return Err("Invalid installer checksum.".into());
     }
     Ok(Some(Offer {
+        notes: release.body.filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| "No release notes were supplied.".into()).chars().take(16000).collect(),
         version: version.to_string(),
         url: expected,
         size: asset.size,
@@ -180,6 +192,9 @@ fn fetch(current: &str) -> Result<Option<Offer>, String> {
 }
 #[tauri::command]
 pub fn check_for_update(app: AppHandle) {
+    check(app, false);
+}
+fn check(app: AppHandle, startup: bool) {
     let Some(guard) = acquire() else { return };
     with_store(|s| {
         s.offer = None;
@@ -209,6 +224,7 @@ pub fn check_for_update(app: AppHandle) {
                         ..Default::default()
                     },
                 );
+                if startup { crate::settings_window::open(&app); }
             }
             Ok(None) => emit(
                 &app,
@@ -455,7 +471,19 @@ pub fn install_update(app: AppHandle) {
         // Only the newly launched version can confirm success. Setup normally stops this process.
     });
 }
-pub fn check_on_launch(_app: &AppHandle) { /* Checks are explicit; preserve update confirmation. */
+fn should_check_on_launch(phase: &str) -> bool {
+    matches!(phase, "idle" | "updated")
+}
+pub fn check_on_launch(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        // Give the notch time to start; never download or install without consent.
+        std::thread::sleep(Duration::from_secs(8));
+        let previous = get_update_state();
+        if !should_check_on_launch(&previous.phase) { return; }
+        check(app.clone(), true);
+        if previous.phase == "updated" { crate::settings_window::open(&app); }
+    });
 }
 
 #[cfg(test)]
@@ -463,6 +491,7 @@ mod tests {
     use super::*;
     fn release() -> Release {
         Release {
+            body: Some("New motion and update dialog.".into()),
             tag_name: "v1.9.0".into(),
             draft: false,
             prerelease: false,
@@ -481,6 +510,19 @@ mod tests {
         assert!(choose(release(), "1.8.1").unwrap().is_some());
         assert!(choose(release(), "1.9.0").unwrap().is_none());
         assert!(choose(release(), "1.10.0").unwrap().is_none());
+    }
+    #[test]
+    fn release_notes_are_bounded_and_startup_does_not_interrupt_user_actions() {
+        let offer = choose(release(), "1.8.2").unwrap().unwrap();
+        assert_eq!(offer.notes, "New motion and update dialog.");
+        let mut r = release();
+        r.body = Some("x".repeat(20000));
+        assert_eq!(choose(r, "1.8.2").unwrap().unwrap().notes.len(), 16000);
+        assert!(should_check_on_launch("idle"));
+        assert!(should_check_on_launch("updated"));
+        for phase in ["checking", "available", "downloading", "ready", "installing", "error"] {
+            assert!(!should_check_on_launch(phase));
+        }
     }
     #[test]
     fn refuses_missing_digest_and_foreign_assets() {
