@@ -120,10 +120,17 @@
   },
   "scripts": {
     "dev": "node server.js",
+    "native:build": "cargo build --release --locked --manifest-path native/Cargo.toml",
+    "native:test": "cargo test --release --locked --manifest-path native/Cargo.toml",
+    "native:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-native.ps1",
+    "desktop": "electron desktop/main.js",
+    "desktop:build": "node scripts/build-desktop.js",
+    "desktop:smoke": "electron desktop/main.js --smoke-test",
     "package": "vsce package",
-    "test": "node --test"
+    "test": "node --test test/*.test.js && node native/scripts/check-ui-scripts.mjs && node native/scripts/test-claude-auth-ui.cjs && node native/scripts/test-ko-i18n.cjs && node native/test-codex-headline.cjs"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0"
+    "@types/vscode": "^1.85.0",
+    "electron": "44.2.0"
   }
 }

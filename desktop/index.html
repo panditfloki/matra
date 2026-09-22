@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
+<title>Mātrā</title><link rel="stylesheet" href="style.css"></head>
+<body><main id="shell">
+  <aside id="rail"><button id="brand" title="Open dashboard" aria-label="Open dashboard">म</button><div id="rings"></div><button id="expand" title="Details" aria-label="Show details">•••</button></aside>
+  <section id="detail">
+    <header><div><span class="eyebrow">YOUR AI, AT A GLANCE</span><h1>Mātrā<span>2.2</span></h1></div><button id="pin" title="Keep open">Pin</button></header>
+    <nav id="tabs" aria-label="Provider"></nav>
+    <div id="content" aria-live="polite"><p class="muted">Reading your local providers…</p></div>
+    <div id="error" role="status"></div>
+    <div class="actions"><button id="dashboard">Open dashboard <span>↗</span></button><button id="refresh" aria-label="Refresh readings">↻</button></div>
+    <footer><span id="connection">Connecting</span><button id="settingsToggle">Settings</button></footer>
+    <section id="settings" hidden><label>Screen edge<select id="edge"><option value="right">Right</option><option value="left">Left</option><option value="top">Top</option><option value="bottom">Bottom</option></select></label><button id="display">Move to next monitor</button><label class="check"><input id="startup" type="checkbox"> Start at login</label><small id="build"></small></section>
+  </section>
+</main><script src="renderer.js"></script></body></html>

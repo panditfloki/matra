@@ -1,0 +1,109 @@
+/* dy/dx brand tokens. Geometry, hit regions and folding remain upstream's. */
+:root[data-matra-theme="dark"] {
+  color-scheme:dark; --matra-bg:#0a0908; --matra-card:#131110; --matra-stroke:rgb(248 244 237 / .20);
+  --matra-text:#f8f4ed; --matra-muted:#b6ab9b; --matra-accent:#cc785c; --matra-on-accent:#1c0f09;
+  --matra-glass:rgb(10 9 8 / .84); --matra-card-glass:rgb(19 17 16 / .92); --matra-sheen:rgb(248 244 237 / .10);
+  --matra-ring:#1a1714; --matra-track:#49413a;
+  --matra-good:#5db8a6; --matra-watch:#e8a55a;
+  --text:#f8f4ed; --text2:#b6ab9b; --text3:#b6ab9b;
+  --pane:rgb(19 17 16 / .92); --side:rgb(10 9 8 / .80); --group:rgb(26 23 20 / .75); --line:rgb(248 244 237 / .12);
+  --hi:#1a1714; --sep:rgb(248 244 237 / .12); --seg-bg:#0a0908; --hover:#1a1714;
+  --sel-soft:#37251e; --btn:#2d211a; --btn-hover:#483024;
+  --danger-bg:#4a201a; --danger:#f18d77;
+}
+:root[data-matra-theme="light"] {
+  color-scheme:light; --matra-bg:#faf8f6; --matra-card:#ffffff; --matra-stroke:rgb(20 17 15 / .22);
+  --matra-text:#14110f; --matra-muted:#57504a; --matra-accent:#d93f2a; --matra-on-accent:#ffffff;
+  --matra-glass:rgb(250 248 246 / .89); --matra-card-glass:rgb(255 255 255 / .95); --matra-sheen:rgb(255 255 255 / .80);
+  --matra-ring:#f4f1ed; --matra-track:#d4cbc2;
+  --matra-good:#2f8878; --matra-watch:#7f868e;
+  --text:#14110f; --text2:#57504a; --text3:#57504a;
+  --pane:rgb(250 248 246 / .94); --side:rgb(244 241 237 / .86); --group:rgb(255 255 255 / .85); --line:rgb(20 17 15 / .10);
+  --hi:#ffffff; --sep:rgb(20 17 15 / .10); --seg-bg:#f4f1ed; --hover:#f4f1ed;
+  --sel-soft:#f7e5df; --btn:#eee5dc; --btn-hover:#e2d3c6;
+  --danger-bg:#fbe4dc; --danger:#ac2b1b;
+}
+/* Smoke material: distinct from solid Light, independent of the OS theme.
+   This is transparency, not a claim of native desktop backdrop blur. */
+:root[data-matra-material="glass"]{
+  --matra-bg:oklch(80% .014 65);--matra-card:oklch(86% .012 65);
+  --matra-glass:oklch(76% .014 65 / .84);--matra-card-glass:oklch(84% .012 65 / .94);
+  --matra-sheen:oklch(98% .005 65 / .22);--matra-stroke:oklch(30% .014 65 / .30);
+  --matra-ring:oklch(84% .014 65);--matra-track:oklch(62% .014 65);
+  --pane:oklch(84% .012 65 / .96);--side:oklch(76% .014 65 / .94);
+  --group:oklch(89% .012 65 / .70);--seg-bg:oklch(79% .014 65);
+}
+:root[data-matra-theme="light"]{--quota-green:oklch(43% .115 155);--quota-amber:oklch(48% .105 80);--quota-orange:oklch(49% .15 45);--quota-red:oklch(46% .18 25)}
+:root[data-matra-theme="dark"]{--quota-green:oklch(78% .15 155);--quota-amber:oklch(82% .15 80);--quota-orange:oklch(75% .16 45);--quota-red:oklch(72% .18 25)}
+:root[data-matra-theme]{--accent:var(--matra-accent)!important;--on-accent:var(--matra-on-accent)!important}
+html[data-matra-theme] body{color:var(--matra-text);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+html[data-matra-theme] body.solid{background:var(--matra-bg);--pane:var(--matra-card);--side:var(--matra-bg);--group:var(--matra-card)}
+html[data-matra-theme] #pill,html[data-matra-theme] #rest,html[data-matra-theme] .h-disc{background:linear-gradient(135deg,var(--matra-sheen),transparent 48%),var(--matra-glass);border-color:var(--matra-stroke);box-shadow:inset 0 1px 0 var(--matra-sheen);backdrop-filter:blur(18px) saturate(125%)}
+html[data-matra-theme] #rest{border-color:var(--matra-accent)}
+html[data-matra-theme] #card,html[data-matra-theme] #tail{background:var(--matra-card-glass);color:var(--matra-text);backdrop-filter:blur(22px) saturate(125%)}
+html[data-matra-theme] #card{box-shadow:0 0 0 1px var(--matra-stroke)}
+html[data-matra-theme] .pct,html[data-matra-theme] .glyph,html[data-matra-theme] .glyph .mark,html[data-matra-theme] .c-head .mark{color:var(--matra-text)}
+html[data-matra-theme] .h-glyph{fill:var(--matra-text)}
+html[data-matra-theme] .c-sub,html[data-matra-theme] .c-auth-status{color:var(--matra-muted)}
+html[data-matra-theme] .c-auth button{background:var(--matra-bg);color:var(--matra-text);border-color:var(--matra-stroke)}
+html[data-matra-theme] #pill::before{background:radial-gradient(circle at 0 0,transparent calc(var(--fillet) - 1.5px),var(--matra-stroke) calc(var(--fillet) - .5px),var(--matra-bg) calc(var(--fillet) + .5px))}
+html[data-matra-theme] #pill::after{background:radial-gradient(circle at 0 100%,transparent calc(var(--fillet) - 1.5px),var(--matra-stroke) calc(var(--fillet) - .5px),var(--matra-bg) calc(var(--fillet) + .5px))}
+html[data-matra-theme] body[data-edge="left"] #pill::before{background:radial-gradient(circle at 100% 0,transparent calc(var(--fillet) - 1.5px),var(--matra-stroke) calc(var(--fillet) - .5px),var(--matra-bg) calc(var(--fillet) + .5px))}
+html[data-matra-theme] body[data-edge="left"] #pill::after{background:radial-gradient(circle at 100% 100%,transparent calc(var(--fillet) - 1.5px),var(--matra-stroke) calc(var(--fillet) - .5px),var(--matra-bg) calc(var(--fillet) + .5px))}
+html[data-matra-theme] body[data-edge="top"] #pill::before{background:radial-gradient(circle at 0 100%,transparent calc(var(--fillet) - 1.5px),var(--matra-stroke) calc(var(--fillet) - .5px),var(--matra-bg) calc(var(--fillet) + .5px))}
+html[data-matra-theme] body[data-edge="top"] #pill::after{background:radial-gradient(circle at 100% 100%,transparent calc(var(--fillet) - 1.5px),var(--matra-stroke) calc(var(--fillet) - .5px),var(--matra-bg) calc(var(--fillet) + .5px))}
+html[data-matra-theme] body[data-edge="bottom"] #pill::before{background:radial-gradient(circle at 0 0,transparent calc(var(--fillet) - 1.5px),var(--matra-stroke) calc(var(--fillet) - .5px),var(--matra-bg) calc(var(--fillet) + .5px))}
+html[data-matra-theme] body[data-edge="bottom"] #pill::after{background:radial-gradient(circle at 100% 0,transparent calc(var(--fillet) - 1.5px),var(--matra-stroke) calc(var(--fillet) - .5px),var(--matra-bg) calc(var(--fillet) + .5px))}
+.matra-brand{font-family:"JetBrains Mono",Consolas,monospace;font-size:17px;font-weight:600;letter-spacing:0;color:var(--matra-text);display:flex;align-items:center;padding-left:8px;min-height:52px;white-space:nowrap}
+.matra-brand i{font-style:italic}.matra-brand b{color:var(--matra-accent);font-style:normal;font-weight:600;padding:0 .03em}
+.matra-credit{display:block;font-size:9px;color:var(--matra-muted);padding:10px 12px;line-height:1.5}
+/* Explicit material choice: only Glass uses transparent surfaces. */
+html[data-matra-material="solid"]{--matra-glass:var(--matra-bg);--matra-card-glass:var(--matra-card);--pane:var(--matra-card);--side:var(--matra-bg);--group:var(--matra-ring)}
+html[data-matra-material="solid"] #pill,html[data-matra-material="solid"] #rest,html[data-matra-material="solid"] .h-disc{background:var(--matra-bg);backdrop-filter:none;box-shadow:none}
+html[data-matra-material="solid"] #card,html[data-matra-material="solid"] #tail{backdrop-filter:none}
+/* Opaque inverse corners and bracket handles looked black against a light desktop.
+   Keep the hit targets and hover controls, but remove the ornamental hooks. */
+html[data-matra-theme] #pill::before,html[data-matra-theme] #pill::after{display:none}
+html[data-matra-theme] .handle .h-rest{display:none}
+html[data-matra-theme] .handle .h-glyph{opacity:.65;transform:scale(.65);fill:var(--matra-accent)}
+html[data-matra-theme] .handle.hover .h-glyph{opacity:1;transform:scale(1)}
+/* D: coordinated satellites, outside the capsule and revealed only on hover. */
+html[data-matra-theme] #pill{width:62px;padding:14px 0;gap:10px;border-radius:22px}
+html[data-matra-theme] body[data-edge="top"] #pill,html[data-matra-theme] body[data-edge="bottom"] #pill{width:auto;padding:8px 14px;border-radius:22px}
+html[data-matra-theme] body[data-edge="left"] #tail{left:61px}
+html[data-matra-theme] body[data-edge="right"] #tail{right:61px}
+html[data-matra-theme] body[data-edge="left"] #card{left:92px}
+html[data-matra-theme] body[data-edge="right"] #card{right:92px}
+/* Half-depth resting lip, with the same forgiving invisible wake area. */
+html[data-matra-theme] #rest{width:5px}
+html[data-matra-theme] body[data-edge="top"] #rest,html[data-matra-theme] body[data-edge="bottom"] #rest{width:79px;height:5px}
+html[data-matra-theme] #pill{--clip-rest:inset(calc(50% - 39.5px) 0 calc(50% - 39.5px) calc(100% - 5px) round 6px 0 0 6px)}
+html[data-matra-theme] body[data-edge="left"] #pill{--clip-rest:inset(calc(50% - 39.5px) calc(100% - 5px) calc(50% - 39.5px) 0 round 0 6px 6px 0)}
+html[data-matra-theme] body[data-edge="top"] #pill{--clip-rest:inset(0 calc(50% - 39.5px) calc(100% - 5px) calc(50% - 39.5px) round 0 0 6px 6px)}
+html[data-matra-theme] body[data-edge="bottom"] #pill{--clip-rest:inset(calc(100% - 5px) calc(50% - 39.5px) 0 calc(50% - 39.5px) round 6px 6px 0 0)}
+html[data-matra-theme] .handle{width:32px;height:32px;z-index:3;border-radius:50%;opacity:0;pointer-events:none;transition:opacity 160ms ease-out}
+html[data-matra-theme] body.controls-visible:not(.folded) .handle.hover,html[data-matra-theme] body.controls-visible:not(.folded) .handle.armed{opacity:1;pointer-events:auto}
+html[data-matra-theme] .handle .h-disc{width:32px;height:32px;margin:-16px 0 0 -16px;border-radius:50%;border:1px solid var(--matra-stroke);opacity:1;transform:none}
+html[data-matra-theme] .handle .h-glyph{width:16px;height:16px;margin:-8px 0 0 -8px;fill:var(--matra-muted);opacity:.85;transform:none}
+html[data-matra-theme] .handle.hover .h-glyph{fill:var(--matra-accent);transform:none}
+html[data-matra-theme] .handle.hover .h-disc{border-color:var(--matra-accent);transform:none}
+html[data-matra-theme] .handle .h-disc,html[data-matra-theme] .handle .h-glyph{transition:transform 180ms ease-out,opacity 180ms ease-out}
+html[data-matra-theme] .handle:not(.hover):not(.armed) .h-disc,html[data-matra-theme] .handle:not(.hover):not(.armed) .h-glyph{transform:scale(.88)}
+@media(prefers-reduced-motion:reduce){html[data-matra-theme] .handle,html[data-matra-theme] .handle>*{transition:none}}
+html[data-matra-theme] #move{cursor:grab}
+html[data-matra-theme] #move.armed{cursor:grabbing}
+html[data-matra-theme] #move.armed .h-disc{border:1px solid var(--matra-accent)}
+html[data-matra-theme] #side .row[aria-selected="true"]{background:var(--sel-soft)}
+/* SVG attributes were still painting dark rings even when the HTML theme changed. */
+html[data-matra-theme] svg.ring circle[fill="#2a2a2a"]{fill:var(--matra-ring)}
+html[data-matra-theme] svg circle[stroke="#303030"]{stroke:var(--matra-track)}
+html[data-matra-theme] .handle circle[stroke="#2e2e2e"]{stroke:var(--matra-stroke)}
+html[data-matra-theme] .handle circle[stroke="#000"]{stroke:var(--matra-bg)}
+html[data-matra-theme] .w-label,html[data-matra-theme] .g-head,html[data-matra-theme] .c-note{color:var(--matra-text)}
+html[data-matra-theme] .w-reset,html[data-matra-theme] .w-used,html[data-matra-theme] .s-row,html[data-matra-theme] .s-more{color:var(--matra-muted)}
+html[data-matra-theme] .w-track{background:var(--matra-track)}
+html[data-matra-theme] .g-box,html[data-matra-theme] .c-sessions{border-color:var(--matra-stroke)}
+html[data-matra-theme] #move.armed .h-disc{background:var(--matra-glass);border-color:var(--matra-text)}
+html[data-matra-theme] .s-row span[style*="color"]{color:var(--matra-muted)!important}
+html[data-matra-theme] button:focus-visible{outline:2px solid var(--matra-accent);outline-offset:2px}
+@media (prefers-reduced-transparency:reduce){html[data-matra-theme] #pill,html[data-matra-theme] #rest,html[data-matra-theme] .h-disc{background:var(--matra-bg);backdrop-filter:none}html[data-matra-theme] #card{background:var(--matra-card);backdrop-filter:none}}

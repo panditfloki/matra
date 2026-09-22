@@ -28,5 +28,9 @@ server.log
 # GitHub Release rather than committing a binary on every version bump.
 *.vsix
 node_modules/
+dist/
+.desktop-test/
+upstream-codenotch/
+native/target/
 
 .DS_Store

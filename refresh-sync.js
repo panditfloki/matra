@@ -17,7 +17,8 @@ function watchCacheChanges(files, onChange, { debounceMs = 250 } = {}) {
   let disposed = false;
   for (const [dir, names] of groups) {
     try {
-      const watcher = fs.watch(dir, (_event, filename) => {
+      // Windows 8.3 TEMP paths can abort libuv before JavaScript can catch it.
+      const watcher = fs.watch(fs.realpathSync.native(dir), (_event, filename) => {
         if (disposed || !filename || !names.has(String(filename))) return;
         clearTimeout(timer);
         timer = setTimeout(() => {

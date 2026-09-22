@@ -24,3 +24,10 @@ agents/**
 test/**
 blob.bin
 blob_hex.txt
+desktop/**
+scripts/**
+dist/**
+.desktop-test/**
+package-lock.json
+native/**
+upstream-codenotch/**
