@@ -115,12 +115,14 @@
   #toast.show{opacity:1}
 </style>
 <link rel="stylesheet" href="matra-theme.css">
+<link rel="icon" href="matra-logo.png">
+<script src="matra-copy.js"></script>
 <script defer src="matra-theme.js"></script>
 </head>
 <body>
 <div id="app">
   <nav id="side" role="tablist" aria-orientation="vertical" aria-label="Settings sections">
-    <div class="band" data-tauri-drag-region></div>
+    <div class="band matra-brand" data-tauri-drag-region aria-label="Mātrā by DYDXFX"><img src="matra-logo.png" alt="" width="36" height="36"><span><strong>Mātrā</strong><small>by dy/dx · fx</small></span></div>
     <button class="row" id="tab-accounts" role="tab" aria-controls="pane-accounts" aria-selected="false" tabindex="-1"><span class="badge b-blue"><svg viewBox="0 0 12 12"><circle cx="6" cy="4" r="2.4"/><path d="M1.5 11.2c.4-2.5 2.3-3.9 4.5-3.9s4.1 1.4 4.5 3.9z"/></svg></span><span>Accounts</span></button>
     <button class="row" id="tab-appearance" role="tab" aria-controls="pane-appearance" aria-selected="false" tabindex="-1"><span class="badge b-indigo"><svg viewBox="0 0 12 12"><path d="M10 .9a.8.8 0 0 1 1.1 1.1L6.4 6.7 5.3 5.6zM4.6 6.3l1.1 1.1c.2 1.9-1.9 3.6-4.7 3.1.9-.4 1.2-1 1.3-1.8.1-1.3 1.1-2.3 2.3-2.4z"/></svg></span><span>Appearance</span></button>
     <button class="row" id="tab-general" role="tab" aria-controls="pane-general" aria-selected="false" tabindex="-1"><span class="badge b-gray"><svg viewBox="0 0 12 12"><path fill-rule="evenodd" d="M5.1.6h1.8l.3 1.5 1.1.5 1.3-.8 1.3 1.3-.8 1.3.5 1.1 1.5.3v1.8l-1.5.3-.5 1.1.8 1.3-1.3 1.3-1.3-.8-1.1.5-.3 1.5H5.1l-.3-1.5-1.1-.5-1.3.8-1.3-1.3.8-1.3-.5-1.1L.6 6.9V5.1l1.5-.3.5-1.1-.8-1.3 1.3-1.3 1.3.8 1.1-.5zM6 4.1a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8z"/></svg></span><span>General</span></button>
@@ -137,6 +139,7 @@
     <div id="body">
 
       <section class="pane" id="pane-accounts" role="tabpanel" aria-labelledby="tab-accounts" hidden>
+        <p class="matra-intro">Independent sources. One measured view.</p>
         <div class="sec">Connected</div>
         <div class="group" id="acc-on" data-dynamic></div>
         <div id="acc-off-wrap" hidden>
@@ -146,7 +149,8 @@
       </section>
 
       <section class="pane" id="pane-appearance" role="tabpanel" aria-labelledby="tab-appearance" hidden>
-        <div class="sec">dy/dx.f(Mātrā)</div>
+        <p class="matra-intro">Set the frame for your readings.</p>
+        <div class="sec">Colour theme</div>
         <div class="group">
           <div class="item"><span>Appearance</span><span class="seg" id="matra-theme"><button data-theme="light">Light</button><button data-theme="dark">Dark</button><button data-theme="glass">Glass</button><button data-theme="system">System</button></span></div>
           <div class="item cap" id="matra-theme-status">Light and Dark are solid. Glass is always light and frosted. System follows Windows.</div>
@@ -192,10 +196,11 @@
       </section>
 
       <section class="pane" id="pane-general" role="tabpanel" aria-labelledby="tab-general" hidden>
+        <div class="matra-about"><img src="matra-logo.png" alt="Mātrā logo" width="48" height="48"><div><strong>Mātrā</strong><p>AI usage, in proportion.</p><small>Used / limit × 100 = usage %</small></div></div>
         <div class="group">
           <div class="item"><span>Open Codenotch at login</span><button class="switch" id="sw-autostart" role="switch" aria-checked="false" aria-label="Open Codenotch at login"></button></div>
           <div class="item cap">Codenotch opens by itself every time you sign in to this computer, and waits quietly in the background until a coding session starts. Turn it off and you have to open Codenotch yourself.</div>
-          <div class="item"><span>Version</span><span class="value" id="about-version" data-dynamic>0.3.0</span></div>
+          <div class="item"><span>Version</span><span class="value" id="about-version" data-dynamic>Unavailable</span></div>
           <div class="item"><span>Updates</span><span class="value" id="update-status" data-dynamic></span><button class="btn" id="btn-update" data-dynamic>Check for updates</button></div>
           <div class="item cap">Automatic updates are disabled for this Mātrā preview. Install locally reviewed builds from the Mātrā repository.</div>
         </div>
@@ -838,7 +843,7 @@ const STATUS_TEXT = {
   uk:{ ok:'', stale:'останній показник застарів', needsAuth:'не виконано вхід', absent:'не встановлено', none:'немає даних', error:'недоступний' }
 };
 let uiLang = 'en';
-function ui(key, fallback){ const table = STATIC_TEXT[uiLang]; return (table && table[key]) || fallback; }
+function ui(key, fallback){ const table = STATIC_TEXT[uiLang]; return window.matraCopy(key, (table && table[key]) || fallback, uiLang); }
 /* Text the scripts draw is skipped here: renderers set it through ui() themselves. */
 function applyStaticUi(){
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -852,7 +857,7 @@ function applyStaticUi(){
     const key = raw.trim();
     if(!key) continue;
     const translated = STATIC_TEXT[uiLang] ? STATIC_TEXT[uiLang][key] : null;
-    node.nodeValue = raw.replace(key, translated || key);
+    node.nodeValue = raw.replace(key, window.matraCopy(key, translated || key, uiLang));
   }
   for(const el of document.querySelectorAll('[aria-label],[title]')){
     for(const attr of ['aria-label','title']){

@@ -57,6 +57,15 @@ html[data-matra-theme] body[data-edge="bottom"] #pill::after{background:radial-g
 .matra-brand{font-family:"JetBrains Mono",Consolas,monospace;font-size:17px;font-weight:600;letter-spacing:0;color:var(--matra-text);display:flex;align-items:center;padding-left:8px;min-height:52px;white-space:nowrap}
 .matra-brand i{font-style:italic}.matra-brand b{color:var(--matra-accent);font-style:normal;font-weight:600;padding:0 .03em}
 .matra-credit{display:block;font-size:9px;color:var(--matra-muted);padding:10px 12px;line-height:1.5}
+.matra-brand{gap:8px;white-space:normal;padding:12px 6px!important;min-height:76px}
+.matra-brand img{flex:none;object-fit:contain}
+.matra-brand strong{display:block;font-size:19px;font-weight:600}
+.matra-brand small{display:block;font-size:10px;color:var(--matra-muted);margin-top:2px}
+.matra-intro{margin:6px 12px 16px;color:var(--matra-muted);font-size:12px}
+.matra-about{display:flex;align-items:center;gap:14px;padding:10px 12px 18px}
+.matra-about strong{font-size:22px;font-weight:600}
+.matra-about p{margin:3px 0 6px;color:var(--matra-text);font-size:13px}
+.matra-about small{font-family:Consolas,monospace;font-size:11px;color:var(--matra-muted)}
 /* Explicit material choice: only Glass uses transparent surfaces. */
 html[data-matra-material="solid"]{--matra-glass:var(--matra-bg);--matra-card-glass:var(--matra-card);--pane:var(--matra-card);--side:var(--matra-bg);--group:var(--matra-ring)}
 html[data-matra-material="solid"] #pill,html[data-matra-material="solid"] #rest,html[data-matra-material="solid"] .h-disc{background:var(--matra-bg);backdrop-filter:none;box-shadow:none}

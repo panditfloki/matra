@@ -31,22 +31,7 @@
   });
   const side = document.getElementById('side');
   if (side) {
-    const band = side.querySelector('.band');
-    if (band) { band.innerHTML = '<i>dy</i><b>/</b><i>dx</i><b>.</b><i>f</i><b>(</b><i>Mātrā</i><b>)</b>'; band.classList.add('matra-brand'); band.setAttribute('aria-label','dy/dx.f(Mātrā)'); }
     const note = document.createElement('small'); note.className = 'matra-credit';
-    note.textContent = 'dy/dx.f(Mātrā) · Developed by Pandit Floki'; side.append(note);
+    note.textContent = 'Mātrā · Developed by Pandit Floki'; side.append(note);
   }
-  // Keep translations/behaviour intact; rename only rendered product labels.
-  function brand(node) {
-    if (node.nodeType === Node.TEXT_NODE && node.parentElement && !['SCRIPT','STYLE'].includes(node.parentElement.tagName)) {
-      if (node.textContent.includes('Codenotch')) node.textContent = node.textContent.replaceAll('Codenotch', 'Mātrā');
-    } else if (node.nodeType === Node.ELEMENT_NODE && !['SCRIPT','STYLE'].includes(node.tagName)) {
-      node.childNodes.forEach(brand);
-    }
-  }
-  brand(document.body);
-  new MutationObserver(records => records.forEach(r => {
-    if (r.type === 'characterData') brand(r.target);
-    else r.addedNodes.forEach(brand);
-  })).observe(document.body, { childList: true, characterData: true, subtree: true });
 })();

@@ -1,0 +1,16 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const context = { window: {} };
+vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../codenotch/ui/matra-copy.js'), 'utf8'), context);
+const copy = context.window.matraCopy;
+assert.equal(copy('Accounts', 'Accounts', 'en'), 'AI sources');
+assert.equal(copy('Appearance', 'Appearance', 'en'), 'Display');
+assert.equal(copy('General', 'General', 'en'), 'App & data');
+assert.equal(copy('Accounts', '계정', 'ko'), '계정');
+assert.equal(copy('Unknown', 'Fallback', 'en'), 'Fallback');
+assert.equal(copy('Codex', 'Codex', 'en'), 'Codex');
+assert.equal(copy('Open Codenotch', 'Open Codenotch', 'en'), 'Open Mātrā');
+assert.match(copy('Light and Dark are solid. Glass is always light and frosted. System follows Windows.'), /translucent smoke tint/);
+console.log('PASS: Matra copy, translation fallback, provider identity and truthful Glass caption');

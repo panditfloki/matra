@@ -1,5 +1,19 @@
 # Mātrā
 
+<img src="media/brand/matra-logo-18.png" width="96" alt="Mātrā Logo-18: DYDXFX meter mark">
+
+**AI usage, in proportion.**
+
+Approved branding for the next build. The downloadable v1.8 release installer does
+not yet include these branding changes. Main-branch builds are available as GitHub
+Actions artifacts after the Windows Package workflow succeeds.
+
+<img src="docs/screenshots/settings-appearance-dark.png" width="680" alt="Mātrā Display settings, dark theme">
+
+Settings UI preview with sample data, not a live account or native blur capture.
+See the [branding review](docs/BRANDING-REVIEW.md) for light theme, AI sources,
+App & data, and the proposed vocabulary.
+
 **मात्रा** — *measure*. A lightweight AI usage and activity notch for Windows.
 
 It stays folded into the edge of your desktop, opens on hover, and shows the limits that matter
