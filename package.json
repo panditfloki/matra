@@ -13,10 +13,10 @@
   "homepage": "https://dydxfx.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/panditfloki/live-claude-usage-ui.git"
+    "url": "https://github.com/panditfloki/matra.git"
   },
   "bugs": {
-    "url": "https://github.com/panditfloki/live-claude-usage-ui/issues",
+    "url": "https://github.com/panditfloki/matra/issues",
     "email": "pandit@dydxfx.com"
   },
   "keywords": [

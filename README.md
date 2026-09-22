@@ -43,7 +43,7 @@ enable it; if the command is absent or fails, Claude continues working and the C
 explicit unavailable state.
 
 **Option A — install the extension** (no build step). Grab the `.vsix` from the
-[latest release](https://github.com/panditfloki/live-claude-usage-ui/releases/latest):
+[latest release](https://github.com/panditfloki/matra/releases/latest):
 
 ```bash
 code --install-extension claude-usage-meter-0.9.0.vsix
@@ -55,8 +55,8 @@ Or from the IDE: **Extensions → ⋯ → Install from VSIX…**
 **Option B — run the web app**, no IDE at all:
 
 ```bash
-git clone https://github.com/panditfloki/live-claude-usage-ui
-cd live-claude-usage-ui
+git clone https://github.com/panditfloki/matra
+cd matra
 node server.js          # → http://localhost:4317
 ```
 
@@ -220,4 +220,4 @@ MIT — © 2026 [dydxfx](https://dydxfx.com). Not affiliated with Anthropic.
 
 Built by **Pandit Floki** at **dydxfx** · [dydxfx.com](https://dydxfx.com) · <pandit@dydxfx.com>
 
-Issues and PRs welcome on [GitHub](https://github.com/panditfloki/live-claude-usage-ui/issues).
+Issues and PRs welcome on [GitHub](https://github.com/panditfloki/matra/issues).

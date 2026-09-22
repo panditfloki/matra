@@ -264,7 +264,7 @@ Built and iterated locally; never published. What landed, in order:
   on hover, top deck with plan and price, and three fixed KPI cards (5-hour window, last 24h,
   all time) that do **not** move when the range changes.
 
-[1.1.0]: https://github.com/panditfloki/live-claude-usage-ui/releases/tag/v1.1.0
-[1.0.0]: https://github.com/panditfloki/live-claude-usage-ui/releases/tag/v1.0.0
-[0.10.0]: https://github.com/panditfloki/live-claude-usage-ui/releases/tag/v0.10.0
-[0.9.0]: https://github.com/panditfloki/live-claude-usage-ui/releases/tag/v0.9.0
+[1.1.0]: https://github.com/panditfloki/matra/releases/tag/v1.1.0
+[1.0.0]: https://github.com/panditfloki/matra/releases/tag/v1.0.0
+[0.10.0]: https://github.com/panditfloki/matra/releases/tag/v0.10.0
+[0.9.0]: https://github.com/panditfloki/matra/releases/tag/v0.9.0
