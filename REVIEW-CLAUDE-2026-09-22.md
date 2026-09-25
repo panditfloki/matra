@@ -32,7 +32,7 @@ updater, is upstream code. DESIGN.md's preview.9/10/11 behaviours all live in th
 - RUNTIME: 12 × `codex: live read failed (https://chatgpt.com/backend-api/wham/usage: … invalid peer certificate: UnknownIssuer)` and 12 × the same for `cursor.com`. A direct handshake from this machine shows `chatgpt.com` presented by **Kaspersky Anti-Virus Personal Root Certificate**, i.e. TLS interception is active here.
 - CODE: `usage.rs:472`, `codex.rs:194`, `cursor.rs:206`, `grok.rs:252` use `ureq::get` / a default `AgentBuilder` (rustls, bundled roots). Only the Antigravity local bridge builds a `native_tls` connector (`antigravity.rs:245-250`). `Cargo.toml:25` enables the `native-tls` feature and comments as if it were in use; it is not, for these calls.
 - Mitigation already present, verified in code: the Codex fallback is honest. `codex.rs:648,668-678` sets `note = "Live read failed (…) · <plan> · from last Codex run"`, uses the rollout's recorded time as `fetched_at`, and marks `stale` after 5 min (`CURRENT_FOR_MS`, line 41). `codex.json` on disk shows a later live success (`Prolite · via Codex`), so the failure is intermittent here.
-- Impact: P2 on this machine (labelled fallback), P1 on any corporate laptop with permanent inspection (the Telstra device), where live quota will never load.
+- Impact: P2 on this machine (labelled fallback), P1 on any corporate laptop with permanent inspection (the work device), where live quota will never load.
 - Fix: one shared `AgentBuilder` with `.tls_connector(native_tls)` (schannel) for every remote provider, and log the certificate issuer on `UnknownIssuer`.
 
 ### P2-4 [hit-testing] Invisible satellites and the bounding-box rule stop click-through over transparent screen
