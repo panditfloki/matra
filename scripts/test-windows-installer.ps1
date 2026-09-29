@@ -75,10 +75,25 @@ Remove-ItemProperty -Path $approvedKey -Name MatraNotch
 
 # Run the packaged WebView2 with no signed-in accounts. Exercise real IPC and
 # capture screenshots, never claiming these fixtures are real provider usage.
+# WebView2 150+ ignores environment debug arguments in an elevated runner.
+# Use Microsoft's documented app-specific debugger configuration only in this
+# disposable CI VM. Never ship a debug flag or change a user's Windows policy.
+# https://github.com/MicrosoftEdge/WebView2Feedback/issues/5645
+$debugKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+if ((Get-ItemProperty -Path $debugKey -Name 'matra.exe' -ErrorAction SilentlyContinue)) {
+    throw 'Refusing to overwrite existing WebView2 debugger configuration.'
+}
+New-Item -Path $debugKey -Force | Out-Null
+New-ItemProperty -Path $debugKey -Name 'matra.exe' -PropertyType String -Value '--remote-debugging-port=9337' | Out-Null
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9337'
-$native = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru -RedirectStandardError (Join-Path $dataDir 'launch-stderr.log')
-& node (Join-Path $PSScriptRoot 'test-windows-native-ui.cjs')
-$uiFailed = $LASTEXITCODE -ne 0
+try {
+    $native = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru -RedirectStandardError (Join-Path $dataDir 'launch-stderr.log')
+    & node (Join-Path $PSScriptRoot 'test-windows-native-ui.cjs')
+    $uiFailed = $LASTEXITCODE -ne 0
+} finally {
+    Remove-ItemProperty -Path $debugKey -Name 'matra.exe'
+    Remove-Item Env:\WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+}
 if ($uiFailed) {
     # Keep the failed gate, but collect independent lifecycle evidence in this
     # disposable account before failing the job. Never upload personal logs.
@@ -91,7 +106,6 @@ if ($uiFailed) {
     }
     Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = (Get-Date).AddMinutes(-5) } -ErrorAction SilentlyContinue | Where-Object { $_.Message -match 'matra|WebView2' } | Select-Object -First 5 TimeCreated, Message | Format-List
 }
-Remove-Item Env:\WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
 
 # Uninstall while running: no orphan process or owned hooks/startup; data stays.
 Run-Checked $uninstaller '/S'
@@ -106,15 +120,28 @@ Assert-True (Test-Path $configFile) 'Uninstall preserved saved preferences'
 Run-Checked $PreviousInstaller "/S /D=$installDir"
 Assert-True ((Get-Item $exe).VersionInfo.ProductVersion -like '1.8.4*') 'Public 1.8.4 baseline installed'
 Run-Checked $exe 'install-hooks'
-Run-Checked $exe 'autostart on'
-$saved = @{ theme = 'darkGlass'; accent = 'eb4236'; automatic_updates = $false; notch_edge = 'left'; scale = 0.8; weekly_ring = 'inside'; glm_notch_fixed = $true; notch_on_hover = $true; notch_motion = $true; notch_visible = $true; tray_visible = $true }
+# 1.8.4's console-registry readback cannot round-trip this Unicode path. Seed
+# its existing opt-in directly; the new binary's real on/disabled paths were
+# exercised above. The upgrade must retain this exact Windows Run entry.
+New-ItemProperty -Path $runKey -Name MatraNotch -PropertyType String -Value "`"$exe`" --silent" -Force | Out-Null
+Assert-True ((Run-Value) -ceq "`"$exe`" --silent") 'Baseline has an enabled Unicode startup fixture'
+# The public baseline matches hooks by basename. Introduce the foreign hook
+# after its opt-in so this upgrade gate tests 1.8.5, not the old install command.
+if (!((Get-HookCommands) -contains '"D:\Foreign\matra-hook.exe" running')) {
+    $baselineHooks = Get-Content -LiteralPath $claudeFile -Raw | ConvertFrom-Json
+    $baselineHooks.hooks.PreToolUse = @($baselineHooks.hooks.PreToolUse) + $fixture.hooks.PreToolUse
+    $baselineHooks | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $claudeFile -Encoding utf8NoBOM
+}
+Assert-True ((Get-HookCommands).Count -eq 8) 'Upgrade starts with seven owned hooks and one foreign hook'
+Assert-ForeignHook
+$saved = @{ theme = 'glass'; accent = 'eb4236'; automatic_updates = $false; notch_edge = 'left'; scale = 0.8; weekly_ring = 'inside'; glm_notch_fixed = $true; notch_on_hover = $true; notch_motion = $true; notch_visible = $true; tray_visible = $true }
 $saved | ConvertTo-Json | Set-Content -LiteralPath $configFile -Encoding utf8NoBOM
 $old = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru
 Start-Sleep -Seconds 3
 # The previous app normalises its config during launch. Compare the settled
 # installed app's data immediately before and after Setup, not pre-launch bytes.
 $settled = Get-Content -LiteralPath $configFile -Raw | ConvertFrom-Json
-Assert-True ($settled.theme -eq 'darkGlass' -and $settled.accent -eq 'eb4236' -and $settled.notch_edge -eq 'left') 'Baseline retained the selected preferences before upgrade'
+Assert-True ($settled.theme -eq 'glass' -and $settled.accent -eq 'eb4236' -and $settled.notch_edge -eq 'left') 'Baseline retained the selected preferences before upgrade'
 $before = (Get-FileHash -LiteralPath $configFile -Algorithm SHA256).Hash
 Run-Checked $Installer "/S /UPDATE /D=$installDir"
 Assert-True ($old.WaitForExit(30000)) 'Upgrade stopped the previous installed process'
