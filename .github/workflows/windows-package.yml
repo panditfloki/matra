@@ -84,6 +84,8 @@ jobs:
         if: always()
         with:
           name: Matra-Windows-evidence-${{ github.sha }}
+          # Only the exact fixture screenshot glob below, never other hidden data.
+          include-hidden-files: true
           path: |
             .desktop-test/windows-185-*.png
           if-no-files-found: warn
