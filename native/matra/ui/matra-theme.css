@@ -44,7 +44,9 @@ html[data-matra-theme="dark"] .matra-website{color:#ff8b7f}
 :root[data-matra-theme="light"]{--quota-green:oklch(43% .115 155);--quota-amber:oklch(48% .105 80);--quota-orange:oklch(49% .15 45);--quota-red:oklch(46% .18 25)}
 :root[data-matra-theme="dark"]{--quota-green:oklch(78% .15 155);--quota-amber:oklch(82% .15 80);--quota-orange:oklch(75% .16 45);--quota-red:oklch(72% .18 25)}
 :root[data-matra-theme]{--matra-accent:var(--matra-user-accent,AccentColor);--matra-on-accent:var(--matra-user-ink,AccentColorText)}
-#matra-theme{flex-wrap:wrap;justify-content:flex-end}
+.item:has(> #matra-theme){flex-direction:column;align-items:stretch;gap:8px}
+#matra-theme{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));width:100%;box-sizing:border-box}
+#matra-theme button{min-width:0;padding:5px 3px;white-space:normal;line-height:1.3}
 .quota-slider{display:grid;gap:5px;justify-items:end;width:min(240px,55%)}
 .quota-slider input{width:100%;accent-color:var(--matra-accent)}
 .quota-slider output{font-variant-numeric:tabular-nums}

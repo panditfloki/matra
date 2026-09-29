@@ -37,6 +37,8 @@ async function saved(command, predicate) {
   evaluate('settings', `document.querySelector('#tab-appearance').click()`);
   const choices = evaluate('settings', `[...document.querySelectorAll('#matra-theme button')].map(b=>b.dataset.theme)`);
   assert.deepEqual(choices, ['glass','darkGlass','dark','light','system']);
+  const themeFits = evaluate('settings', `(()=>{const group=document.querySelector('#matra-theme').closest('.group').getBoundingClientRect();return [...document.querySelectorAll('#matra-theme button')].every(button=>{const r=button.getBoundingClientRect();return r.left>=group.left && r.right<=group.right && r.right<=innerWidth && r.width>0 && button.scrollWidth<=button.clientWidth+1;});})()`);
+  assert.equal(themeFits, true, 'All five theme choices fit the actual Settings window without clipping');
   for (const theme of choices) {
     evaluate('settings', `document.querySelector('[data-theme="${theme}"]').click()`);
     await saved('get_matra_theme', value => value === theme);
