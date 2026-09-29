@@ -38,6 +38,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
+          cache-on-failure: true
       - name: Test UI scripts and preference contracts
         run: |
           $scripts = @('scripts/check-ui-scripts.mjs', 'scripts/test-claude-auth-ui.cjs', 'scripts/test-ko-i18n.cjs', 'scripts/test-matra-copy.cjs', 'scripts/test-matra-interactions.cjs', 'scripts/test-matra-appearance.cjs', 'scripts/test-matra-quota.cjs', 'test-codex-headline.cjs')

@@ -8,14 +8,16 @@ function evaluate(page, expression, shot) {
   return JSON.parse(execFileSync(process.execPath, [path.join(__dirname, 'native-inspect.js'), page, expression, ...(shot ? [shot] : [])], {encoding:'utf8', timeout:30000})).value;
 }
 async function ready(page) {
+  let diagnostic = 'No response yet';
   for (let n = 0; n < 120; n++) {
     try {
       const targets = await (await fetch('http://127.0.0.1:9337/json/list')).json();
+      diagnostic = JSON.stringify(targets.map(({type, title, url}) => ({type, title, url})));
       if (targets.some(target => target.url.endsWith(`/${page}.html`))) return;
-    } catch {}
+    } catch (error) { diagnostic = String(error); }
     await pause(500);
   }
-  throw new Error(`${page} WebView2 did not become available`);
+  throw new Error(`${page} WebView2 did not become available: ${diagnostic}`);
 }
 async function saved(command, predicate) {
   for (let n = 0; n < 30; n++) {

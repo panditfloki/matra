@@ -76,9 +76,21 @@ Remove-ItemProperty -Path $approvedKey -Name MatraNotch
 # Run the packaged WebView2 with no signed-in accounts. Exercise real IPC and
 # capture screenshots, never claiming these fixtures are real provider usage.
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9337'
-$native = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru
+$native = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru -RedirectStandardError (Join-Path $dataDir 'launch-stderr.log')
 & node (Join-Path $PSScriptRoot 'test-windows-native-ui.cjs')
-if ($LASTEXITCODE -ne 0) { throw 'Packaged native UI smoke failed.' }
+$uiFailed = $LASTEXITCODE -ne 0
+if ($uiFailed) {
+    # Keep the failed gate, but collect independent lifecycle evidence in this
+    # disposable account before failing the job. Never upload personal logs.
+    $native.Refresh()
+    Write-Output "UI launch PID=$($native.Id), exited=$($native.HasExited), exit=$($native.ExitCode)"
+    Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(matra|msedgewebview2)\.exe$' } | Select-Object Name, ProcessId, SessionId, CommandLine | Format-List
+    foreach ($log in @('launch-stderr.log', 'run.log', 'install.log', 'doctor.log')) {
+        $logPath = Join-Path $dataDir $log
+        if (Test-Path $logPath) { Write-Output "Diagnostic: $log"; Get-Content -LiteralPath $logPath -Tail 80 }
+    }
+    Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = (Get-Date).AddMinutes(-5) } -ErrorAction SilentlyContinue | Where-Object { $_.Message -match 'matra|WebView2' } | Select-Object -First 5 TimeCreated, Message | Format-List
+}
 Remove-Item Env:\WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
 
 # Uninstall while running: no orphan process or owned hooks/startup; data stays.
@@ -97,9 +109,13 @@ Run-Checked $exe 'install-hooks'
 Run-Checked $exe 'autostart on'
 $saved = @{ theme = 'darkGlass'; accent = 'eb4236'; automatic_updates = $false; notch_edge = 'left'; scale = 0.8; weekly_ring = 'inside'; glm_notch_fixed = $true; notch_on_hover = $true; notch_motion = $true; notch_visible = $true; tray_visible = $true }
 $saved | ConvertTo-Json | Set-Content -LiteralPath $configFile -Encoding utf8NoBOM
-$before = (Get-FileHash -LiteralPath $configFile -Algorithm SHA256).Hash
 $old = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru
 Start-Sleep -Seconds 3
+# The previous app normalises its config during launch. Compare the settled
+# installed app's data immediately before and after Setup, not pre-launch bytes.
+$settled = Get-Content -LiteralPath $configFile -Raw | ConvertFrom-Json
+Assert-True ($settled.theme -eq 'darkGlass' -and $settled.accent -eq 'eb4236' -and $settled.notch_edge -eq 'left') 'Baseline retained the selected preferences before upgrade'
+$before = (Get-FileHash -LiteralPath $configFile -Algorithm SHA256).Hash
 Run-Checked $Installer "/S /UPDATE /D=$installDir"
 Assert-True ($old.WaitForExit(30000)) 'Upgrade stopped the previous installed process'
 Assert-True ((Get-Item $exe).VersionInfo.ProductVersion -like '1.8.5*') 'Upgrade installed 1.8.5'
@@ -126,4 +142,5 @@ Assert-True ((Run-Value) -ceq '"D:\Foreign\matra.exe" --silent') 'Uninstall pres
 Assert-ForeignHook
 Assert-True ((Get-HookCommands).Count -eq 1) 'Final uninstall removed only owned hooks'
 Assert-True (Test-Path $configFile) 'Final uninstall retained user data'
+if ($uiFailed) { throw 'Lifecycle completed, but the packaged native UI gate failed; see launch diagnostics above.' }
 Write-Output 'PASS: Windows installation, native UI, upgrade, hook ownership and uninstall lifecycle.'
