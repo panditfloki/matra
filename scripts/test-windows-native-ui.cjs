@@ -13,7 +13,8 @@ async function ready(page) {
     try {
       const targets = await (await fetch('http://127.0.0.1:9337/json/list')).json();
       diagnostic = JSON.stringify(targets.map(({type, title, url}) => ({type, title, url})));
-      if (targets.some(target => target.url.endsWith(`/${page}.html`))) return;
+      if (targets.some(target => target.url.endsWith(`/${page}.html`)) &&
+          evaluate(page, `document.readyState === 'complete' && !!window.__TAURI__?.core && !!document.querySelector('${page === 'settings' ? '#matra-theme' : '#pill'}')`)) return;
     } catch (error) { diagnostic = String(error); }
     await pause(500);
   }
@@ -32,7 +33,7 @@ async function saved(command, predicate) {
   evaluate('notch', `invoke('open_settings')`);
   await ready('settings');
   // Seed local fixture readings only for visual rendering, not provider claims.
-  evaluate('notch', `providers=()=>[{id:'claude',base:'claude',name:'Claude',glyph:'C',snap:{status:'ok',fetched_at:Date.now(),windows:[{id:'session',used:.12},{id:'seven_day',used:.82}]}}];weeklyRing='outside';renderRing();unfold();`);
+  evaluate('notch', `providers=()=>[{id:'claude',base:'claude',name:'Claude',glyph:'C',snap:{status:'ok',fetched_at:Date.now(),windows:[{id:'session',used:.12},{id:'seven_day',used:.82}]}}];weeklyRing='outside';onHover=false;renderRing();unfold();`);
   evaluate('settings', `document.querySelector('#tab-appearance').click()`);
   const choices = evaluate('settings', `[...document.querySelectorAll('#matra-theme button')].map(b=>b.dataset.theme)`);
   assert.deepEqual(choices, ['glass','darkGlass','dark','light','system']);
@@ -48,6 +49,7 @@ async function saved(command, predicate) {
     evaluate('settings', 'document.title', `windows-185-${theme}-settings.png`);
   }
   const before = evaluate('notch', `[...document.querySelectorAll('.quota-current,.quota-weekly')].map(n=>n.getAttribute('stroke'))`);
+  assert.equal(before.length, 2, 'The fixture renders both quota rings');
   for (const accent of ['eb4236', '36a8eb']) {
     evaluate('settings', `document.querySelector('[data-accent="${accent}"]').click()`);
     await saved('get_matra_accent', value => value === accent);
@@ -62,6 +64,19 @@ async function saved(command, predicate) {
   assert.match(evaluate('notch', 'tone(.2)'), /color-mix/);
   evaluate('settings', `document.querySelector('#quota-reset').click()`);
   await saved('get_quota_colors', value => value.mode === 'step' && value.watch === .5 && value.critical === .7);
+  evaluate('settings', `document.querySelector('#quota-critical').value=85;document.querySelector('#quota-critical').dispatchEvent(new Event('change'));`);
+  await saved('get_quota_colors', value => value.critical === .85);
+  evaluate('settings', `document.querySelector('#quota-watch').value=80;document.querySelector('#quota-watch').dispatchEvent(new Event('change'));`);
+  await saved('get_quota_colors', value => value.watch === .8);
+  evaluate('settings', `document.querySelector('#close').click()`);
+  await pause(300);
+  evaluate('notch', `invoke('open_settings')`);
+  await ready('settings');
+  await saved('get_quota_colors', value => value.watch === .8 && value.critical === .85);
+  assert.deepEqual(evaluate('settings', `[document.querySelector('#quota-watch').value,document.querySelector('#quota-critical').value]`), ['80','85']);
+  evaluate('settings', `document.querySelector('#quota-reset').click()`);
+  await saved('get_quota_colors', value => value.watch === .5 && value.critical === .7);
+  assert.equal(evaluate('settings', `document.querySelector('#quota-critical').value`), '70');
   evaluate('settings', `document.querySelector('#tab-general').click();document.querySelector('#sw-auto-install').click()`);
   await saved('get_automatic_updates', value => value === true);
   assert.equal(evaluate('settings', `document.querySelector('#sw-auto-install').getAttribute('aria-checked')`), 'true');

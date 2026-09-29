@@ -11,10 +11,12 @@
   let saved = { ...MatraQuota.defaults };
   function apply(value) {
     saved = MatraQuota.normalize(value);
-    watch.value = Math.round(saved.watch * 100);
-    critical.value = Math.round(saved.critical * 100);
+    // Range inputs clamp on assignment. Restore bounds before values, otherwise
+    // reopening Watch=80/Critical=85 silently displays the old HTML maximum.
     watch.max = Math.round(saved.critical * 100) - 1;
     critical.min = Math.round(saved.watch * 100) + 1;
+    watch.value = Math.round(saved.watch * 100);
+    critical.value = Math.round(saved.critical * 100);
     document.getElementById('quota-watch-value').textContent = `${watch.value}%`;
     document.getElementById('quota-critical-value').textContent = `${critical.value}%`;
     for (const button of mode) {

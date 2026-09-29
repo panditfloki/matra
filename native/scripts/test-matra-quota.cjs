@@ -35,9 +35,22 @@ function element(dataset = {}) {
     addEventListener(name, fn) { this.handlers[name] = fn; } };
 }
 
+function rangeElement(min, max, value) {
+  const el = element();
+  let current = value;
+  el.min = min; el.max = max;
+  Object.defineProperty(el, 'value', {
+    get: () => current,
+    set: next => { current = Math.max(Number(el.min), Math.min(Number(el.max), Number(next))); }
+  });
+  return el;
+}
+
 test('native persistence, reload, broadcast, reset and failed-save rollback', async () => {
   const ids = Object.fromEntries(['quota-watch','quota-critical','quota-reset','quota-status',
     'quota-watch-value','quota-critical-value'].map(id => [id, element()]));
+  ids['quota-watch'] = rangeElement(1, 69, 50);
+  ids['quota-critical'] = rangeElement(51, 89, 70);
   const buttons = ['step', 'ramp'].map(mode => element({mode}));
   const events = new Map();
   let stored = {watch: .3, critical: .6, mode: 'ramp'};
@@ -76,4 +89,13 @@ test('native persistence, reload, broadcast, reset and failed-save rollback', as
   events.get('matra-quota-colors')({payload: {watch: .2, critical: .8, mode:'ramp'}});
   assert.equal(ids['quota-watch'].value, 20);
   assert.equal(ids['quota-critical'].min, 21);
+  stored = { watch: .8, critical: .85, mode: 'step' };
+  ids['quota-watch'] = rangeElement(1, 69, 50);
+  ids['quota-critical'] = rangeElement(51, 89, 70);
+  await boot();
+  assert.equal(ids['quota-watch'].value, 80, 'Reopen restores high thresholds without HTML range clamping');
+  assert.equal(ids['quota-critical'].value, 85);
+  await ids['quota-reset'].handlers.click();
+  assert.equal(ids['quota-watch'].value, 50);
+  assert.equal(ids['quota-critical'].value, 70, 'Reset lowers bounds before restoring the critical value');
 });
