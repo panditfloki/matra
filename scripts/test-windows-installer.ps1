@@ -134,14 +134,16 @@ if (!((Get-HookCommands) -contains '"D:\Foreign\matra-hook.exe" running')) {
 }
 Assert-True ((Get-HookCommands).Count -eq 8) 'Upgrade starts with seven owned hooks and one foreign hook'
 Assert-ForeignHook
-$saved = @{ theme = 'glass'; accent = 'eb4236'; automatic_updates = $false; notch_edge = 'left'; scale = 0.8; weekly_ring = 'inside'; glm_notch_fixed = $true; notch_on_hover = $true; notch_motion = $true; notch_visible = $true; tray_visible = $true }
+# Use only fields that actually existed in the public 1.8.4 Config struct.
+# Accent, quota colours and automatic updates were added by this candidate.
+$saved = @{ theme = 'glass'; notch_edge = 'left'; scale = 0.8; weekly_ring = 'inside'; glm_notch_fixed = $true; notch_on_hover = $true; notch_motion = $true; notch_visible = $true; tray_visible = $true }
 $saved | ConvertTo-Json | Set-Content -LiteralPath $configFile -Encoding utf8NoBOM
 $old = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru
 Start-Sleep -Seconds 3
 # The previous app normalises its config during launch. Compare the settled
 # installed app's data immediately before and after Setup, not pre-launch bytes.
 $settled = Get-Content -LiteralPath $configFile -Raw | ConvertFrom-Json
-Assert-True ($settled.theme -eq 'glass' -and $settled.accent -eq 'eb4236' -and $settled.notch_edge -eq 'left') 'Baseline retained the selected preferences before upgrade'
+Assert-True ($settled.theme -eq 'glass' -and $settled.notch_edge -eq 'left' -and $settled.scale -eq 0.8 -and $settled.weekly_ring -eq 'inside') 'Baseline retained the selected preferences before upgrade'
 $before = (Get-FileHash -LiteralPath $configFile -Algorithm SHA256).Hash
 Run-Checked $Installer "/S /UPDATE /D=$installDir"
 Assert-True ($old.WaitForExit(30000)) 'Upgrade stopped the previous installed process'
@@ -151,6 +153,13 @@ Assert-True ((Run-Value) -ceq "`"$exe`" --silent") 'Upgrade preserved startup op
 Assert-True ((Get-HookCommands).Count -eq 8) 'Upgrade preserved hook opt-in without duplicates'
 Assert-ForeignHook
 Run-Checked $exe 'doctor'
+$upgraded = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru
+Start-Sleep -Seconds 3
+$upgraded.Refresh()
+Assert-True (!$upgraded.HasExited) 'Upgraded 1.8.5 app stayed running'
+$reloaded = Get-Content -LiteralPath $configFile -Raw | ConvertFrom-Json
+Assert-True ($reloaded.theme -eq 'glass' -and $reloaded.notch_edge -eq 'left' -and $reloaded.scale -eq 0.8 -and $reloaded.weekly_ring -eq 'inside') 'Upgraded app loaded the previous preferences'
+Assert-True ($reloaded.automatic_updates -eq $false -and $reloaded.quota_colors.watch -eq 0.5 -and $reloaded.quota_colors.critical -eq 0.7) 'New preferences have safe backward-compatible defaults'
 
 # Invalid settings must fail without rewriting a user's existing file.
 $validHooks = Get-Content -LiteralPath $claudeFile -Raw
@@ -165,6 +174,7 @@ $validHooks | Set-Content -LiteralPath $claudeFile -Encoding utf8NoBOM
 New-ItemProperty -Path $runKey -Name MatraNotch -PropertyType String -Value '"D:\Foreign\matra.exe" --silent' -Force | Out-Null
 Run-Checked $uninstaller '/S'
 Wait-Removed $exe
+Assert-True ($upgraded.WaitForExit(30000)) 'Final uninstall stopped the upgraded app'
 Assert-True ((Run-Value) -ceq '"D:\Foreign\matra.exe" --silent') 'Uninstall preserved a foreign startup registration'
 Assert-ForeignHook
 Assert-True ((Get-HookCommands).Count -eq 1) 'Final uninstall removed only owned hooks'
