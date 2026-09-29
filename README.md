@@ -1,292 +1,182 @@
-# Mātrā
+<p align="center">
+  <img src="media/brand/matra-logo-18.png" width="80" alt="Mātrā, the DYDXFX usage meter">
+</p>
 
-<img src="media/brand/matra-logo-18.png" width="96" alt="Mātrā Logo-18: DYDXFX meter mark">
+<h1 align="center">Mātrā</h1>
 
-**AI usage, in proportion.**
+<p align="center"><strong>AI usage, in proportion.</strong><br>
+Your AI limits, at the edge of your screen.</p>
 
-The v1.8.1 Windows installer includes Logo-18, the DYDXFX colour themes and the
-updated Settings vocabulary. No PowerShell command or developer tools are needed.
+<p align="center">
+  <a href="https://github.com/panditfloki/matra/releases/latest">Download for Windows</a> ·
+  <a href="#a-closer-look">Screenshots</a> ·
+  <a href="#availability">Release status</a> ·
+  <a href="https://dydxfx.com">DYDXFX</a>
+</p>
 
-<img src="docs/screenshots/settings-appearance-dark.png" width="680" alt="Mātrā Display settings, dark theme">
+Mātrā (मात्रा, *measure*) is a compact desktop meter for people who work across
+AI tools. See usage, remaining allowance and reset times without opening another
+dashboard. It folds into your screen edge and opens when you need the detail.
 
-Settings UI preview with sample data, not a live account or native blur capture.
-See the [branding review](docs/BRANDING-REVIEW.md) for light theme, AI sources,
-App & data, and the proposed vocabulary.
+<p align="center">
+  <a href="docs/screenshots/macos-codex-glass.png">
+    <img src="docs/screenshots/macos-codex-glass.png" width="880" alt="Mātrā macOS preview: a Codex usage card with weekly allowance, reset credits, token history and a compact four-provider edge meter">
+  </a>
+</p>
 
-**मात्रा** — *measure*. A lightweight AI usage and activity notch for Windows.
+<p align="center"><sub>macOS development preview. Actual readings at capture time, not live data on this page.</sub></p>
 
-It stays folded into the edge of your desktop, opens on hover, and shows the limits that matter
-without becoming another dashboard window. Rings show quota pressure; the hover card explains
-each limit window and reset time; live activity shows whether an agent is working or waiting.
+## A glance, then the detail
 
-## Download for Windows
+- **One compact meter.** Keep supported AI accounts together at the screen edge.
+- **Rings for the overview.** See the main allowance and, where available, a separate weekly ring.
+- **Hover for context.** Open the provider card for limit windows, remaining usage and reset times.
+- **Activity beside usage.** See supported agents working, waiting or idle.
+- **Your workspace, your layout.** Choose placement, size, visibility and appearance.
+- **Unknown means unknown.** Missing readings are not presented as zero usage.
 
-### [Download Mātrā v1.8.1 for Windows](https://github.com/panditfloki/matra/releases/latest/download/Matra-Setup.exe)
+## A closer look
 
-The installer is named `Matra-Setup.exe` in every release, so this link always points to the newest
-Windows build. It installs for the current user and does not require administrator rights.
+<table>
+  <tr>
+    <td width="50%"><strong>Choose your AI sources</strong><br>Keep the meter focused on the tools you use.</td>
+    <td width="50%"><strong>Make it fit your workspace</strong><br>Choose a theme, reset format and ring layout.</td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/macos-sources-dark.png"><img src="docs/screenshots/macos-sources-dark.png" alt="Mātrā AI sources settings in dark appearance, showing optional provider connections" width="100%"></a></td>
+    <td><a href="docs/screenshots/macos-display-light.png"><img src="docs/screenshots/macos-display-light.png" alt="Mātrā Display settings in light appearance, showing five theme choices and weekly ring controls" width="100%"></a></td>
+  </tr>
+</table>
 
-Download and double-click **Matra-Setup.exe**, complete Setup, then launch Mātrā
-from the finish page or Start menu. The app's `matra.exe` is not an installer.
-Setup migrates old Mātrā preview processes and shortcuts, and keeps your existing
-theme, provider preferences and enabled integrations. Fresh installs follow the
-Windows theme; choose Light, Dark, Glass or System in **Display**.
+These screenshots show the **macOS v1.8.5 development build**, captured on
+30 September 2026. The Windows download is a separate release; the screenshots
+do not imply that every Mac feature is already available on Windows.
 
-The current installer is not code-signed. Windows SmartScreen may show **Windows protected your
-PC** on first launch; choose **More info → Run anyway**. Source and build workflow are public here.
+<details>
+<summary>View the alternate Codex screenshot and capture notes</summary>
 
-## What Mātrā watches
+<img src="docs/screenshots/macos-codex-glass-alternate.png" width="880" alt="Alternate macOS capture of the Codex hover card and the provider meter">
 
-| Provider | Reading |
+The two Codex captures show the same view with slightly different framing.
+The blue usage arcs visible here precede the updated status-colour behaviour:
+app accents now belong to controls, while usage colours communicate allowance
+pressure. Values and availability depend on each provider and account.
+
+</details>
+
+## Availability
+
+| Platform | Available now | Next |
+|---|---|---|
+| Windows | [v1.8.4 installer](https://github.com/panditfloki/matra/releases/tag/v1.8.4) | v1.8.5 design-parity work is in development, not released |
+| macOS | Local v1.8.5 development preview shown above | Public app download and release verification are pending |
+
+Release status checked on **30 September 2026**. The version shown in a screenshot
+is not a download announcement.
+
+### Install on Windows
+
+1. Open the [latest release](https://github.com/panditfloki/matra/releases/latest).
+2. Download **Matra-Setup.exe**. The release also provides **SHA256SUMS.txt**.
+3. Run Setup, then launch Mātrā from the Start menu.
+
+The installer is per-user and does not require administrator rights. The current
+download is not publisher-signed, so Windows may display a security warning.
+Verify the download source and checksum before deciding whether to run it.
+A checksum checks file integrity; it is not a publisher signature.
+
+Already installed? Check **App & data** for update controls. Automatic installation
+and the new cross-platform design are still part of the v1.8.5 work, not a promise
+about the v1.8.4 download.
+
+## Supported readings
+
+The published Windows app includes these integrations. Available fields depend
+on the provider, plan, installed tool and signed-in session.
+
+| Source | What Mātrā can show |
 |---|---|
-| Claude Code | Session and weekly limits, account-aware activity and attention state |
-| Codex | Primary and weekly limits, including additional reported buckets |
-| Cursor | Included usage, API usage and billing-cycle reset |
-| Antigravity | Gemini/Claude/GPT quota lanes from the official CLI when available |
-| Grok | Weekly Grok Build allowance from the signed-in CLI session |
-| GLM | Z.ai Coding Plan utilization |
+| Claude Code | Session and weekly limits, reset times, supported activity states |
+| Codex | Reported primary/weekly allowances and additional limit buckets |
+| Cursor | Included usage, API usage and billing-cycle resets |
+| Antigravity | Reported Gemini, Claude and GPT model-group allowances |
+| Grok | Weekly allowance from the signed-in CLI session |
+| GLM | Z.ai Coding Plan utilisation |
 
-Providers that are not installed or signed in stay out of the notch. Missing data is shown as
-missing—not invented as zero.
+The Mac preview includes additional source options. A source appearing in Settings
+does not guarantee that its service exposes every metric.
 
-## Product design
+**Codex is not all of ChatGPT.** Ordinary ChatGPT browser and app conversations
+are not included. Quota percentages, token counts and cost estimates are different
+readings; an estimated API cost is not your subscription bill.
 
-- A thin edge notch at rest; compact, readable expansion on hover.
-- System, Light, Dark and DYDX FX glass appearances.
-- Left, right, top or bottom placement with per-edge position memory.
-- Small, medium and large sizes, optional weekly rings, tray controls and startup support.
-- Separate hover-revealed move and settings controls, without permanent desktop clutter.
-- Local-first provider reads. Credentials are borrowed from the tools that own them and are never logged.
+## Appearance with a purpose
 
-Mātrā's Windows app is adapted from the MIT-licensed Windows implementation in
-[CodeNotch](https://github.com/vinzdg/codenotch). The inverse-notch interaction, provider semantics
-and upstream notices are retained; Mātrā adds its own identity, isolation, DYDX FX themes, glass
-design and Windows release path. Exact provenance is recorded in [`native/UPSTREAM.md`](native/UPSTREAM.md).
+The Mac preview offers **Liquid Glass, Dark Glass, Solid Dark, Light and System**.
+Glass depends on platform support and falls back to an opaque surface where needed.
 
-## Build the native app
+In the updated Mac build, accent colours personalise app controls without changing
+the meaning of quota colours:
+
+| Used allowance, default thresholds | Status colour |
+|---|---|
+| Below 50% | Green |
+| 50% to below 70% | Amber |
+| 70% to below 90% | Orange |
+| 90% and above | Red |
+| Unavailable | Neutral grey |
+
+Mac Watch and Critical thresholds are adjustable. Red takes priority from 90%.
+Notification settings are separate. The Windows v1.8.5 UI uses the same default
+bands; configurable threshold and animation parity still need completion.
+
+## Data and privacy
+
+Mātrā reads supported provider sessions, local usage records and provider APIs.
+It does not require a separate Mātrā account or route your usage through a
+Mātrā-hosted service.
+
+- Credentials are used with the provider that owns them. Some integrations need
+  an explicit sign-in or API key.
+- Data freshness varies. Cached, unavailable and expired-session states must be
+  read as such, not as real-time guarantees.
+- Some provider endpoints are undocumented and may change.
+- GitHub is contacted for app updates.
+
+The legacy dashboard has its own data paths, including an optional USD/INR rate
+request. See the [legacy guide](docs/LEGACY-DASHBOARD.md).
+
+## For developers
+
+The selected Windows implementation is native Rust/Tauri. The older Electron
+experiment under `desktop/` is not the shipping Windows app.
+
+On Windows, with the Rust/Tauri build prerequisites installed:
 
 ```powershell
 npm run native:test
 npm run native:build
 npm run native:bundle
-npm run native:install
 ```
 
-The native source is under `native/`. The older Electron experiment remains under `desktop/` for
-history and is not the selected Windows implementation.
+See [native build notes](native/README.md) and the
+[Windows workflow](.github/workflows/windows.yml).
+The local Mac implementation uses Swift/AppKit; its public source and release
+packaging are part of the pending cross-platform update.
+
+### Existing IDE and localhost users
+
+The original VS Code-compatible extension and `localhost:4317` dashboard remain
+available in this repository. Their installation, data sources, currency settings
+and architecture are documented in the [legacy guide](docs/LEGACY-DASHBOARD.md).
 
 ---
 
-## Legacy VS Code and local-web dashboard
+Built by **Pandit Floki** at **DYDXFX**.
 
-The original extension remains in this repository for existing users. It runs inside VS Code,
-Cursor, Antigravity or Windsurf, and can also run as a local web app at `localhost:4317`.
+[dydxfx.com](https://dydxfx.com) ·
+[GitHub](https://github.com/panditfloki) ·
+[X](https://x.com/panditftw) ·
+[Report an issue](https://github.com/panditfloki/matra/issues)
 
-## It uses *your* account, automatically
-
-There is nothing to configure and no API key to paste. Everything is read at runtime from
-your own machine:
-
-| What | Where it comes from |
-|---|---|
-| Plan quota, reset times, tier | **Your** Claude Code OAuth token, from the OS credential store |
-| Costs, tokens, models, projects | **Your** local transcripts, `~/.claude/projects/**/*.jsonl` |
-| Codex tokens, models, sessions, directories | `ccusage codex … --json` over `~/.codex/sessions/**/*.jsonl` |
-| Codex plan limit and reset | Latest local Codex `token_count.rate_limits` record |
-| Gemini quota, tokens, cost | Antigravity's own local Connect-RPC service + its SQLite conversation logs — see *Gemini* below |
-| USD⇄INR conversion (only if you turn on the ₹ toggle) | `open.er-api.com`, the one outbound call this tool makes that isn't to Anthropic |
-
-Your token never leaves your machine, is never logged or written to disk, and is sent nowhere
-except `api.anthropic.com`. Clone it, run it, and you see *your* usage against *your* plan.
-
-Codex support never reads ChatGPT browser history or credentials. It covers **Codex only**;
-ordinary ChatGPT web/app conversations are not included. Codex USD is equivalent API cost — a
-burn proxy, not a ChatGPT Plus bill.
-
-## Install
-
-Requires **Node 18+** and a logged-in **Claude Code**.
-
-Codex history is optional. Install [`ccusage`](https://github.com/ryoppippi/ccusage) globally to
-enable it; if the command is absent or fails, Claude continues working and the Codex view shows an
-explicit unavailable state.
-
-**Option A — install the extension** (no build step). Grab the `.vsix` from the
-[latest release](https://github.com/panditfloki/matra/releases/latest):
-
-```bash
-code --install-extension claude-usage-meter-0.9.0.vsix
-# or: cursor --install-extension … · antigravity-ide --install-extension …
-```
-
-Or from the IDE: **Extensions → ⋯ → Install from VSIX…**
-
-**Option B — run the web app**, no IDE at all:
-
-```bash
-git clone https://github.com/panditfloki/matra
-cd matra
-node server.js          # → http://localhost:4317
-```
-
-The web app binds **loopback only** (`127.0.0.1`). It shows your plan tier, quota percentages
-and spend, so it is not something to put on a network by accident. To reach it from another
-device on purpose:
-
-```bash
-MATRA_HOST=0.0.0.0 node server.js    # deliberate LAN exposure
-PORT=4318 node server.js             # different port
-```
-
-**Build the extension yourself** (if you'd rather not trust a binary):
-
-```bash
-npx @vscode/vsce package --allow-missing-repository
-code --install-extension claude-usage-meter-*.vsix
-```
-
-Optionally `cp plan.example.json plan.json` and fill in your plan cost and renewal date —
-see *What it cannot know* below. Skip it and those tiles simply don't appear.
-
-## Platform support
-
-| OS | Quota bars | Everything else |
-|---|---|---|
-| **macOS** | ✅ reads Keychain item `Claude Code-credentials` | ✅ |
-| **Linux** | ✅ falls back to `~/.claude/.credentials.json` | ✅ |
-| **Windows** | ✅ same `~/.claude/.credentials.json` fallback | ✅ |
-
-**Windows quota bars work.** This table used to say *"❌ untested — credentials are stored
-differently"*, and that was wrong: win32 takes the same `.credentials.json` path as Linux, and
-real plan/session/weekly numbers have now been read on three separate Windows machines. If you
-were put off by the old caveat, it cost you nothing but the caveat.
-
-Two optional companions are looked up on `PATH`, and each is independent:
-
-| You want | You need | Without it |
-|---|---|---|
-| Codex history | [`ccusage`](https://github.com/ryoppippi/ccusage) | Codex panel says so plainly |
-| Gemini tokens/cost | `sqlite3` | Gemini panel says so plainly |
-
-⚠️ On Windows, installing either **does not** help a Mātrā that is already running — a process
-inherits its parent's environment, not the registry. Restart it after installing.
-
----
-
-## Two data sources, and they are not the same
-
-**1. Real plan quota — `GET /api/oauth/usage`.** Session %, weekly %, per-model weekly %,
-reset times, plan tier. These are the true server-side numbers — the same ones Claude Code's
-own `/usage` command reports, and the only figures here that are not derived.
-
-> ⚠️ **This endpoint is internal and undocumented.** Anthropic can change or remove it in any
-> Claude Code release, and it rate-limits aggressively (it exists for on-demand `/usage`, not
-> polling — hence the 15-minute cache and the shared on-disk cache between processes). Every
-> failure path is deliberately soft: a 429 or a 404 serves the last good reading marked
-> *"as of 4m ago"*, and if there has never been one, the bars simply hide. **The quota
-> disappearing must never take the rest of the dashboard down with it.**
-
-**2. Everything else — your local transcripts.** Costs, token counts, models, projects,
-sessions, streaks, heatmap. No network, no credentials, cannot break.
-
-**Costs are *equivalent API cost* — a burn proxy, not a bill.** On Max you pay a flat fee.
-This tells you which project is eating your window; it is not an invoice. It is labelled that
-way on the dashboard, everywhere it appears.
-
-## What it cannot know
-
-The Claude Code OAuth token carries scopes `user:profile`, `user:inference`,
-`user:sessions:claude_code`, `user:mcp_servers`, `user:file_upload` — and **no billing scope**.
-So plan price, renewal date, credit balance, and invoice history are simply not fetchable.
-
-Those live in `plan.json` (gitignored), and every value from it renders on a **dashed tile
-tagged "declared"** — never as if it were live. A number you must remember to update *will* go
-stale, and a dashboard that hides which numbers those are is a dashboard that lies.
-
-The one thing that *does* self-populate: **usage credits**. `spend` in the API response is that
-object (`balance` / `used` / `cap` / `auto_reload`). It reads null while credits are disabled;
-enable them and the tiles fill in with no code change.
-
-## Gemini / Antigravity
-
-Reads locally, from two places that need Antigravity to be running at least once:
-
-- **Quota %** — the exact RPC Antigravity's own UI calls
-  (`RetrieveUserQuotaSummary`), reached the same way `quota.js` reaches Claude's:
-  read a credential the running process already holds (its `--csrf_token`,
-  found via `ps`/`lsof`), then call the real local endpoint with it. The token
-  is sent only to a port that has already proven, unauthenticated, that it
-  speaks this RPC — Antigravity forwards other local ports (yours, and this
-  tool's own `:4317`) through the same process, and those answer HTTP 200 too.
-- **Tokens and cost** — decoded from `gen_metadata` in Antigravity's own SQLite
-  conversation logs (`~/.gemini/antigravity-cli/conversations/*.db`), using the
-  protobuf schema recovered from its `language_server` binary.
-
-**The two halves have different requirements — do not read one limit as both:**
-
-- **Quota %** is **macOS and Linux only**, because finding the running
-  `language_server` and its `--csrf_token` uses `ps`/`lsof`. Windows is refused
-  with that reason stated up front, never silently reported as zero usage.
-- **Tokens and cost** work anywhere `sqlite3` is on `PATH`, **Windows included**
-  — verified there against the raw `gen_metadata` row counts.
-
-Either half being unavailable is always *stated*, never rendered as a zero. A
-missing reading and a real zero are different facts and this tool keeps them apart.
-
-## Currency toggle (₹ / $)
-
-Every dollar figure can be shown converted to rupees. The conversion happens
-only at render time — nothing stored is ever rewritten — using a mid-market
-USD→INR rate fetched from `open.er-api.com` (free, no key, no signup) and
-cached for 12 hours, since the upstream itself only publishes once a day. A
-`forexMarkupPercent` in `plan.json` accounts for what your card is actually
-charged over mid-market. A rate that has never been fetched, or has gone
-stale past the cache window, leaves the toggle showing dollars rather than
-converting with a guess.
-
-## Two parsing traps (both cost real money if you get them wrong)
-
-If you write your own parser for Claude Code transcripts, these will bite you. They bit me.
-
-1. **Subagent transcripts sit three directories deep** — `<project>/<session>/subagents/`.
-   A one-level directory walk silently drops every subagent turn. That was ~$37 and 171 turns
-   of real usage, invisible.
-2. **A streaming message's usage row is rewritten as it grows.** The same `message.id` appears
-   several times with an *increasing* `output_tokens` — one real case went `7 → 7 → 7 → 955`.
-   Dedupe must keep the **highest-output** row per id, not the first, or output — the priciest
-   token class — is badly undercounted.
-
-## Architecture
-
-`parser.js` and `quota.js` are deliberately **UI-agnostic** — the same two modules drive both
-the VS Code webview and the standalone web app, and `media/dashboard.html` is a single file
-that detects which host it is running in. Import them; don't fork them.
-
-```
-parser.js   local transcripts → costs, tokens, models, projects, heatmap   (no network)
-quota.js    /api/oauth/{usage,profile} → real plan limits                  (soft-fails)
-codex.js    ccusage history + latest local Codex plan limit                (soft-fails)
-gemini.js   Antigravity RPC + SQLite logs → quota, tokens, cost            (soft-fails)
-fx.js       open.er-api.com → USD⇄INR rate, 12h cache                     (soft-fails)
-extension.js  status bar + webview panel
-server.js     the same dashboard over HTTP
-media/dashboard.html   one page, two hosts
-```
-
-## Commands & settings
-
-- `Mātrā: Open Dashboard` · `Mātrā: Refresh Now`
-- Refreshing a provider from either the IDE panel or localhost updates the shared cache; both
-  surfaces redraw without making a second provider request.
-- Status-bar settings include compact/full reset-time display, warning/error thresholds, and
-  optional local aliases for Claude and Codex accounts.
-- `claudeUsage.statusBar.metric` — `quota` (default) · `cost` · `today` · `total`
-- `claudeUsage.statusBar.show`
-
-## Licence & contact
-
-MIT — © 2026 [dydxfx](https://dydxfx.com). Not affiliated with Anthropic.
-
-Built by **Pandit Floki** at **dydxfx** · [dydxfx.com](https://dydxfx.com) · <pandit@dydxfx.com>
-
-Issues and PRs welcome on [GitHub](https://github.com/panditfloki/matra/issues).
+[MIT licence](LICENSE). Independent project; not affiliated with the AI providers.
