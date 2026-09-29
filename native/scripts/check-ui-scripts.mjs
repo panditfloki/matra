@@ -1,4 +1,4 @@
-// Parses the inline <script> of every page in codenotch/ui without running it.
+// Parses the inline <script> of every page in matra/ui without running it.
 //
 // A syntax error anywhere in a page's script stops all of it, and the window
 // opens empty with nothing in the log to say why. cargo never reads these
@@ -9,7 +9,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
-const ui = join(dirname(fileURLToPath(import.meta.url)), '..', 'codenotch', 'ui');
+const ui = join(dirname(fileURLToPath(import.meta.url)), '..', 'matra', 'ui');
 let failed = false;
 
 for (const name of readdirSync(ui).filter(f => f.endsWith('.html'))) {

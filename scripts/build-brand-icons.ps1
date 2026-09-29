@@ -3,8 +3,8 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 $repo = Split-Path $PSScriptRoot -Parent
 $brand = Join-Path $repo 'media/brand'
-$icons = Join-Path $repo 'native/codenotch/icons'
-$ui = Join-Path $repo 'native/codenotch/ui'
+$icons = Join-Path $repo 'native/matra/icons'
+$ui = Join-Path $repo 'native/matra/ui'
 New-Item -ItemType Directory -Force -Path $brand | Out-Null
 $master = Join-Path $brand 'matra-logo-18.png'
 if ($Source) { Copy-Item -LiteralPath $Source -Destination $master }

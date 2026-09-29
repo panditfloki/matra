@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
-const html = readFileSync(join(__dirname, 'codenotch/ui/notch.html'), 'utf8');
+const html = readFileSync(join(__dirname, 'matra/ui/notch.html'), 'utf8');
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 for (const [, source] of scripts) new vm.Script(source);
 function markedSource(document, name) {

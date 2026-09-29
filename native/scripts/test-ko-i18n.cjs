@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const {test} = require('node:test');
 
 // Exercise the page's actual lookup and formatters without a WebView or Tauri.
-const html = readFileSync(path.join(__dirname, '../codenotch/ui/notch.html'), 'utf8');
+const html = readFileSync(path.join(__dirname, '../matra/ui/notch.html'), 'utf8');
 const source = html.slice(html.indexOf("let uiLang='en';"), html.indexOf('function setUiLanguage'));
 function card(lang) {
   return vm.runInNewContext(source + `; uiLang=${JSON.stringify(lang)}; ({textCopy, ui:ui()})`);

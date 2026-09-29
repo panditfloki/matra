@@ -32,6 +32,10 @@ jobs:
         run: node scripts/test-matra-copy.cjs
       - name: Test motion and update states
         run: node scripts/test-matra-interactions.cjs
+      - name: Test appearance and preference persistence
+        run: node scripts/test-matra-appearance.cjs
+      - name: Test quota controls and boundary colours
+        run: node --test scripts/test-matra-quota.cjs
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy

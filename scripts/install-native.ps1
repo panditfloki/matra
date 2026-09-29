@@ -1,7 +1,7 @@
 param([switch]$NoLaunch)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-$meta = Get-Content (Join-Path $repo 'native/codenotch/tauri.conf.json') -Raw | ConvertFrom-Json
+$meta = Get-Content (Join-Path $repo 'native/matra/tauri.conf.json') -Raw | ConvertFrom-Json
 $destination = Join-Path $env:LOCALAPPDATA ('Programs\MatraNotch\' + $meta.version)
 $source = Join-Path $repo 'native/target/release'
 foreach ($binary in @('matra.exe', 'matra-hook.exe')) {
@@ -13,7 +13,7 @@ $installRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\Mat
 $executable = Join-Path $destination 'matra.exe'
 $runningCandidates = @(
     Get-Process matra -ErrorAction SilentlyContinue
-    Get-Process codenotch -ErrorAction SilentlyContinue
+    Get-Process matra -ErrorAction SilentlyContinue
 )
 foreach ($runningMatra in ($runningCandidates | Where-Object {
     $_.Path -and ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($_.Path))) -eq $installRoot)

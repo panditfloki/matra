@@ -10,11 +10,11 @@ Developers checking Claude, Codex and Gemini usage while coding, without opening
 
 ## Product Purpose
 
-A thin, unobtrusive edge notch with real provider readings, hover details and accessible settings. Preserve CodeNotch's original folding and hit-region behaviour.
+A thin, unobtrusive edge notch with real provider readings, hover details and accessible settings. Preserve Matra's original folding and hit-region behaviour.
 
 ## Brand Personality
 
-Measured, technical, restrained. The user explicitly chose dydxfx.com as the visual authority and CodeNotch as the interaction reference.
+Measured, technical, restrained. The user explicitly chose dydxfx.com as the visual authority and Matra as the interaction reference.
 
 ## Anti-references
 

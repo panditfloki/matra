@@ -3,7 +3,7 @@ param([switch]$SkipTests)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $native = Join-Path $repo 'native'
-$app = Join-Path $native 'codenotch'
+$app = Join-Path $native 'matra'
 $artifactDir = Join-Path $repo 'artifacts'
 
 if (!$SkipTests) {
@@ -14,7 +14,7 @@ if (!$SkipTests) {
 $oldRustFlags = $env:RUSTFLAGS
 try {
     $env:RUSTFLAGS = '-C target-feature=+crt-static'
-    & cargo build --release --locked --manifest-path (Join-Path $native 'Cargo.toml') -p codenotch-hook --target-dir (Join-Path $native 'target/hook')
+    & cargo build --release --locked --manifest-path (Join-Path $native 'Cargo.toml') -p matra-hook --target-dir (Join-Path $native 'target/hook')
     if ($LASTEXITCODE -ne 0) { throw 'Hook build failed.' }
 } finally {
     $env:RUSTFLAGS = $oldRustFlags
