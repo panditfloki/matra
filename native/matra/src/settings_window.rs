@@ -168,7 +168,7 @@ mod tests {
     fn credit_destinations_match_visible_links() {
         let html = include_str!("../ui/settings.html");
         assert_eq!(super::AUTHOR_URL, "https://x.com/panditftw");
-        assert_eq!(super::GITHUB_URL, "https://github.com/panditfloki");
+        assert_eq!(super::GITHUB_URL, "https://github.com/panditfloki/matra");
         assert!(html.contains(&format!("id=\"author\" href=\"{}\"", super::AUTHOR_URL)));
         assert!(html.contains(&format!("id=\"github\" href=\"{}\"", super::GITHUB_URL)));
     }
