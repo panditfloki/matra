@@ -69,7 +69,7 @@ pressure. Values and availability depend on each provider and account.
 
 | Platform | Download | Development |
 |---|---|---|
-| **Windows** | [v1.8.4 stable installer](https://github.com/panditfloki/matra/releases/tag/v1.8.4) | v1.8.5 is being developed and tested separately on Windows |
+| **Windows** | [v1.8.5 stable installer](https://github.com/panditfloki/matra/releases/tag/v1.8.5) | Codex statistics, reset credits and 30-day history; five appearance choices |
 | **macOS** | [v1.8.5 Beta 1 for Apple Silicon](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1) | [Mac source on the beta branch](https://github.com/panditfloki/matra/tree/beta/native/macos) |
 
 Release status checked on **30 September 2026**. Windows stable and macOS beta
@@ -93,7 +93,7 @@ but a published signed update feed and a complete upgrade test are still pending
 
 ### Install on Windows
 
-1. Open the [Windows stable release](https://github.com/panditfloki/matra/releases/tag/v1.8.4).
+1. Open the [Windows stable release](https://github.com/panditfloki/matra/releases/tag/v1.8.5).
 2. Download **Matra-Setup.exe**. The release also provides **SHA256SUMS.txt**.
 3. Run Setup, then launch Mātrā from the Start menu.
 
@@ -102,9 +102,9 @@ download is not publisher-signed, so Windows may display a security warning.
 Verify the download source and checksum before deciding whether to run it.
 A checksum checks file integrity; it is not a publisher signature.
 
-Already installed? Check **App & data** for update controls. Automatic installation
-and the new cross-platform design are still part of the v1.8.5 work, not a promise
-about the v1.8.4 download.
+Already installed? Run the new installer to upgrade. Existing preferences and
+enabled hooks are retained. Updates for this release are installed manually;
+an automatic update feed is not configured.
 
 ## Supported readings
 
@@ -114,7 +114,7 @@ on the provider, plan, installed tool and signed-in session.
 | Source | What Mātrā can show |
 |---|---|
 | Claude Code | Session and weekly limits, reset times, supported activity states |
-| Codex | Reported primary/weekly allowances and additional limit buckets |
+| Codex | Primary/weekly allowances, reset credits and expiry, lifetime/peak tokens, longest chat, streaks and 30-day daily token history |
 | Cursor | Included usage, API usage and billing-cycle resets |
 | Antigravity | Reported Gemini, Claude and GPT model-group allowances |
 | Grok | Weekly allowance from the signed-in CLI session |
@@ -129,10 +129,10 @@ readings; an estimated API cost is not your subscription bill.
 
 ## Appearance with a purpose
 
-The Mac beta offers **Liquid Glass, Dark Glass, Solid Dark, Light and System**.
+Windows v1.8.5 and the Mac beta offer **Liquid Glass, Dark Glass, Solid Dark, Light and System**.
 Glass depends on platform support and falls back to an opaque surface where needed.
 
-In the updated Mac build, accent colours personalise app controls without changing
+In both builds, accent colours personalise app controls without changing
 the meaning of quota colours:
 
 | Used allowance, default thresholds | Status colour |
@@ -143,9 +143,8 @@ the meaning of quota colours:
 | 90% and above | Red |
 | Unavailable | Neutral grey |
 
-Mac Watch and Critical thresholds are adjustable. Red takes priority from 90%.
-Notification settings are separate. The next Windows app is being developed to
-match this visual direction; its new features remain subject to Windows testing.
+Watch and Critical thresholds are adjustable. Red takes priority from 90%.
+Windows also offers a smooth colour ramp. Notification settings are separate.
 
 ## Data and privacy
 

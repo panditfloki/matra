@@ -1,22 +1,22 @@
-# Windows 1.8.5 candidate: ROGPC acceptance
+# Windows 1.8.5: released baseline and ROGPC checks
 
-This is the Windows test candidate, not a new stable release. It keeps the
+This is the Windows 1.8.5 release baseline. It keeps the
 Rust/Tauri + WebView2 implementation and the approved Mātrā visual direction.
 The Mac installation is independent and is not modified by this installer.
 
-## Get the exact candidate
+## Get the release
 
-Use the successful **Windows Package** run on `codex/windows-185-rc1`.
-Download its `Matra-Setup-<commit>` artifact and extract both files together:
+Use the [Windows v1.8.5 release](https://github.com/panditfloki/matra/releases/tag/v1.8.5).
+Keep both download files together:
 
 - `Matra-Setup.exe`
 - `SHA256SUMS.txt`
 
 In that directory, compare `Get-FileHash .\Matra-Setup.exe -Algorithm SHA256`
 with the checksum file before opening Setup. Do not use an installer from a
-failed run or the public v1.8.4 download when testing this candidate.
+failed run or the older v1.8.4 download when testing this release.
 
-The candidate is not publisher-signed. A matching checksum detects a changed
+The installer is not publisher-signed. A matching checksum detects a changed
 download; it does not establish publisher identity. No antivirus, SmartScreen,
 execution policy or other Windows protection needs to be disabled. If Windows
 blocks installation, record the warning and stop for review.
@@ -48,6 +48,7 @@ running together. Setup is an installer, not the app launcher.
 | Login start | Toggle saves; after a Windows sign-out/sign-in it matches the selection |
 | Automatic updates | Toggle saves through Settings reopen and a full app restart |
 | Real providers | Sign in normally; compare shown usage and reset times with provider sources |
+| Codex detail | Unused resets/expiry, lifetime/peak tokens, chat duration, streaks, Today and 30 daily bars; missing fields stay unknown |
 
 Do not deliberately exhaust a quota to test colours. The regression suite
 exercises exact boundary values without consuming account allowance.
@@ -65,11 +66,14 @@ foreign-hook or malformed-settings fixtures on your personal account.
 
 ## What is still a human acceptance gate
 
-CI screenshots use fixture usage data, not signed-in provider accounts. They
+The [Windows Package validation](https://github.com/panditfloki/matra/actions/runs/36720796106)
+checks fresh install, packaged WebView2, upgrade from the public 1.8.4 installer,
+cooperative shutdown and uninstall. Its screenshots use fixture usage data.
+Live Codex statistics were also checked in the installed Windows app. CI screenshots
 cannot prove live account accuracy, physical-desktop animation quality, ROG
 mixed-DPI behaviour or Windows login execution. A future published update is
 also needed to prove the complete live automatic-download/install journey.
 
 Report a failed check with the app version, Windows version, screenshot and
 what you clicked. Redact account identifiers and tokens from diagnostic files.
-Do not publish a stable release until the ROGPC checks are accepted.
+These manual checks remain separate from automated installer evidence.

@@ -1,8 +1,13 @@
 # Installs the built setup for the current user and verifies the real upgrade.
 # Explicit invocation only: this stops/replaces the running Matra instance.
-param([string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\Matra'))
+param(
+    [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\Matra'),
+    [string]$BuildTarget
+)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
+if (!$BuildTarget) { $BuildTarget = Join-Path $repo 'native\target' }
+$BuildTarget = [IO.Path]::GetFullPath($BuildTarget)
 $config = Join-Path $env:APPDATA 'matra-notch\config.json'
 $settings = Join-Path $env:USERPROFILE '.claude\settings.json'
 function Get-ForeignHooks {
@@ -33,7 +38,7 @@ foreach ($file in @($exe, (Join-Path $InstallDir 'matra-hook.exe'), (Join-Path $
 }
 # Tauri patches only its bundle marker to NSS while packaging, then restores UNK.
 # Reproduce that documented byte change in memory, not in the executable on disk.
-$buildBytes = [IO.File]::ReadAllBytes((Join-Path $repo 'native\target\release\matra.exe'))
+$buildBytes = [IO.File]::ReadAllBytes((Join-Path $BuildTarget 'release\matra.exe'))
 $marker = '__TAURI_BUNDLE_TYPE_VAR_UNK'
 $offset = [Text.Encoding]::ASCII.GetString($buildBytes).IndexOf($marker, [StringComparison]::Ordinal)
 if ($offset -lt 0) { throw 'Tauri bundle marker not found.' }
