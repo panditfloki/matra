@@ -91,7 +91,7 @@ async function saved(command, predicate) {
   await saved('get_matra_accent', value => value === '36a8eb');
   await saved('get_automatic_updates', value => value === false);
   // Exercise the new card inside the packaged renderer with synthetic data.
-  // This checks rendering and focus, not live provider availability or OS hover.
+  // This checks rendering and hover handling, not live availability or OS hover.
   evaluate('notch', `(()=>{
     const now=Date.now(), days=CodexDetails.calendar(now);
     providers=()=>[{id:'codex',base:'codex',name:'Codex',glyph:'C',snap:{status:'ok',fetched_at:now,
@@ -104,7 +104,7 @@ async function saved(command, predicate) {
   })()`);
   const codex = evaluate('notch', `(()=>{
     showCard();const r=card.getBoundingClientRect(),text=card.textContent;
-    const day=card.querySelector('[data-codex-day="29"]');day.focus({preventScroll:true});
+    const day=card.querySelector('[data-codex-day="29"]');day.dispatchEvent(new MouseEvent('mouseenter'));
     return {rich:card.classList.contains('codex-rich'),bars:card.querySelectorAll('.cx-day').length,
       fields:['Unused resets','Lifetime tokens','Peak daily tokens','Longest chat','Current streak','Longest streak','Today','30-day tokens'].every(label=>text.includes(label)),
       inside:r.left>=-1&&r.top>=-1&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1,
