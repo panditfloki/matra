@@ -52,7 +52,7 @@ assert.match(helper, /GetWindowThreadProcessId/);
 assert.match(helper, /owner == request.pid/);
 assert.match(helper, /request_close_with_class\(pid, "Tauri Window"\)/);
 assert.match(helper, /GetClassNameW\(hwnd, &mut class\)/);
-assert.match(helper, /String::from_utf16_lossy[\s\S]*?== request\.application_class/);
+assert.match(helper, /String::from_utf16_lossy[\s\S]*?\.eq_ignore_ascii_case\(request\.application_class\)/);
 assert.doesNotMatch(helper, /IsWindowVisible/); // A saved hidden notch still has to close.
 assert.match(helper, /if !request\.matched/); // Unknown runtime windows fail without a broadcast.
 assert.match(helper, /PostMessageW\(hwnd, WM_CLOSE/);

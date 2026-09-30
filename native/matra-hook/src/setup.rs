@@ -64,7 +64,8 @@ fn request_close_with_class(pid: u32, application_class: &str) -> Result<(), Str
             let mut class = [0u16; 256];
             let length = GetClassNameW(hwnd, &mut class);
             if length > 0
-                && String::from_utf16_lossy(&class[..length as usize]) == request.application_class
+                && String::from_utf16_lossy(&class[..length as usize])
+                    .eq_ignore_ascii_case(request.application_class)
             {
                 request.matched = true;
                 if PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0)).is_err() {
