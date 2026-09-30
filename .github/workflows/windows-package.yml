@@ -23,7 +23,11 @@ on:
 
 jobs:
   package:
-    if: github.repository == 'panditfloki/matra' || github.event_name == 'workflow_dispatch'
+    # A platform-specific Mac beta must not receive a Windows installer.
+    if: >-
+      (github.repository == 'panditfloki/matra' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name != 'release' || !contains(github.event.release.tag_name, '-macos-')) &&
+      (github.event_name != 'workflow_dispatch' || !contains(inputs.release_tag, '-macos-'))
     permissions:
       contents: write
     runs-on: windows-latest

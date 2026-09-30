@@ -1,0 +1,137 @@
+name: Matra
+options:
+  bundleIdPrefix: com.dydxfx
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+  defaultLocalization: en
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    # Windows visual baseline, local Mac preview build.
+    MARKETING_VERSION: "1.8.5"
+    CURRENT_PROJECT_VERSION: "185"
+    # Local ad-hoc signing only. Public notarization is separate release work.
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGNING_REQUIRED: "YES"
+    CODE_SIGNING_ALLOWED: "YES"
+    # Required by notarization. Worth knowing what it does *not* break here:
+    # the keychain read is unaffected (the ACL keys on the signing identity,
+    # which is unchanged), and reading Cursor's and Codex's SQLite files is
+    # ordinary file access. It is the App Sandbox that would break both, which
+    # is why that stays off — Developer ID distribution does not require it.
+    ENABLE_HARDENED_RUNTIME: "YES"
+    ENABLE_APP_SANDBOX: "NO"
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+
+packages:
+  SwiftNIO:
+    url: https://github.com/apple/swift-nio
+    from: "2.102.0"
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
+
+targets:
+  Matra:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+        excludes:
+          # Notes for whoever next re-generates the vendored decoder. Left in the
+          # navigator beside the code it describes, but Xcode would otherwise
+          # copy any unrecognised file into the app bundle's Resources, and a
+          # developer README has no business shipping to users.
+          - "Vendor/**/README.md"
+    dependencies:
+      - package: Sparkle
+      - package: SwiftNIO
+        product: NIOHTTP1
+      - package: SwiftNIO
+        product: NIOPosix
+    info:
+      path: Sources/Info.plist
+      properties:
+        # Deliberately a normal Dock app, not an `LSUIElement` agent. The
+        # notch is ambient, but the *app* still has to be findable: without a
+        # Dock tile there is nothing to click to open it, nothing in Cmd-Tab,
+        # and no obvious way to reach settings or quit.
+        CFBundleName: Mātrā
+        CFBundleDisplayName: dy/dx.f(Mātrā)
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations:
+          - en
+          - fr
+          - de
+          - id
+          - ja
+          - ko
+          - pt-BR
+          - ru
+          - zh-Hans
+          - zh-Hant
+          - uk
+          - uz
+          - tr
+        LSMinimumSystemVersion: "15.0"
+        # Sources/Info.plist is *generated* from this block, so editing that
+        # file directly is undone by the next `make gen`. Pointing both at the
+        # build settings keeps one place to bump.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSLocalNetworkUsageDescription: "Mātrā answers your phone on this network so it can show your usage."
+        SUFeedURL: https://raw.githubusercontent.com/panditfloki/matra/main/updates/macos/appcast.xml
+        SUPublicEDKey: ZXK9jxpRx4EksQGRdhTgFSkbIOTCauZ0EhTe959OQ6I=
+        SUVerifyUpdateBeforeExtraction: true
+        SUEnableAutomaticChecks: true
+        # Never downloads unasked: a new version is offered in the notch and
+        # installed when Update is chosen — see `Updater`.
+        SUAutomaticallyUpdate: false
+        SUScheduledCheckInterval: 86400
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dydxfx.matra.mac
+        PRODUCT_NAME: Matra
+        PRODUCT_MODULE_NAME: Matra
+        GENERATE_INFOPLIST_FILE: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_EMIT_LOC_STRINGS: "YES"
+        DEVELOPMENT_LANGUAGE: en
+        # The only C in the project is the vendored Zstandard decoder, and this
+        # is how Swift sees it. It is needed because Claude Desktop's HTTP cache
+        # stores bodies with `content-encoding: zstd` and macOS ships no zstd
+        # anywhere a signed, notarized app can reach — see
+        # Sources/Vendor/zstd/README.md. Delete this line and that directory
+        # together if the Desktop source is ever dropped.
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Matra-Bridging-Header.h
+
+  MatraTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: Matra
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dydxfx.matra.mac.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Matra.app/Contents/MacOS/Matra"
+        GENERATE_INFOPLIST_FILE: "YES"
+
+schemes:
+  Matra:
+    build:
+      targets:
+        Matra: all
+        MatraTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MatraTests

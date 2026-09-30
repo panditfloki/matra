@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>dy/dx.f(Mātrā)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>fr</string>
+		<string>de</string>
+		<string>id</string>
+		<string>ja</string>
+		<string>ko</string>
+		<string>pt-BR</string>
+		<string>ru</string>
+		<string>zh-Hans</string>
+		<string>zh-Hant</string>
+		<string>uk</string>
+		<string>uz</string>
+		<string>tr</string>
+	</array>
+	<key>CFBundleName</key>
+	<string>Mātrā</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>15.0</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Mātrā answers your phone on this network so it can show your usage.</string>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/panditfloki/matra/main/updates/macos/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>ZXK9jxpRx4EksQGRdhTgFSkbIOTCauZ0EhTe959OQ6I=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
+</dict>
+</plist>
