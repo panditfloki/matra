@@ -8,7 +8,7 @@
 Your AI limits, at the edge of your screen.</p>
 
 <p align="center">
-  <a href="https://github.com/panditfloki/matra/releases/download/v1.8.4/Matra-Setup.exe">Windows · v1.8.4</a> ·
+  <a href="https://github.com/panditfloki/matra/releases/download/v1.8.5/Matra-Setup.exe">Windows · v1.8.5</a> ·
   <a href="https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1">macOS · v1.8.5 Beta 1</a> ·
   <a href="#a-closer-look">Screenshots</a> ·
   <a href="#availability">Release status</a> ·
@@ -190,10 +190,10 @@ and architecture are documented in the [legacy guide](docs/LEGACY-DASHBOARD.md).
 
 | Platform | Latest downloadable version | Channel | Package |
 |---|---|---|---|
-| **Windows** | **1.8.4** | Stable; 1.8.5 development in progress | [Matra-Setup.exe](https://github.com/panditfloki/matra/releases/download/v1.8.4/Matra-Setup.exe) |
+| **Windows** | **1.8.5** | Stable · Windows x64 | [Matra-Setup.exe](https://github.com/panditfloki/matra/releases/download/v1.8.5/Matra-Setup.exe) |
 | **macOS** | **1.8.5 Beta 1** | Beta · Apple Silicon · macOS 15+ | [Mac beta installer and checksum](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1) |
 
-Updated **30 September 2026**. App settings on Mac report version 1.8.5, build 185.
+Updated **30 September 2026**. Windows stable is version 1.8.5. App settings on Mac report version 1.8.5, build 185.
 
 ---
 
