@@ -90,5 +90,36 @@ async function saved(command, predicate) {
   await ready('settings');
   await saved('get_matra_accent', value => value === '36a8eb');
   await saved('get_automatic_updates', value => value === false);
-  console.log('PASS: packaged Windows UI, five themes, glass circles, accent isolation, quota controls, auto-update toggle and reopen persistence');
+  // Exercise the new card inside the packaged renderer with synthetic data.
+  // This checks rendering and focus, not live provider availability or OS hover.
+  evaluate('notch', `(()=>{
+    const now=Date.now(), days=CodexDetails.calendar(now);
+    providers=()=>[{id:'codex',base:'codex',name:'Codex',glyph:'C',snap:{status:'ok',fetched_at:now,
+      windows:[{id:'secondary',label:'Weekly limit',used:.12,resets_at:now+86400000}],
+      codex_details:{plan:'pro',fetched_at:now,credits:{available_count:3,next_expiry_ms:now+86400000,fetched_at:now},
+        statistics:{lifetime_tokens:1234567890,peak_daily_tokens:12000000,longest_running_turn_sec:7380,
+          current_streak_days:12,longest_streak_days:20,daily_usage_buckets:days.map((day,i)=>({start_date:day.key,tokens:(i+1)*100000}))}}}}];
+    activity=[{provider:'codex',name:'Release fixture title\\nThis prompt body must stay hidden',state:'running',since:now}];
+    hoverId='codex';onHover=false;renderRing();unfold();showCard();
+  })()`);
+  const codex = evaluate('notch', `(()=>{
+    showCard();const r=card.getBoundingClientRect(),text=card.textContent;
+    const day=card.querySelector('[data-codex-day="29"]');day.focus({preventScroll:true});
+    return {rich:card.classList.contains('codex-rich'),bars:card.querySelectorAll('.cx-day').length,
+      fields:['Unused resets','Lifetime tokens','Peak daily tokens','Longest chat','Current streak','Longest streak','Today','30-day tokens'].every(label=>text.includes(label)),
+      inside:r.left>=-1&&r.top>=-1&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1,
+      exactDay:card.querySelector('.cx-day-readout').textContent,
+      hiddenBody:!text.includes('This prompt body must stay hidden'),
+      activityRows:card.querySelectorAll('.s-state').length,
+      status:[...card.querySelectorAll('.s-state')].every(node=>getComputedStyle(node).whiteSpace==='nowrap')};
+  })()`, 'windows-185-codex-fixture.png');
+  assert.equal(codex.rich, true);
+  assert.equal(codex.bars, 30);
+  assert.equal(codex.fields, true);
+  assert.equal(codex.inside, true, 'Rich Codex card fits the packaged native viewport');
+  assert.match(codex.exactDay, /3[,.]000[,.]000 tokens/);
+  assert.equal(codex.hiddenBody, true);
+  assert.equal(codex.activityRows, 1);
+  assert.equal(codex.status, true);
+  console.log('PASS: packaged Windows UI, five themes, glass circles, accent isolation, quota controls, auto-update toggle, reopen persistence and Codex detail fixture');
 })().catch(error => { console.error(error); process.exitCode = 1; });

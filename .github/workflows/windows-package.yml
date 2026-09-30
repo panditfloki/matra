@@ -23,7 +23,10 @@ on:
 
 jobs:
   package:
-    if: github.repository == 'panditfloki/matra' || github.event_name == 'workflow_dispatch'
+    if: >-
+      (github.repository == 'panditfloki/matra' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name != 'release' || !contains(github.event.release.tag_name, '-macos')) &&
+      (github.event_name != 'workflow_dispatch' || !contains(inputs.release_tag, '-macos'))
     permissions:
       contents: write
     runs-on: windows-latest
@@ -41,7 +44,7 @@ jobs:
           cache-on-failure: true
       - name: Test UI scripts and preference contracts
         run: |
-          $scripts = @('scripts/check-ui-scripts.mjs', 'scripts/test-claude-auth-ui.cjs', 'scripts/test-ko-i18n.cjs', 'scripts/test-matra-copy.cjs', 'scripts/test-matra-interactions.cjs', 'scripts/test-matra-appearance.cjs', 'scripts/test-matra-quota.cjs', 'test-codex-headline.cjs', 'scripts/test-installer-contract.cjs')
+          $scripts = @('scripts/check-ui-scripts.mjs', 'scripts/test-claude-auth-ui.cjs', 'scripts/test-ko-i18n.cjs', 'scripts/test-matra-copy.cjs', 'scripts/test-matra-interactions.cjs', 'scripts/test-matra-appearance.cjs', 'scripts/test-matra-quota.cjs', 'test-codex-headline.cjs', 'test-codex-details.cjs', 'scripts/test-installer-contract.cjs')
           foreach ($script in $scripts) {
             node $script
             if ($LASTEXITCODE -ne 0) { throw "UI regression failed: $script" }
@@ -100,8 +103,8 @@ jobs:
           if-no-files-found: error
       - name: Attach installer to release
         if: >-
-          (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v')) ||
-          (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
+          (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v') && !contains(github.event.release.tag_name, '-macos')) ||
+          (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v') && !contains(inputs.release_tag, '-macos'))
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}

@@ -38,30 +38,62 @@ pub fn prepare(_: &str) -> Result<(), String> {
 
 #[cfg(windows)]
 fn request_close(pid: u32) -> Result<(), String> {
+    // Tauri's user windows use this class, including a hidden notch. Its Tao
+    // event target and tray/IME windows must remain alive to deliver app.exit.
+    request_close_with_class(pid, "Tauri Window")
+}
+
+#[cfg(windows)]
+fn request_close_with_class(pid: u32, application_class: &str) -> Result<(), String> {
     use windows::Win32::Foundation::{BOOL, HWND, LPARAM, WPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowThreadProcessId, PostMessageW, WM_CLOSE,
+        EnumWindows, GetClassNameW, GetWindowThreadProcessId, PostMessageW, WM_CLOSE,
     };
-    struct Request {
+    struct Request<'a> {
         pid: u32,
+        application_class: &'a str,
+        matched: bool,
         failed: bool,
     }
     unsafe extern "system" fn visit(hwnd: HWND, data: LPARAM) -> BOOL {
-        let request = &mut *(data.0 as *mut Request);
+        let request = &mut *(data.0 as *mut Request<'_>);
         let mut owner = 0;
         GetWindowThreadProcessId(hwnd, Some(&mut owner));
         // Never broadcast. OS UIPI remains in force; there is no message-filter bypass.
-        if owner == request.pid && PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0)).is_err() {
-            request.failed = true;
+        if owner == request.pid {
+            let mut class = [0u16; 256];
+            let length = GetClassNameW(hwnd, &mut class);
+            if length > 0
+                && String::from_utf16_lossy(&class[..length as usize]) == request.application_class
+            {
+                request.matched = true;
+                if PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0)).is_err() {
+                    request.failed = true;
+                }
+            }
         }
         BOOL(1)
     }
-    let mut request = Request { pid, failed: false };
-    unsafe { EnumWindows(Some(visit), LPARAM(&mut request as *mut Request as isize)) }.map_err(
-        |_| "Could not request a graceful Matra exit. Close Matra and retry.".to_string(),
-    )?;
+    let mut request = Request {
+        pid,
+        application_class,
+        matched: false,
+        failed: false,
+    };
+    unsafe {
+        EnumWindows(
+            Some(visit),
+            LPARAM(&mut request as *mut Request<'_> as isize),
+        )
+    }
+    .map_err(|_| "Could not request a graceful Matra exit. Close Matra and retry.".to_string())?;
     if request.failed {
         return Err("Windows refused the close request. Close Matra yourself and retry.".into());
+    }
+    if !request.matched {
+        return Err(
+            "Could not locate Matra's application window. Close Matra yourself and retry.".into(),
+        );
     }
     Ok(())
 }
@@ -243,6 +275,23 @@ mod tests {
                 None,
             )
             .unwrap();
+            // Another hidden top-level window in the same PID represents the
+            // event-delivery infrastructure. It must not receive WM_CLOSE.
+            let infrastructure = CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("BUTTON"),
+                w!("Isolated event target"),
+                WS_OVERLAPPED,
+                0,
+                0,
+                1,
+                1,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
             println!("MATRA_TEST_WINDOW_READY");
             std::io::stdout().flush().unwrap();
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
@@ -258,6 +307,11 @@ mod tests {
             if IsWindow(window).as_bool() {
                 DestroyWindow(window).unwrap();
             }
+            assert!(
+                IsWindow(infrastructure).as_bool(),
+                "setup closed a same-PID infrastructure window"
+            );
+            DestroyWindow(infrastructure).unwrap();
         }
     }
 
@@ -291,7 +345,13 @@ mod tests {
                 }
             }
             assert!(ready, "isolated test window did not become ready");
-            request_close(child.id()).unwrap();
+            // Test the same class-scoped path using a built-in isolated class,
+            // without loading the actual app or registering a runtime class.
+            assert!(
+                request_close(child.id()).is_err(),
+                "fixture must not be mistaken for a Tauri app"
+            );
+            request_close_with_class(child.id(), "STATIC").unwrap();
             let handle = windows::Win32::Foundation::HANDLE(child.as_raw_handle());
             if mode == "cooperative" {
                 wait_for_exit(handle, 2000).unwrap();
