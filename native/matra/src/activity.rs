@@ -250,11 +250,27 @@ fn codex_last_step(text: &str) -> Option<(CodexStep, u64)> {
     None
 }
 
-/// The desktop app's real state: table `thread_turns` in `~/.codex/thread_history_1.sqlite`
-/// (status = inProgress / completed…, started_at in seconds, empty completed_at = still running).
-/// The app maintains this turn table itself, which is far more reliable than a file mtime. Guard
-/// against "inProgress forever after a crash": no new item for the thread in the last 10 minutes
-/// (`thread_items.created_at_ms`) while the turn started more than 2 minutes ago → treated as stale.
+/// Keep a pasted chat or handoff within the activity row's text budget.
+fn compact_activity_name(input: &str) -> String {
+    const MAX_CHARS: usize = 72;
+    let chars: Vec<char> = input
+        .split_whitespace()
+        .flat_map(|word| std::iter::once(' ').chain(word.chars()))
+        .skip(1)
+        .filter(|ch| !ch.is_control())
+        .take(MAX_CHARS + 1)
+        .collect();
+    if chars.len() > MAX_CHARS {
+        let mut result: String = chars.into_iter().take(MAX_CHARS - 1).collect();
+        result.truncate(result.trim_end().len());
+        result.push('…');
+        result
+    } else {
+        chars.into_iter().collect::<String>().trim().to_string()
+    }
+}
+
+/// Read the desktop's turn state, ignoring abandoned in-progress turns after a crash.
 fn codex_turns_in_progress(ctx: &mut Ctx) -> Vec<Activity> {
     let now = now_ms();
     if ctx.codex_names.is_none() {
@@ -304,6 +320,7 @@ fn codex_turns_in_progress(ctx: &mut Ctx) -> Vec<Activity> {
                     };
                 }
             }
+            name = compact_activity_name(&name);
             if name.is_empty() {
                 name = "Codex".into();
             }
@@ -584,6 +601,25 @@ pub fn probe() -> String {
 #[cfg(test)]
 mod completion_tests {
     use super::*;
+    #[test]
+    fn activity_name_is_bounded_and_normalizes_pasted_handoffs() {
+        let title = format!("  Windows\n\tCodex   title {}", "handoff ".repeat(100));
+        let bounded = compact_activity_name(&title);
+        assert!(bounded.starts_with("Windows Codex title "));
+        assert!(bounded.ends_with('…'));
+        assert!(bounded.chars().count() <= 72);
+        assert!(!bounded.contains('\n'));
+        assert!(!bounded.contains("  "));
+        assert_eq!(compact_activity_name("\t\n\r"), "");
+    }
+    #[test]
+    fn activity_name_preserves_unicode_without_splitting_utf8() {
+        assert_eq!(compact_activity_name("  मेरा   Codex काम  "), "मेरा Codex काम");
+        let bounded = compact_activity_name(&"परीक्षण🪷".repeat(30));
+        assert!(bounded.chars().count() <= 72);
+        assert!(bounded.ends_with('…'));
+        assert_eq!(compact_activity_name(&"a".repeat(72)), "a".repeat(72));
+    }
     #[test]
     fn abort_and_assistant_text_are_not_completion() {
         for (kind, expected) in [("task_complete", CodexStep::Complete), ("turn_aborted", CodexStep::Aborted), ("agent_message", CodexStep::AsstMsg)] {

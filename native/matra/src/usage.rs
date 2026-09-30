@@ -147,6 +147,42 @@ pub struct LimitWindow {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CodexResetCredits {
+    pub available_count: u64,
+    pub next_expiry_ms: Option<u64>,
+    pub fetched_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CodexDailyUsage {
+    pub start_date: String,
+    pub tokens: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CodexStatistics {
+    pub lifetime_tokens: Option<u64>,
+    pub peak_daily_tokens: Option<u64>,
+    pub longest_running_turn_sec: Option<f64>,
+    pub current_streak_days: Option<u64>,
+    pub longest_streak_days: Option<u64>,
+    /// None means unavailable/incomplete; Some([]) is confirmed empty history.
+    pub daily_usage_buckets: Option<Vec<CodexDailyUsage>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CodexDetails {
+    pub plan: Option<String>,
+    pub fetched_at: u64,
+    /// Stable opaque account scope; never an account ID, email or credential.
+    pub account_key: String,
+    pub credits: Option<CodexResetCredits>,
+    pub statistics: Option<CodexStatistics>,
+    pub statistics_error: Option<String>,
+    pub credits_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UsageSnapshot {
     /// ok | stale | needsAuth | backoff | error
     pub status: String,
@@ -155,6 +191,9 @@ pub struct UsageSnapshot {
     pub note: String,
     #[serde(default)]
     pub backoff_until: u64,
+    /// Account details are optional so old caches and other providers still load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub codex_details: Option<CodexDetails>,
 }
 
 fn store_path() -> std::path::PathBuf {

@@ -23,6 +23,25 @@ Providers that are not installed simply do not get a cell.
 
 ### Codex quota recovery
 
+The existing Windows Codex hover card now also reads account profile statistics
+and reset credits from the same fixed account endpoint contracts used by the Mac
+app. Below the quota rows it shows unused resets/expiry, lifetime and peak daily
+tokens, longest chat, current/longest streak, Today, and a 30-day token chart.
+The chart has daily hover values. Missing days remain unreported; partial totals
+are labeled reported and unavailable data is not displayed as zero.
+
+These optional reads use the existing read-only Codex sign-in and normal OS TLS.
+They neither refresh nor write credentials. A failed optional read preserves the
+successful quota and only retains prior details for the same account. HTTP 429
+stops remaining requests and preserves the existing persisted retry deadline.
+These account endpoints are not a public API compatibility guarantee.
+
+The Codex card has additional width within the existing native viewport; other
+provider cards keep their prior size. Long activity titles are bounded and shown
+beside a separate status, so pasted prompts cannot fill the card or wrap Working
+vertically. All details remain inside the hover card, with scrolling on short
+viewports. This is a patch to `native/matra`, not an independent replacement app.
+
 The direct usage endpoint remains the first choice. If it fails, Matra can
 ask an installed **native** `codex.exe` via the documented
 [`account/rateLimits/read`](https://learn.chatgpt.com/docs/app-server#6-rate-limits-chatgpt)
@@ -56,6 +75,23 @@ explicit token-refresh request; Codex may perform its own normal managed refresh
 
 Regression checks: `cargo test --locked` and `node --test test-codex-headline.cjs`
 from `windows/`. Tests use synthetic quota fixtures, not account credentials.
+For the detail card, also run `node test-codex-details.cjs` from this directory.
+The 2026-09-30 local patch passed 181 Rust tests (5 live tests intentionally
+ignored), 14 detail/data/layout checks and the existing headline regressions.
+The existing installed WebView2 app returned real quota, profile statistics,
+credits and history; its rendered card and exact daily readout were inspected.
+Settings, Claude hooks and the installed helper were hash-verified unchanged.
+
+The local update exposed a pre-existing shutdown problem: the application records
+the cooperative close request but does not exit within the helper's 15-second
+deadline. The old and patched app both reproduced it. The local update used a
+guarded stop of the exact owned app process after that timeout, with a verified
+executable backup. Installer helper behavior was not relaxed. The patched app
+was restarted normally and the temporary loopback inspection listener removed.
+This check does not establish installer/lifecycle acceptance or physical-pointer
+hover acceptance; the OS cursor did not move in that attempt. No installer or
+release artifact is supplied by this patch.
+
 The optional `cargo test --release --locked codex::tests::live_native_quota -- --ignored`
 checks the actual native transport against an already signed-in local client;
 it prints no account credentials or quota values and is not run by CI.

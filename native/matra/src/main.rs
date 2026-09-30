@@ -38,9 +38,9 @@ use tauri::{AppHandle, Emitter, Manager};
 
 /// Logical size of the notch window: the 70 pt pill column on the right plus room for the hover card
 /// and its tail on the left. `fitZoom` in ui/notch.html divides by the same width.
-pub const NOTCH_W: f64 = 360.0;
+pub const NOTCH_W: f64 = 460.0;
 /// Hand-bumped build tag, written to run.log at startup so a log can always be matched to the exe that wrote it.
-pub const BUILD: &str = "r32-lifecycle1";
+pub const BUILD: &str = "r33-codex-details";
 /// The notch window's long side: the upright window's height, and both sides of the flat one.
 ///
 /// Five cells make a 447 px pill; its fillets add 38.7 px at each end and the settings orb reaches
@@ -281,7 +281,8 @@ static NOTCH_INSETS: Mutex<[f64; 4]> = Mutex::new([0.0; 4]);
 /// Pins the notch to the configured edge of the configured monitor.
 /// The notch window's logical size for an edge.
 ///
-/// Upright on the left and right, the pill is a column and 360 wide is plenty; its length is what
+/// Upright on the left and right, the pill is a column. The 460-wide viewport accommodates
+/// the Codex statistics card without reducing text size; its length is what
 /// needs room, hence `NOTCH_LONG`. Lying flat on the top and bottom it is a row: six 44 px rings,
 /// their gaps, the padding, both fillets and the settings orb come to about 504 px, so a 360 px
 /// window clipped the pill once a fifth provider was on. It is square, because the card opens above

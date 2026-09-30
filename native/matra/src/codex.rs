@@ -29,8 +29,12 @@
 //! Credentials are borrowed, never managed: the numbers come from Codex's own sign-in and Codex's
 //! own endpoint. No sign-in and no session history at all means absent (no cell is shown).
 
-use crate::usage::{LimitWindow, UsageSnapshot};
+use crate::usage::{
+    CodexDailyUsage, CodexDetails, CodexResetCredits, CodexStatistics, LimitWindow, UsageSnapshot,
+};
 use crate::AppState;
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -40,6 +44,10 @@ const POLL_SECS: u64 = 300; // Preserve the upstream cadence; a tray refresh int
 const TAIL_BYTES: u64 = 256 * 1024;
 const CURRENT_FOR_MS: u64 = 5 * 60 * 1000;
 const ENDPOINT: &str = "https://chatgpt.com/backend-api/wham/usage";
+const PROFILE_ENDPOINT: &str = "https://chatgpt.com/backend-api/wham/profiles/me";
+const CREDITS_ENDPOINT: &str = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
+const MAX_AUTH_BYTES: u64 = 64 * 1024;
+const MAX_RESPONSE_BYTES: u64 = 2 * 1024 * 1024;
 const BACKOFF_MIN_SECS: u64 = 60; // wait at least this long after a 429; Retry-After only raises it
 
 static REFRESH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -75,17 +83,76 @@ fn store_path() -> PathBuf {
 }
 
 pub fn load_persisted() -> UsageSnapshot {
-    std::fs::read_to_string(store_path())
-        .ok()
-        .and_then(|t| serde_json::from_str::<UsageSnapshot>(&t).ok())
+    read_persisted_snapshot()
         .map(|mut s| {
             if !s.windows.is_empty() {
                 s.status = "stale".into();
             }
             BACKOFF_UNTIL.store(s.backoff_until, std::sync::atomic::Ordering::Relaxed);
-            s
+            let current = load_credential().map(|credential| account_key(&credential.account_id));
+            snapshot_for_account(s, current.as_deref())
         })
         .unwrap_or_default()
+}
+
+fn read_persisted_snapshot() -> Option<UsageSnapshot> {
+    let file = std::fs::File::open(store_path()).ok()?;
+    let mut bytes = Vec::new();
+    file.take(MAX_RESPONSE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    if bytes.len() as u64 > MAX_RESPONSE_BYTES {
+        return None;
+    }
+    serde_json::from_slice(&bytes).ok()
+}
+
+fn account_key(account_id: &str) -> String {
+    format!("{:x}", Sha256::digest(account_id.as_bytes()))
+}
+
+fn details_for_account(
+    details: Option<CodexDetails>,
+    current: Option<&str>,
+) -> Option<CodexDetails> {
+    details.filter(|details| {
+        current.is_some_and(|current| !current.is_empty() && details.account_key == current)
+    })
+}
+
+fn revalidate_details(mut snapshot: UsageSnapshot) -> UsageSnapshot {
+    let key = load_credential().map(|credential| account_key(&credential.account_id));
+    let had_details = snapshot.codex_details.is_some();
+    snapshot = snapshot_for_account(snapshot, key.as_deref());
+    if had_details && snapshot.codex_details.is_none() {
+        request_refresh();
+    }
+    snapshot
+}
+
+fn snapshot_for_account(mut snapshot: UsageSnapshot, current: Option<&str>) -> UsageSnapshot {
+    let had_details = snapshot.codex_details.is_some();
+    snapshot.codex_details = details_for_account(snapshot.codex_details, current);
+    if had_details && snapshot.codex_details.is_none() {
+        // The quota and details were fetched together. Once that account is
+        // known to have changed, neither may be presented as the new account.
+        return UsageSnapshot {
+            status: "none".into(),
+            note: "Codex account changed — refreshing".into(),
+            backoff_until: snapshot.backoff_until,
+            ..Default::default()
+        };
+    }
+    snapshot
+}
+
+fn plan_label(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| {
+            !value.is_empty() && value.len() <= 80 && !value.chars().any(char::is_control)
+        })
+        .map(str::to_owned)
 }
 
 fn persist(s: &UsageSnapshot) {
@@ -158,12 +225,25 @@ fn jwt_claims(token: &str) -> Option<serde_json::Value> {
 
 /// Reads Codex's sign-in state; a missing file or missing field both mean "not signed in"
 fn load_credential() -> Option<Credential> {
-    let text = std::fs::read_to_string(auth_path()?).ok()?;
-    let v: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let file = std::fs::File::open(auth_path()?).ok()?;
+    let mut bytes = Vec::new();
+    file.take(MAX_AUTH_BYTES + 1).read_to_end(&mut bytes).ok()?;
+    if bytes.len() as u64 > MAX_AUTH_BYTES {
+        return None;
+    }
+    let v: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
     let tokens = v.get("tokens")?;
     let access_token = tokens.get("access_token")?.as_str()?.trim().to_string();
     let account_id = tokens.get("account_id")?.as_str()?.trim().to_string();
-    if access_token.is_empty() || account_id.is_empty() {
+    if access_token.is_empty()
+        || account_id.is_empty()
+        || access_token.len() > 32 * 1024
+        || account_id.len() > 256
+        || !access_token
+            .bytes()
+            .chain(account_id.bytes())
+            .all(|byte| (33..=126).contains(&byte))
+    {
         return None;
     }
     let expired = jwt_claims(&access_token)
@@ -178,9 +258,14 @@ fn load_credential() -> Option<Credential> {
             c.get("https://api.openai.com/auth")?
                 .get("chatgpt_plan_type")?
                 .as_str()
-                .map(String::from)
+                .and_then(|plan| plan_label(Some(plan)))
         });
-    Some(Credential { access_token, account_id, plan, expired })
+    Some(Credential {
+        access_token,
+        account_id,
+        plan,
+        expired,
+    })
 }
 
 enum LiveErr {
@@ -191,35 +276,281 @@ enum LiveErr {
 }
 
 fn fetch_usage(cred: &Credential) -> Result<serde_json::Value, LiveErr> {
-    let resp = crate::http::agent().get(ENDPOINT)
+    fetch_json(cred, ENDPOINT, false)
+}
+
+fn fetch_json(
+    cred: &Credential,
+    endpoint: &'static str,
+    credits: bool,
+) -> Result<serde_json::Value, LiveErr> {
+    // Fixed endpoints use OS trust without redirects. Authentication must never
+    // be forwarded to a location supplied by a remote redirect.
+    static AGENT: std::sync::OnceLock<ureq::Agent> = std::sync::OnceLock::new();
+    let agent = AGENT.get_or_init(|| crate::http::builder().redirects(0).build());
+    let request = agent
+        .get(endpoint)
         .set("Authorization", &format!("Bearer {}", cred.access_token))
         .set("ChatGPT-Account-Id", &cred.account_id)
         .set("Accept", "application/json")
         .set("Cache-Control", "no-cache, no-store")
-        .set("User-Agent", concat!("matra/", env!("CARGO_PKG_VERSION"), " (Windows)"))
-        .timeout(Duration::from_secs(15))
-        .call();
+        .set(
+            "User-Agent",
+            concat!("matra/", env!("CARGO_PKG_VERSION"), " (Windows)"),
+        )
+        .timeout(Duration::from_secs(15));
+    let request = if credits {
+        request.set("OpenAI-Beta", "codex-1")
+    } else {
+        request
+    };
+    let resp = request.call();
     match resp {
-        Ok(r) => r.into_json().map_err(|e| LiveErr::Other(format!("parse: {e}"))),
-        Err(ureq::Error::Status(code @ (401 | 403), r)) => {
-            // 401 is about the token; 403 can also be an edge node rejecting the user agent — record the status and the start of the body rather than folding both into "please sign in"
-            let head: String = r
-                .into_string()
-                .unwrap_or_default()
-                .chars()
-                .filter(|c| !c.is_control())
-                .take(160)
-                .collect();
-            crate::applog(&format!("codex: usage endpoint HTTP {code}: {head}"));
+        Ok(r) => {
+            let mut bytes = Vec::new();
+            r.into_reader()
+                .take(MAX_RESPONSE_BYTES + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|_| LiveErr::Other("response unavailable".into()))?;
+            if bytes.len() as u64 > MAX_RESPONSE_BYTES {
+                return Err(LiveErr::Other("response too large".into()));
+            }
+            serde_json::from_slice(&bytes).map_err(|_| LiveErr::Other("unreadable response".into()))
+        }
+        Err(ureq::Error::Status(code @ (401 | 403), _)) => {
+            crate::applog(&format!("codex: endpoint HTTP {code}"));
             Err(LiveErr::NeedsAuth)
         }
         Err(ureq::Error::Status(429, r)) => {
-            let ra = r.header("retry-after").and_then(|s| s.trim().parse::<u64>().ok()).unwrap_or(0);
+            let ra = retry_after_secs(r.header("retry-after"), now_ms());
             Err(LiveErr::RateLimited(ra.max(BACKOFF_MIN_SECS)))
         }
         Err(ureq::Error::Status(code, _)) => Err(LiveErr::Other(format!("HTTP {code}"))),
-        Err(e) => Err(LiveErr::Other(format!("{e}"))),
+        Err(_) => Err(LiveErr::Other("request failed".into())),
     }
+}
+
+fn retry_after_secs(header: Option<&str>, now: u64) -> u64 {
+    let Some(header) = header.map(str::trim) else {
+        return 0;
+    };
+    if let Ok(seconds) = header.parse::<u64>() {
+        return seconds;
+    }
+    chrono::DateTime::parse_from_rfc2822(header)
+        .ok()
+        .and_then(|date| u64::try_from(date.timestamp_millis()).ok())
+        .map(|deadline| deadline.saturating_sub(now).div_ceil(1000))
+        .unwrap_or(0)
+}
+
+fn hold_backoff(seconds: u64, now: u64) -> u64 {
+    let deadline = now.saturating_add(seconds.max(BACKOFF_MIN_SECS).saturating_mul(1000));
+    BACKOFF_UNTIL.store(deadline, std::sync::atomic::Ordering::Relaxed);
+    deadline
+}
+
+fn parse_statistics(value: &serde_json::Value) -> Result<CodexStatistics, LiveErr> {
+    let stats = value
+        .get("stats")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| LiveErr::Other("unreadable profile statistics".into()))?;
+    let count = |key: &str| stats.get(key).and_then(serde_json::Value::as_u64);
+    let mut statistics = CodexStatistics {
+        lifetime_tokens: count("lifetime_tokens"),
+        peak_daily_tokens: count("peak_daily_tokens"),
+        longest_running_turn_sec: stats
+            .get("longest_running_turn_sec")
+            .and_then(serde_json::Value::as_f64)
+            .filter(|seconds| seconds.is_finite() && *seconds >= 0.0),
+        current_streak_days: count("current_streak_days"),
+        longest_streak_days: count("longest_streak_days"),
+        daily_usage_buckets: None,
+    };
+    if let Some(days) = stats
+        .get("daily_usage_buckets")
+        .and_then(serde_json::Value::as_array)
+    {
+        if days.len() > 4000 {
+            return Err(LiveErr::Other("profile history too large".into()));
+        }
+        let mut unique = BTreeMap::new();
+        let mut complete = true;
+        for day in days {
+            let date = day.get("start_date").and_then(serde_json::Value::as_str);
+            let tokens = day.get("tokens").and_then(serde_json::Value::as_u64);
+            match (date, tokens) {
+                (Some(date), Some(tokens)) if valid_day(date) => {
+                    unique.insert(date.to_owned(), tokens);
+                }
+                _ => complete = false,
+            }
+        }
+        if complete {
+            statistics.daily_usage_buckets = Some(
+                unique
+                    .into_iter()
+                    .map(|(start_date, tokens)| CodexDailyUsage { start_date, tokens })
+                    .collect(),
+            );
+        }
+    }
+    Ok(statistics)
+}
+
+fn valid_day(date: &str) -> bool {
+    date.len() == 10
+        && date.as_bytes().iter().enumerate().all(|(index, byte)| {
+            if index == 4 || index == 7 {
+                *byte == b'-'
+            } else {
+                byte.is_ascii_digit()
+            }
+        })
+        && chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").is_ok()
+}
+
+fn parse_credits(value: &serde_json::Value, now: u64) -> Result<CodexResetCredits, LiveErr> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| LiveErr::Other("unreadable reset credits".into()))?;
+    let count = object
+        .get("available_count")
+        .and_then(serde_json::Value::as_u64);
+    let listed = object.get("credits").and_then(serde_json::Value::as_array);
+    if count.is_none() && listed.is_none()
+        || object
+            .get("available_count")
+            .is_some_and(|value| !value.is_null() && value.as_u64().is_none())
+    {
+        return Err(LiveErr::Other("unreadable reset credits".into()));
+    }
+    let mut listed_count = 0;
+    let mut next_expiry_ms = None;
+    if let Some(listed) = listed {
+        if listed.len() > 4096 {
+            return Err(LiveErr::Other("reset credit list too large".into()));
+        }
+        for credit in listed {
+            let status = credit
+                .as_object()
+                .and_then(|credit| credit.get("status"))
+                .and_then(serde_json::Value::as_str);
+            if count.is_none()
+                && !matches!(
+                    status,
+                    Some("available" | "redeemed" | "used" | "consumed" | "spent" | "expired")
+                )
+            {
+                return Err(LiveErr::Other("unreadable reset credits".into()));
+            }
+            if status != Some("available") {
+                continue;
+            }
+            listed_count += 1;
+            if let Some(expiry) = credit
+                .get("expires_at")
+                .and_then(serde_json::Value::as_str)
+                .and_then(|text| chrono::DateTime::parse_from_rfc3339(text).ok())
+                .and_then(|date| u64::try_from(date.timestamp_millis()).ok())
+                .filter(|expiry| *expiry > now)
+            {
+                next_expiry_ms =
+                    Some(next_expiry_ms.map_or(expiry, |previous: u64| previous.min(expiry)));
+            }
+        }
+    }
+    let available_count = count.unwrap_or(listed_count);
+    Ok(CodexResetCredits {
+        available_count,
+        next_expiry_ms: if available_count > 0 {
+            next_expiry_ms
+        } else {
+            None
+        },
+        fetched_at: now,
+    })
+}
+
+#[derive(Clone, Copy)]
+enum DetailEndpoint {
+    Profile,
+    Credits,
+}
+
+fn fetch_details(
+    credential: &Credential,
+    plan: Option<String>,
+    cached: Option<CodexDetails>,
+) -> (CodexDetails, u64) {
+    fetch_details_with(
+        credential,
+        plan,
+        cached,
+        |endpoint| match endpoint {
+            DetailEndpoint::Profile => fetch_json(credential, PROFILE_ENDPOINT, false),
+            DetailEndpoint::Credits => fetch_json(credential, CREDITS_ENDPOINT, true),
+        },
+        now_ms,
+    )
+}
+
+fn fetch_details_with(
+    credential: &Credential,
+    plan: Option<String>,
+    cached: Option<CodexDetails>,
+    mut get: impl FnMut(DetailEndpoint) -> Result<serde_json::Value, LiveErr>,
+    mut clock: impl FnMut() -> u64,
+) -> (CodexDetails, u64) {
+    let now = clock();
+    let key = account_key(&credential.account_id);
+    let mut details = details_for_account(cached, Some(&key)).unwrap_or_else(|| CodexDetails {
+        account_key: key,
+        fetched_at: now,
+        ..Default::default()
+    });
+    details.plan = plan;
+    details.statistics_error = None;
+    details.credits_error = None;
+    let mut backoff = 0;
+    for endpoint in [DetailEndpoint::Profile, DetailEndpoint::Credits] {
+        let response = get(endpoint);
+        // Retry-After starts when the failing request finishes, not when the
+        // preceding optional request began. Cached readings keep their dates.
+        let received_at = clock();
+        let result = response.and_then(|value| match endpoint {
+            DetailEndpoint::Profile => {
+                details.statistics = Some(parse_statistics(&value)?);
+                details.fetched_at = received_at;
+                Ok(())
+            }
+            DetailEndpoint::Credits => {
+                details.credits = Some(parse_credits(&value, received_at)?);
+                Ok(())
+            }
+        });
+        if let Err(error) = result {
+            let message = match &error {
+                LiveErr::NeedsAuth => "Sign-in unavailable",
+                LiveErr::RateLimited(_) => "Rate limited",
+                LiveErr::Other(_) => "Reading unavailable",
+            }
+            .to_owned();
+            match endpoint {
+                DetailEndpoint::Profile => details.statistics_error = Some(message),
+                DetailEndpoint::Credits => details.credits_error = Some(message),
+            }
+            if let LiveErr::RateLimited(seconds) = error {
+                backoff =
+                    received_at.saturating_add(seconds.max(BACKOFF_MIN_SECS).saturating_mul(1000));
+                if matches!(endpoint, DetailEndpoint::Profile) {
+                    details.credits_error = Some("Waiting for retry".into());
+                }
+                break;
+            }
+        }
+    }
+    (details, backoff)
 }
 
 /// Upstream's label rule: Codex names windows only by length, and "5h limit" says more than "primary"
@@ -599,6 +930,15 @@ pub fn present() -> bool {
 
 fn read_once() -> UsageSnapshot {
     let mut snap = UsageSnapshot::default();
+    let credential = load_credential();
+    let current_key = credential
+        .as_ref()
+        .map(|credential| account_key(&credential.account_id));
+    let cached_details = details_for_account(
+        read_persisted_snapshot().and_then(|snapshot| snapshot.codex_details),
+        current_key.as_deref(),
+    );
+    snap.codex_details = cached_details.clone();
     // Note attached to the fallback reading when the live read failed; needs_auth picks the empty state when there is no fallback either
     let mut live_note: Option<String> = None;
     let mut needs_auth = false;
@@ -606,9 +946,12 @@ fn read_once() -> UsageSnapshot {
     let now = now_ms();
     if held_until > now {
         snap.backoff_until = held_until;
-        live_note = Some(format!("Rate limited — retrying in {}s", (held_until - now) / 1000));
+        live_note = Some(format!(
+            "Rate limited — retrying in {}s",
+            (held_until - now) / 1000
+        ));
     } else {
-        match load_credential() {
+        match credential {
             None => {
                 if auth_path().map(|p| p.is_file()).unwrap_or(false) {
                     crate::applog("codex: auth.json has no usable access_token/account_id, falling back to the rollout");
@@ -618,15 +961,38 @@ fn read_once() -> UsageSnapshot {
                 Ok(v) => {
                     let windows = windows_from_usage(&v);
                     if !windows.is_empty() {
-                        let plan = v.get("plan_type").and_then(|x| x.as_str()).map(String::from).or(cred.plan);
+                        let plan = plan_label(v.get("plan_type").and_then(|x| x.as_str()))
+                            .or_else(|| cred.plan.clone());
+                        let (details, backoff) = fetch_details(&cred, plan.clone(), cached_details);
+                        // Persist the server's hold even if the account changed
+                        // while a request was in flight.
+                        if backoff > 0 {
+                            BACKOFF_UNTIL.store(backoff, std::sync::atomic::Ordering::Relaxed);
+                            snap.backoff_until = backoff;
+                        }
+                        let key_after =
+                            load_credential().map(|credential| account_key(&credential.account_id));
+                        if key_after.as_deref() != Some(details.account_key.as_str()) {
+                            // Authentication changed while the two optional requests
+                            // were in flight. Do not publish the former account.
+                            request_refresh();
+                            return UsageSnapshot {
+                                status: "none".into(),
+                                note: "Codex account changed — refreshing".into(),
+                                backoff_until: snap.backoff_until,
+                                ..Default::default()
+                            };
+                        }
                         snap.status = "ok".into();
                         snap.windows = windows;
                         snap.fetched_at = now_ms();
-                        snap.note = plan.map(|p| format!("{} · via Codex", cap(&p))).unwrap_or_default();
-                        return snap;
+                        snap.note = plan
+                            .map(|p| format!("{} · via Codex", cap(&p)))
+                            .unwrap_or_default();
+                        snap.codex_details = Some(details);
+                        return revalidate_details(snap);
                     }
-                    let keys: Vec<String> = v.as_object().map(|o| o.keys().cloned().collect()).unwrap_or_default();
-                    crate::applog(&format!("codex: usage reply has no windows (top-level keys {keys:?}), falling back to the rollout"));
+                    crate::applog("codex: usage reply has no windows, falling back to the rollout");
                     live_note = Some("Codex reported no usage windows".into());
                 }
                 Err(LiveErr::NeedsAuth) => {
@@ -638,14 +1004,17 @@ fn read_once() -> UsageSnapshot {
                     });
                 }
                 Err(LiveErr::RateLimited(secs)) => {
-                    let until = now_ms() + secs * 1000;
-                    BACKOFF_UNTIL.store(until, std::sync::atomic::Ordering::Relaxed);
+                    let until = hold_backoff(secs, now_ms());
                     snap.backoff_until = until;
                     live_note = Some(format!("Rate limited — retrying in {secs}s"));
-                    crate::applog(&format!("codex: usage endpoint returned 429, retrying in {secs}s"));
+                    crate::applog(&format!(
+                        "codex: usage endpoint returned 429, retrying in {secs}s"
+                    ));
                 }
                 Err(LiveErr::Other(e)) => {
-                    crate::applog(&format!("codex: live read failed ({e}), falling back to the rollout"));
+                    crate::applog(&format!(
+                        "codex: live read failed ({e}), falling back to the rollout"
+                    ));
                     live_note = Some(format!("Live read failed ({e})"));
                 }
             },
@@ -657,7 +1026,12 @@ fn read_once() -> UsageSnapshot {
         && NATIVE_RETRY_AFTER.load(std::sync::atomic::Ordering::Relaxed) <= now_ms()
     {
         match read_app_server() {
-            Some(native) => return native,
+            Some(mut native) => {
+                // The managed native client does not publish its account ID in
+                // this response. Do not attach an unrelated stored-token card.
+                native.codex_details = None;
+                return native;
+            }
             None => NATIVE_RETRY_AFTER.store(
                 now_ms() + NATIVE_STAND_DOWN_MS,
                 std::sync::atomic::Ordering::Relaxed,
@@ -665,7 +1039,10 @@ fn read_once() -> UsageSnapshot {
         }
     }
     // Fallback: rollout
-    match newest_rollout().and_then(|p| tail_text(&p)).and_then(|t| snapshot_from_rollout(&t)) {
+    match newest_rollout()
+        .and_then(|p| tail_text(&p))
+        .and_then(|t| snapshot_from_rollout(&t))
+    {
         Some((windows, recorded, plan)) => {
             let rec = recorded.unwrap_or(0);
             let fresh = rec > 0 && now_ms().saturating_sub(rec) <= CURRENT_FOR_MS;
@@ -696,7 +1073,7 @@ fn read_once() -> UsageSnapshot {
             };
         }
     }
-    snap
+    revalidate_details(snap)
 }
 
 fn cap(s: &str) -> String {
@@ -708,6 +1085,7 @@ fn cap(s: &str) -> String {
 }
 
 fn broadcast(app: &AppHandle, snap: UsageSnapshot) {
+    let snap = revalidate_details(snap);
     let st = app.state::<AppState>();
     *st.codex.lock().unwrap() = snap.clone();
     persist(&snap);
@@ -718,11 +1096,17 @@ pub fn start(app: AppHandle) {
     std::thread::spawn(move || {
         {
             let st = app.state::<AppState>();
-            let snap = st.codex.lock().unwrap().clone();
+            let snap = revalidate_details(st.codex.lock().unwrap().clone());
             let _ = app.emit("codex", &snap);
         }
         if !present() {
-            broadcast(&app, UsageSnapshot { status: "absent".into(), ..Default::default() });
+            broadcast(
+                &app,
+                UsageSnapshot {
+                    status: "absent".into(),
+                    ..Default::default()
+                },
+            );
             // Codex is not installed: look again every 10 minutes
             loop {
                 for _ in 0..600 {
@@ -755,10 +1139,16 @@ pub fn probe() -> String {
     let auth = match load_credential() {
         Some(c) => format!(
             "auth.json usable{}{}",
-            if c.expired { " (access_token expired)" } else { "" },
+            if c.expired {
+                " (access_token expired)"
+            } else {
+                ""
+            },
             c.plan.map(|p| format!(", plan={p}")).unwrap_or_default()
         ),
-        None if auth_path().map(|p| p.is_file()).unwrap_or(false) => "auth.json present but has no token".to_string(),
+        None if auth_path().map(|p| p.is_file()).unwrap_or(false) => {
+            "auth.json present but has no token".to_string()
+        }
         None => "auth.json not found".to_string(),
     };
     let exe = find_executable();
@@ -772,8 +1162,10 @@ pub fn probe() -> String {
         .unwrap_or_else(|| "?".into());
     format!(
         "Codex: {auth} | executable {} | newest rollout {} (modified {})",
-        exe.map(|p| p.display().to_string()).unwrap_or_else(|| "not found".into()),
-        roll.map(|p| p.display().to_string()).unwrap_or_else(|| "none".into()),
+        exe.map(|p| p.display().to_string())
+            .unwrap_or_else(|| "not found".into()),
+        roll.map(|p| p.display().to_string())
+            .unwrap_or_else(|| "none".into()),
         age
     )
 }
@@ -781,6 +1173,350 @@ pub fn probe() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn synthetic_credential(account: &str) -> Credential {
+        Credential {
+            access_token: "synthetic-test-token".into(),
+            account_id: account.into(),
+            plan: None,
+            expired: false,
+        }
+    }
+
+    fn cached_details(account: &str) -> CodexDetails {
+        CodexDetails {
+            account_key: account_key(account),
+            fetched_at: 100,
+            statistics: Some(CodexStatistics {
+                lifetime_tokens: Some(7),
+                ..Default::default()
+            }),
+            credits: Some(CodexResetCredits {
+                available_count: 2,
+                next_expiry_ms: Some(900_000),
+                fetched_at: 200,
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn old_usage_cache_loads_without_codex_details() {
+        let old = r#"{"status":"ok","windows":[],"fetched_at":123,"note":"via Codex","backoff_until":456}"#;
+        let snapshot: UsageSnapshot = serde_json::from_str(old).unwrap();
+        assert!(snapshot.codex_details.is_none());
+        assert_eq!(snapshot.backoff_until, 456);
+        assert!(!serde_json::to_string(&snapshot)
+            .unwrap()
+            .contains("codex_details"));
+    }
+
+    #[test]
+    fn detail_cache_is_scoped_to_current_account_only() {
+        let details = cached_details("account-a");
+        assert_ne!(details.account_key, "account-a");
+        assert_eq!(details.account_key.len(), 64);
+        assert!(
+            details_for_account(Some(details.clone()), Some(&account_key("account-a"))).is_some()
+        );
+        for current in [None, Some(""), Some("account-a"), Some("other-key")] {
+            assert!(details_for_account(Some(details.clone()), current).is_none());
+        }
+        assert!(details_for_account(Some(details), Some(&account_key("account-b"))).is_none());
+    }
+
+    #[test]
+    fn account_change_at_publish_discards_sibling_quota_but_preserves_backoff() {
+        let make = || UsageSnapshot {
+            status: "ok".into(),
+            windows: windows(r#"{"rate_limit":{"primary_window":{"used_percent":23}}}"#),
+            codex_details: Some(cached_details("account-a")),
+            backoff_until: 999_000,
+            ..Default::default()
+        };
+        let same = snapshot_for_account(make(), Some(&account_key("account-a")));
+        assert_eq!(same.windows.len(), 1);
+        for changed in [Some(account_key("account-b")), None] {
+            let snapshot = snapshot_for_account(make(), changed.as_deref());
+            assert!(snapshot.windows.is_empty());
+            assert!(snapshot.codex_details.is_none());
+            assert_eq!(snapshot.status, "none");
+            assert_eq!(snapshot.backoff_until, 999_000);
+        }
+    }
+
+    #[test]
+    fn profile_preserves_authoritative_statistics_and_daily_zero() {
+        let statistics = parse_statistics(&serde_json::json!({"stats": {
+            "lifetime_tokens": 34567, "peak_daily_tokens": 8000,
+            "longest_running_turn_sec": 91.25, "current_streak_days": 4, "longest_streak_days": 11,
+            "daily_usage_buckets": [{"start_date": "2026-09-28", "tokens": 0}, {"start_date": "2026-09-29", "tokens": 27}]
+        }})).ok().unwrap();
+        assert_eq!(statistics.lifetime_tokens, Some(34567));
+        assert_eq!(statistics.peak_daily_tokens, Some(8000));
+        assert_eq!(statistics.longest_running_turn_sec, Some(91.25));
+        assert_eq!(statistics.current_streak_days, Some(4));
+        assert_eq!(statistics.longest_streak_days, Some(11));
+        let days = statistics.daily_usage_buckets.unwrap();
+        assert_eq!(
+            days[0],
+            CodexDailyUsage {
+                start_date: "2026-09-28".into(),
+                tokens: 0
+            }
+        );
+        assert!(!days.iter().any(|day| day.start_date == "2026-09-30"));
+    }
+
+    #[test]
+    fn missing_profile_values_are_unknown_and_empty_history_is_observed() {
+        for value in [serde_json::json!({}), serde_json::json!({"stats": null})] {
+            assert!(parse_statistics(&value).is_err());
+        }
+        let absent = parse_statistics(
+            &serde_json::json!({"stats": {"lifetime_tokens": -1, "longest_running_turn_sec": -2}}),
+        )
+        .ok()
+        .unwrap();
+        assert!(absent.lifetime_tokens.is_none());
+        assert!(absent.peak_daily_tokens.is_none());
+        assert!(absent.longest_running_turn_sec.is_none());
+        assert!(absent.daily_usage_buckets.is_none());
+        let empty = parse_statistics(
+            &serde_json::json!({"stats": {"lifetime_tokens": 0, "daily_usage_buckets": []}}),
+        )
+        .ok()
+        .unwrap();
+        assert_eq!(empty.lifetime_tokens, Some(0));
+        assert_eq!(empty.daily_usage_buckets, Some(vec![]));
+    }
+
+    #[test]
+    fn profile_days_validate_calendar_and_last_duplicate_wins() {
+        assert!(valid_day("2024-02-29"));
+        for invalid in [
+            "2026-02-29",
+            "2026-09-31",
+            "2026-9-01",
+            "2026-09-01T00:00:00Z",
+        ] {
+            assert!(!valid_day(invalid), "{invalid}");
+        }
+        let statistics = parse_statistics(&serde_json::json!({"stats": {"daily_usage_buckets": [
+            {"start_date": "2026-09-29", "tokens": 8}, {"start_date": "2026-09-28", "tokens": 2},
+            {"start_date": "2026-09-29", "tokens": 19}
+        ]}}))
+        .ok()
+        .unwrap();
+        assert_eq!(
+            statistics.daily_usage_buckets.unwrap(),
+            vec![
+                CodexDailyUsage {
+                    start_date: "2026-09-28".into(),
+                    tokens: 2
+                },
+                CodexDailyUsage {
+                    start_date: "2026-09-29".into(),
+                    tokens: 19
+                }
+            ]
+        );
+        for malformed in [
+            serde_json::json!({"start_date":"2026-02-30","tokens":1}),
+            serde_json::json!({"start_date":"2026-09-29","tokens":-1}),
+            serde_json::Value::Null,
+        ] {
+            let statistics = parse_statistics(&serde_json::json!({"stats": {"peak_daily_tokens": 99, "daily_usage_buckets": [malformed]}})).ok().unwrap();
+            assert_eq!(statistics.peak_daily_tokens, Some(99));
+            assert!(statistics.daily_usage_buckets.is_none());
+        }
+    }
+
+    #[test]
+    fn credit_count_is_authoritative_and_expiry_is_earliest_future() {
+        let now = 1_790_812_800_000; // 2026-10-01 UTC, generated test data only.
+        let credits = parse_credits(
+            &serde_json::json!({"available_count": 7, "credits": [
+                {"status":"available","expires_at":"2026-09-30T00:00:00Z"},
+                {"status":"available","expires_at":"2026-10-04T00:00:00Z"},
+                {"status":"available","expires_at":"2026-10-02T00:00:00Z"},
+                {"status":"redeemed","expires_at":"2026-10-01T01:00:00Z"}, null
+            ]}),
+            now,
+        )
+        .ok()
+        .unwrap();
+        assert_eq!(credits.available_count, 7);
+        let expected = chrono::DateTime::parse_from_rfc3339("2026-10-02T00:00:00Z")
+            .unwrap()
+            .timestamp_millis() as u64;
+        assert_eq!(credits.next_expiry_ms, Some(expected));
+        assert_eq!(credits.fetched_at, now);
+        let reread = parse_credits(&serde_json::json!({"available_count": 7, "credits": [{"status":"available","expires_at":"2026-10-02T00:00:00Z"}]}), expected + 1).ok().unwrap();
+        assert_eq!(
+            reread.available_count, 7,
+            "expiry must not invent a lower backend count"
+        );
+        assert_eq!(reread.next_expiry_ms, None);
+    }
+
+    #[test]
+    fn malformed_credit_fallback_is_unknown_not_zero() {
+        for value in [
+            serde_json::json!({}),
+            serde_json::json!({"credits": null}),
+            serde_json::json!({"credits":[{}]}),
+            serde_json::json!({"credits":[null]}),
+            serde_json::json!({"credits":[{"status":null}]}),
+            serde_json::json!({"credits":[{"status":"new-status"}]}),
+            serde_json::json!({"available_count":-1,"credits":[]}),
+        ] {
+            assert!(parse_credits(&value, 0).is_err(), "{value}");
+        }
+        let empty = parse_credits(&serde_json::json!({"credits":[]}), 0)
+            .ok()
+            .unwrap();
+        assert_eq!(empty.available_count, 0);
+        for value in [
+            serde_json::json!({"available_count":4}),
+            serde_json::json!({"available_count":4,"credits":[{},null,{"status":null}]}),
+        ] {
+            assert_eq!(parse_credits(&value, 0).ok().unwrap().available_count, 4);
+        }
+        let listed = parse_credits(&serde_json::json!({"credits":[{"status":"available"},{"status":"redeemed"},{"status":"expired"}]}), 0).ok().unwrap();
+        assert_eq!(listed.available_count, 1);
+    }
+
+    #[test]
+    fn successful_zero_credit_count_has_no_expiry() {
+        let credits = parse_credits(&serde_json::json!({"available_count":0,"credits":[{"status":"available","expires_at":"2026-10-05T00:00:00Z"}]}), 0).ok().unwrap();
+        assert_eq!(credits.available_count, 0);
+        assert_eq!(credits.next_expiry_ms, None);
+    }
+
+    #[test]
+    fn auxiliary_failures_keep_matching_cached_readings_and_original_dates() {
+        let credential = synthetic_credential("account-a");
+        let (details, backoff) = fetch_details_with(
+            &credential,
+            Some("pro".into()),
+            Some(cached_details("account-a")),
+            |_| Err(LiveErr::Other("synthetic failure".into())),
+            || 300,
+        );
+        assert_eq!(details.statistics.unwrap().lifetime_tokens, Some(7));
+        assert_eq!(details.fetched_at, 100);
+        assert_eq!(details.credits.unwrap().fetched_at, 200);
+        assert_eq!(
+            details.statistics_error.as_deref(),
+            Some("Reading unavailable")
+        );
+        assert_eq!(
+            details.credits_error.as_deref(),
+            Some("Reading unavailable")
+        );
+        assert_eq!(backoff, 0);
+    }
+
+    #[test]
+    fn changed_account_discards_cached_values_on_optional_failure() {
+        let (details, _) = fetch_details_with(
+            &synthetic_credential("account-b"),
+            None,
+            Some(cached_details("account-a")),
+            |_| Err(LiveErr::NeedsAuth),
+            || 300,
+        );
+        assert_eq!(details.account_key, account_key("account-b"));
+        assert!(details.statistics.is_none());
+        assert!(details.credits.is_none());
+        assert_eq!(
+            details.statistics_error.as_deref(),
+            Some("Sign-in unavailable")
+        );
+    }
+
+    #[test]
+    fn unavailable_profile_does_not_block_successful_credit_reading() {
+        let (details, _) = fetch_details_with(
+            &synthetic_credential("account-a"),
+            None,
+            None,
+            |endpoint| match endpoint {
+                DetailEndpoint::Profile => Err(LiveErr::NeedsAuth),
+                DetailEndpoint::Credits => Ok(serde_json::json!({"available_count":0})),
+            },
+            || 300,
+        );
+        assert!(details.statistics.is_none());
+        assert_eq!(details.credits.unwrap().available_count, 0);
+        assert!(details.credits_error.is_none());
+    }
+
+    #[test]
+    fn profile_429_stops_remaining_requests_and_starts_hold_at_response() {
+        let mut calls = 0;
+        let mut clock = [1000, 16_000].into_iter();
+        let (details, backoff) = fetch_details_with(
+            &synthetic_credential("account-a"),
+            None,
+            None,
+            |endpoint| {
+                assert!(matches!(endpoint, DetailEndpoint::Profile));
+                calls += 1;
+                Err(LiveErr::RateLimited(60))
+            },
+            || clock.next().unwrap(),
+        );
+        assert_eq!(calls, 1);
+        assert_eq!(backoff, 76_000);
+        assert_eq!(details.credits_error.as_deref(), Some("Waiting for retry"));
+        assert_eq!(details.statistics_error.as_deref(), Some("Rate limited"));
+    }
+
+    #[test]
+    fn credit_429_preserves_new_profile_and_uses_later_response_time() {
+        let mut clock = [1000, 16_000, 31_000].into_iter();
+        let (details, backoff) = fetch_details_with(
+            &synthetic_credential("account-a"),
+            None,
+            None,
+            |endpoint| match endpoint {
+                DetailEndpoint::Profile => Ok(serde_json::json!({"stats":{"lifetime_tokens":42}})),
+                DetailEndpoint::Credits => Err(LiveErr::RateLimited(120)),
+            },
+            || clock.next().unwrap(),
+        );
+        assert_eq!(backoff, 151_000);
+        assert_eq!(details.statistics.unwrap().lifetime_tokens, Some(42));
+        assert_eq!(details.fetched_at, 16_000);
+        assert_eq!(details.credits_error.as_deref(), Some("Rate limited"));
+    }
+
+    #[test]
+    fn retry_after_accepts_seconds_and_http_date_without_overflow() {
+        assert_eq!(retry_after_secs(Some(" 120 "), 0), 120);
+        assert_eq!(
+            retry_after_secs(Some("Thu, 01 Oct 2026 00:00:02 GMT"), 1_790_812_801_001),
+            1
+        );
+        for invalid in [None, Some("bad"), Some("-2")] {
+            assert_eq!(retry_after_secs(invalid, 0), 0);
+        }
+        assert_eq!(
+            retry_after_secs(Some("Thu, 01 Oct 2026 00:00:02 GMT"), u64::MAX),
+            0
+        );
+    }
+
+    #[test]
+    fn plan_labels_are_bounded_single_line_metadata() {
+        assert_eq!(plan_label(Some(" pro ")).as_deref(), Some("pro"));
+        for label in ["", "\n", "pro\nprivate"] {
+            assert!(plan_label(Some(label)).is_none());
+        }
+        assert!(plan_label(Some(&"x".repeat(81))).is_none());
+    }
 
     #[test]
     fn app_server_uses_core_bucket_not_legacy_spark() {

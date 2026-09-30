@@ -116,9 +116,36 @@
   .g-box{border:1px solid #242424;border-radius:10px;padding:0 10px 8px;margin-top:6px}
   .c-note{font-size:12px;color:#c8c8c8;line-height:1.5;margin-top:6px}
   .c-sessions{margin-top:12px;border-top:1px solid #1e1e1e;padding-top:8px}
-  .s-row{display:flex;align-items:center;gap:6px;font-size:11px;color:#b0b0b3;padding:2px 0}
-  .s-dot{width:6px;height:6px;border-radius:3px;flex:0 0 auto}
+  .s-row{display:flex;align-items:flex-start;gap:6px;font-size:11px;color:#b0b0b3;padding:3px 0;min-width:0}
+  .s-dot{width:6px;height:6px;border-radius:3px;flex:0 0 auto;margin-top:4px}
+  .s-name{min-width:0;flex:1;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;line-height:1.35;overflow-wrap:anywhere}
+  .s-state{flex:0 0 auto;min-width:44px;max-width:92px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;line-height:1.35}
   .s-more{font-size:11px;color:#808080;padding:2px 0}
+
+  /* Codex statistics stay inline with its quota, within the existing scrollable card. */
+  #card.codex-rich{max-width:346px}
+  .cx-details{margin-top:12px;border-top:1px solid var(--matra-stroke,#303030);padding-top:10px;color:var(--matra-text,#e8e8ea)}
+  .cx-plan,.cx-note,.cx-expiry,.cx-history-note,.cx-day-readout,.cx-axis{font-size:11px;line-height:1.4;color:var(--matra-muted,#aaa)}
+  .cx-plan{margin-bottom:7px}
+  .cx-note{margin:5px 0;overflow-wrap:anywhere}
+  .cx-credit{display:flex;align-items:baseline;justify-content:space-between;gap:10px;font-size:12px}
+  .cx-credit strong{font-size:17px;font-variant-numeric:tabular-nums}
+  .cx-expiry{margin-top:2px}
+  .cx-metrics{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:9px 14px;margin:12px 0}
+  .cx-metric dt{font-size:11px;line-height:1.3;color:var(--matra-muted,#aaa)}
+  .cx-metric dd{margin:3px 0 0;font-size:12px;font-weight:600;line-height:1.3;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+  .cx-totals{display:flex;justify-content:space-between;gap:12px;font-size:11px;line-height:1.35;margin-top:12px}
+  .cx-totals strong{display:block;font-size:12px;margin-top:3px;font-variant-numeric:tabular-nums}
+  .cx-totals>div:last-child{text-align:right}
+  .cx-chart{display:grid;grid-template-columns:repeat(30,minmax(0,1fr));gap:3px;height:64px;align-items:end;margin-top:10px;border-bottom:1px solid var(--matra-track,#444)}
+  .cx-day{position:relative;display:flex;align-items:flex-end;width:100%;height:100%;min-width:0;border:0;border-radius:2px 2px 0 0;padding:0;background:transparent;color:inherit;cursor:default}
+  .cx-bar{display:block;width:100%;border-radius:2px 2px 0 0;background:var(--matra-accent,#cc785c);min-height:2px}
+  .cx-day.unknown .cx-bar{height:4px!important;background:transparent;border-top:1px dashed var(--matra-muted,#aaa);border-radius:0}
+  .cx-day:hover,.cx-day:focus-visible{background:var(--matra-sheen,rgba(255,255,255,.1));outline-offset:1px}
+  .cx-axis{display:flex;justify-content:space-between;margin-top:4px}
+  .cx-day-readout{min-height:16px;margin-top:5px;font-variant-numeric:tabular-nums}
+  .cx-history-note{margin-top:3px}
+  body[data-edge="top"] #card.codex-rich,body[data-edge="bottom"] #card.codex-rich{width:346px}
 
   /* ---- The other three edges -------------------------------------------------
      The rules above draw the right-hand edge, the original layout and still the default. Each block
@@ -1142,9 +1169,118 @@ function ago(ms){
 }
 
 const STATE_DOT={running:INK,attention:WATCH,done:AMPLE,idle:TRACK};
-// The card is clipped, not scrolled, so rows past this would push its title off the top; the rest are counted, as on the Mac
+// Keep the activity list compact; the full inline Codex card can scroll within the native window.
 const SESSION_ROWS=5;
 function moreRow(n){ return n>0?`<div class="s-more">${ui().andMore(n)}</div>`:''; }
+
+// CODEX_DETAILS_HELPERS_START
+// These helpers have no DOM or account dependencies, so the native card's data semantics can be tested in Node.
+const CodexDetails = (()=>{
+  const integer=v=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=0?v:null;
+  const number=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0?v:null;
+  const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function bounded(value,limit=72){
+    const text=String(value??'').replace(/[\u0000-\u001f\u007f]/g,' ').replace(/\s+/g,' ').trim();
+    const chars=Array.from(text);
+    return chars.length>limit?chars.slice(0,Math.max(0,limit-1)).join('')+'…':text;
+  }
+  function activityLabel(value,limit=72){
+    const raw=String(value??'');
+    const first=raw.split(/[\r\n]/,1)[0];
+    const label=bounded(first,limit);
+    return raw.length>first.length&&!label.endsWith('…')?bounded(label+' …',limit):label;
+  }
+  function dayKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+  function parseDay(value){
+    if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
+    const [y,m,d]=value.split('-').map(Number);
+    const result=new Date(0);result.setFullYear(y,m-1,d);result.setHours(12,0,0,0);
+    return result.getFullYear()===y&&result.getMonth()===m-1&&result.getDate()===d?result:null;
+  }
+  function calendar(now){
+    const today=new Date(now);today.setHours(12,0,0,0);
+    return Array.from({length:30},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-29+i);return {key:dayKey(d),date:d};});
+  }
+  function history(buckets,now){
+    const days=calendar(now), keys=new Set(days.map(d=>d.key)), reported=new Map();
+    if(Array.isArray(buckets))for(const b of buckets){
+      if(b&&parseDay(b.start_date)&&keys.has(b.start_date))reported.set(b.start_date,integer(b.tokens));
+    }
+    let count=0,total=0;
+    for(const day of days){
+      day.tokens=reported.has(day.key)?reported.get(day.key):null;
+      if(day.tokens!==null){count++;total+=day.tokens;}
+    }
+    return {days,available:Array.isArray(buckets),count,total:count&&Number.isSafeInteger(total)?total:null,partial:count<30,today:days[29].tokens};
+  }
+  function formatCount(value,locale){const v=integer(value);return v===null?'Not reported':new Intl.NumberFormat(locale).format(v);}
+  function formatTokens(value,locale){
+    const n=integer(value);if(n===null)return 'Not reported';
+    const unit=n>=1e9?[1e9,'B',2]:n>=1e6?[1e6,'M',1]:n>=1e3?[1e3,'K',1]:[1,'',0];
+    return new Intl.NumberFormat(locale,{minimumFractionDigits:unit[2],maximumFractionDigits:unit[2]}).format(n/unit[0])+unit[1];
+  }
+  function duration(value){
+    const n=number(value);if(n===null)return 'Not reported';
+    const seconds=Math.floor(n), minutes=Math.floor(seconds/60), hours=Math.floor(minutes/60), days=Math.floor(hours/24);
+    if(days)return `${days} d ${hours%24} hr`;
+    if(hours)return `${hours} hr ${minutes%60} min`;
+    if(minutes)return `${minutes} min ${seconds%60} sec`;
+    return `${seconds} sec`;
+  }
+  function dateLabel(date,locale,full=false){return date.toLocaleDateString(locale,{month:'short',day:'numeric',...(full?{year:'numeric'}:{})});}
+  function timestamp(value,locale){
+    const v=integer(value);if(v===null||v===0||!Number.isFinite(new Date(v).getTime()))return null;
+    return new Date(v).toLocaleString(locale,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  }
+  function dayDescription(day,locale){return `${dateLabel(day.date,locale,true)}: ${day.tokens===null?'Not reported':formatCount(day.tokens,locale)+' tokens'}`;}
+  function cardSpace(edge,width,height,insets,pill){
+    const [top,right,bottom,left]=insets;
+    const topLimit=top+8,bottomLimit=height-bottom-8;
+    const start=edge==='top'?Math.max(topLimit,pill.bottom+30):topLimit;
+    const end=edge==='bottom'?Math.min(bottomLimit,pill.top-30):bottomLimit;
+    return {topLimit:start,bottomLimit:end,maxHeight:Math.max(0,end-start),maxWidth:Math.max(0,width-left-right-16)};
+  }
+  function html(details,now,locale){
+    const d=details&&typeof details==='object'?details:{};
+    const stats=d.statistics&&typeof d.statistics==='object'?d.statistics:{};
+    const credits=d.credits&&typeof d.credits==='object'?d.credits:{};
+    const h=history(stats.daily_usage_buckets,now);
+    const expiry=integer(credits.next_expiry_ms), expiryText=expiry!==null&&expiry>now?timestamp(expiry,locale):null;
+    const statsAt=d.statistics&&typeof d.statistics==='object'?timestamp(d.fetched_at,locale):null;
+    const creditsAt=timestamp(credits.fetched_at,locale);
+    let out='<section class="cx-details" aria-label="Codex usage details">';
+    if(d.plan)out+=`<div class="cx-plan">Plan: ${escape(bounded(d.plan,64))}</div>`;
+    out+=`<div class="cx-credit"><span>Unused resets</span><strong>${escape(formatCount(credits.available_count,locale))}</strong></div>`;
+    const expiryCopy=expiryText?'Next expiry: '+escape(expiryText):expiry!==null&&expiry>0&&expiry<=now?'Reported expiry passed; refresh required.':'Expiry not reported';
+    out+=`<div class="cx-expiry">${expiryCopy}${creditsAt?' · Updated '+escape(creditsAt):''}</div>`;
+    if(d.credits_error)out+=`<div class="cx-note" role="status">Resets: ${escape(bounded(d.credits_error,160))}</div>`;
+    const metric=(label,value,exact=null)=>`<div class="cx-metric"><dt>${label}</dt><dd${exact!==null?' aria-label="'+escape(exact)+'"':''}>${escape(value)}</dd></div>`;
+    out+='<dl class="cx-metrics">';
+    out+=metric('Lifetime tokens',formatTokens(stats.lifetime_tokens,locale),integer(stats.lifetime_tokens)!==null?formatCount(stats.lifetime_tokens,locale)+' lifetime tokens':null);
+    out+=metric('Peak daily tokens',formatTokens(stats.peak_daily_tokens,locale),integer(stats.peak_daily_tokens)!==null?formatCount(stats.peak_daily_tokens,locale)+' peak daily tokens':null);
+    out+=metric('Longest chat',duration(stats.longest_running_turn_sec));
+    out+=metric('Current streak',formatCount(stats.current_streak_days,locale)+(integer(stats.current_streak_days)!==null?' days':''));
+    out+=metric('Longest streak',formatCount(stats.longest_streak_days,locale)+(integer(stats.longest_streak_days)!==null?' days':''));
+    out+='</dl>';
+    if(d.statistics_error)out+=`<div class="cx-note" role="status">Statistics: ${escape(bounded(d.statistics_error,160))}</div>`;
+    if(statsAt)out+=`<div class="cx-note">Statistics updated ${escape(statsAt)}</div>`;
+    const today=h.today===null?(h.available?'Pending':'Not reported'):formatTokens(h.today,locale)+' tokens';
+    const total=h.total===null?'Unavailable':formatTokens(h.total,locale)+' tokens'+(h.partial?' reported':'');
+    out+=`<div class="cx-totals"><div>Today<strong${h.today!==null?' aria-label="'+escape(formatCount(h.today,locale)+' tokens today')+'"':''}>${escape(today)}</strong></div><div>30-day tokens<strong${h.total!==null?' aria-label="'+escape(formatCount(h.total,locale)+' tokens'+(h.partial?' reported across '+h.count+' of 30 days':' across 30 days'))+'"':''}>${escape(total)}</strong></div></div>`;
+    const max=Math.max(0,...h.days.map(day=>day.tokens??0));
+    out+='<div class="cx-chart" role="group" aria-label="Token usage by day, last 30 local calendar days">';
+    for(const [i,day] of h.days.entries()){
+      const height=day.tokens!==null&&max>0?day.tokens/max*100:0;
+      out+=`<button type="button" class="cx-day${day.tokens===null?' unknown':''}" data-codex-day="${i}" aria-label="${escape(dayDescription(day,locale))}"><span class="cx-bar" style="height:${height.toFixed(2)}%" aria-hidden="true"></span></button>`;
+    }
+    out+=`</div><div class="cx-axis" aria-hidden="true"><span>${escape(dateLabel(h.days[0].date,locale))}</span><span>${escape(dateLabel(h.days[29].date,locale))}</span></div>`;
+    out+=`<div class="cx-day-readout" aria-live="polite">Hover or focus a day for its token count.</div>`;
+    out+=`<div class="cx-history-note">${!h.available?'History not reported.':h.count===0?'No days reported in this window.':h.partial?`${h.count}/30 days reported; missing days are unknown.`:'All 30 days reported.'} Dashed marks mean not reported.</div></section>`;
+    return {html:out,history:h};
+  }
+  return {integer,escape,bounded,activityLabel,dayKey,parseDay,calendar,history,formatCount,formatTokens,duration,dayDescription,cardSpace,html};
+})();
+// CODEX_DETAILS_HELPERS_END
 
 let hoverId='claude';
 let claudeAuth={busy:false,message:''};
@@ -1173,6 +1309,13 @@ async function signInClaude(){
 function renderCard(){
   const c=document.getElementById('card');
   const p=providers().find(x=>x.id===hoverId)||providers()[0];
+  if(!p)return;
+  const sameProvider=c.dataset.providerId===p.id, scrollTop=sameProvider?c.scrollTop:0;
+  const focusedDay=sameProvider&&c.contains(document.activeElement)?document.activeElement?.dataset?.codexDay:null;
+  c.dataset.providerId=p.id;
+  c.classList.toggle('codex-rich',p.base==='codex');
+  c.setAttribute('role','region');
+  c.setAttribute('aria-label',CodexDetails.bounded(p.name,72)+' usage');
   const snap=p.snap;
   const headIcon=glyphHtml(p,true);
   // p.name is no longer a constant: for a second account it is built from the home
@@ -1207,13 +1350,19 @@ function renderCard(){
     if(group) html+=`</div>`;
     if(snap.note) html+=`<div class="c-note">${esc(textCopy(snap.note))}</div>`;
   }
+  let codexDetails=null;
+  if(p.base==='codex'){
+    codexDetails=CodexDetails.html(snap.codex_details,Date.now(),ui().locale);
+    html+=codexDetails.html;
+  }
   if(offersClaudeSignIn(p)) html+=claudeAuthHtml(claudeAuth,claudeActionMessage);
   if(p.base==='claude'){ // live sessions (a full list with jump-to-session is a follow-up)
     const act=stateSnap.sessions.filter(s=>s.state!=='idle');
     if(act.length){
       html+=`<div class="c-sessions">`;
       for(const s of act.slice(0,SESSION_ROWS)){
-        html+=`<div class="s-row"><span class="s-dot" style="background:${STATE_DOT[s.state]||'#666'}"></span>${esc(s.title)}</div>`;
+        const status={running:'Working',attention:'Waiting',done:'Done'}[s.state]||s.state;
+        html+=`<div class="s-row"><span class="s-dot" style="background:${STATE_DOT[s.state]||'#666'}" aria-hidden="true"></span><span class="s-name">${esc(CodexDetails.activityLabel(s.title))}</span><span class="s-state">${esc(CodexDetails.bounded(textCopy(status),24))}</span></div>`;
       }
       html+=moreRow(act.length-SESSION_ROWS)+`</div>`;
     }
@@ -1224,45 +1373,66 @@ function renderCard(){
       html+=`<div class="c-sessions">`;
       for(const a of acts.slice(0,SESSION_ROWS)){
         const col=a.state==='waiting'?WATCH:INK;
-        html+=`<div class="s-row"><span class="s-dot" style="background:${col}"></span>${esc(a.name)}<span style="color:#808080;margin-left:auto">${esc(textCopy(a.detail))}</span></div>`;
+        html+=`<div class="s-row"><span class="s-dot" style="background:${col}" aria-hidden="true"></span><span class="s-name">${esc(CodexDetails.activityLabel(a.name))}</span><span class="s-state">${esc(CodexDetails.activityLabel(textCopy(a.detail||(a.state==='waiting'?'Waiting':'Working')),24))}</span></div>`;
       }
       html+=moreRow(acts.length-SESSION_ROWS)+`</div>`;
     }
   }
   c.innerHTML=html;
+  if(codexDetails){
+    const readout=c.querySelector('.cx-day-readout');
+    const updateDay=button=>{
+      const day=codexDetails.history.days[Number(button.dataset.codexDay)];
+      if(day)readout.textContent=CodexDetails.dayDescription(day,ui().locale);
+    };
+    for(const button of c.querySelectorAll('[data-codex-day]')){
+      button.addEventListener('mouseenter',()=>updateDay(button));
+      button.addEventListener('focus',()=>updateDay(button));
+    }
+    const focused=focusedDay!=null?c.querySelector(`[data-codex-day="${Number(focusedDay)}"]`):null;
+    if(focused)focused.focus({preventScroll:true});
+  }
   const signIn=c.querySelector('#claude-sign-in');
   if(signIn) signIn.onclick=e=>{e.stopPropagation();signInClaude();};
   placeCard();
+  c.scrollTop=scrollTop;
+  armWatchdog();
 }
 // The card follows the hovered cell: centred on it along the pill (kept inside the window), tail pointing at it.
 // On the upright edges that means matching its vertical centre; on the flat ones, its horizontal centre,
 // and the card is pushed clear of a pill whose thickness follows the cells it holds.
 function placeCard(){
   const cell=pill.querySelector(`.cell[data-p="${hoverId}"]`)||pill;
-  const cr=cell.getBoundingClientRect();
+  // Client rectangles include CSS zoom; offset sizes and assigned styles do not.
+  const zoom=parseFloat(document.documentElement.style.zoom)||1;
+  const layoutRect=el=>{const r=el.getBoundingClientRect();return {left:r.left/zoom,top:r.top/zoom,right:r.right/zoom,bottom:r.bottom/zoom,width:r.width/zoom,height:r.height/zoom};};
+  const cr=layoutRect(cell),pr=layoutRect(pill);
   // The point sits on the ring, not the cell, which includes the label below it
-  const rr=(cell.querySelector('.ringwrap')||cell).getBoundingClientRect();
+  const rr=layoutRect(cell.querySelector('.ringwrap')||cell);
+  const W=innerWidth/zoom,H=innerHeight/zoom;
+  const room=CodexDetails.cardSpace(notchEdge,W,H,insets,pr);
+  card.style.maxHeight=room.maxHeight+'px';
+  card.style.width=edgeIsVertical()?'':Math.min(card.classList.contains('codex-rich')?346:246,room.maxWidth)+'px';
   card.style.transform='none';
   if(edgeIsVertical()){
     const cy=cr.top+cr.height/2;
-    const H=innerHeight, ch=card.offsetHeight||0;
-    let top=Math.round(cy-ch/2); top=Math.max(8+insets[0],Math.min(top,H-insets[2]-ch-8));
+    const ch=card.offsetHeight||0;
+    let top=Math.round(cy-ch/2); top=Math.max(room.topLimit,Math.min(top,room.bottomLimit-ch));
     card.style.top=top+'px'; card.style.left='';
     const ry=rr.top+rr.height/2;
     const th=tail.offsetHeight||36, ty=Math.max(top+16+th/2,Math.min(top+ch-16-th/2,ry));
     tail.style.top=Math.round(ty-th/2)+'px'; tail.style.left='';
   }else{
-    const pr=pill.getBoundingClientRect();
     const cx=cr.left+cr.width/2;
-    const W=innerWidth, cw=card.offsetWidth||0, ch=card.offsetHeight||0;
+    const cw=card.offsetWidth||0, ch=card.offsetHeight||0;
     let left=Math.round(cx-cw/2); left=Math.max(8+insets[3],Math.min(left,W-insets[1]-cw-8));
     card.style.left=left+'px';
     const rx=rr.left+rr.width/2;
     const tw=tail.offsetWidth||36, tx=Math.max(left+16+tw/2,Math.min(left+cw-16-tw/2,rx));
     tail.style.left=Math.round(tx-tw/2)+'px';
     // 30 px of clear gap, the same the upright edges leave, with the tail spanning it 1 px under the pill
-    if(notchEdge==='top'){ card.style.top=Math.round(pr.bottom+30)+'px'; tail.style.top=Math.round(pr.bottom-1)+'px'; }
-    else{ card.style.top=Math.round(pr.top-30-ch)+'px'; tail.style.top=Math.round(pr.top-31)+'px'; }
+    if(notchEdge==='top'){ card.style.top=Math.round(room.topLimit)+'px'; tail.style.top=Math.round(pr.bottom-1)+'px'; }
+    else{ card.style.top=Math.round(room.bottomLimit-ch)+'px'; tail.style.top=Math.round(pr.top-31)+'px'; }
   }
 }
 
@@ -1330,7 +1500,7 @@ function armWatchdog(){
 // `notch_window_size` in main.rs: NOTCH_W upright, NOTCH_LONG lying flat. Dividing by 360 on a
 // flat edge read the wider window as a DPR error and zoomed the whole notch by 520/360. Either number
 // left behind when the window changes width does the same thing, so a test in main.rs pins both.
-const DESIGN_W_UPRIGHT=360, DESIGN_W_FLAT=650;
+const DESIGN_W_UPRIGHT=460, DESIGN_W_FLAT=650;
 function designWidth(){ return edgeIsVertical()?DESIGN_W_UPRIGHT:DESIGN_W_FLAT; }
 function fitZoom(){
   const z=innerWidth/designWidth();
@@ -1346,7 +1516,7 @@ function reportDpr(settled){
 // Not measured yet: the width to measure against depends on the edge, and only Rust knows it. The
 // ask is at the bottom of this file and answers in a round trip; measuring first would zoom a flat
 // window by 520/360 for that moment.
-window.addEventListener('resize',()=>{clearTimeout(window._dprT);window._dprT=setTimeout(()=>{reportDpr(true);reportHot();},120);});
+window.addEventListener('resize',()=>{clearTimeout(window._dprT);window._dprT=setTimeout(()=>{reportDpr(true);if(card.classList.contains('show'))placeCard();reportHot();},120);});
 matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`).addEventListener('change',()=>reportDpr());
 // A landing on a screen at another scale: empty the page, which leaves the transparent window
 // invisible while it is resized and re-zoomed, and say so once that has painted — hiding the window
