@@ -8,7 +8,8 @@
 Your AI limits, at the edge of your screen.</p>
 
 <p align="center">
-  <a href="https://github.com/panditfloki/matra/releases/latest">Download for Windows</a> ·
+  <a href="https://github.com/panditfloki/matra/releases/download/v1.8.4/Matra-Setup.exe">Windows · v1.8.4</a> ·
+  <a href="https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1">macOS · v1.8.5 Beta 1</a> ·
   <a href="#a-closer-look">Screenshots</a> ·
   <a href="#availability">Release status</a> ·
   <a href="https://dydxfx.com">DYDXFX</a>
@@ -24,7 +25,7 @@ dashboard. It folds into your screen edge and opens when you need the detail.
   </a>
 </p>
 
-<p align="center"><sub>macOS development preview. Actual readings at capture time, not live data on this page.</sub></p>
+<p align="center"><sub>macOS v1.8.5 beta. Actual readings at capture time; screenshots do not update live.</sub></p>
 
 ## A glance, then the detail
 
@@ -48,7 +49,7 @@ dashboard. It folds into your screen edge and opens when you need the detail.
   </tr>
 </table>
 
-These screenshots show the **macOS v1.8.5 development build**, captured on
+These screenshots show the **macOS v1.8.5 beta build**, captured on
 30 September 2026. The Windows download is a separate release; the screenshots
 do not imply that every Mac feature is already available on Windows.
 
@@ -66,17 +67,33 @@ pressure. Values and availability depend on each provider and account.
 
 ## Availability
 
-| Platform | Available now | Next |
+| Platform | Download | Development |
 |---|---|---|
-| Windows | [v1.8.4 installer](https://github.com/panditfloki/matra/releases/tag/v1.8.4) | v1.8.5 design-parity work is in development, not released |
-| macOS | Local v1.8.5 development preview shown above | Public app download and release verification are pending |
+| **Windows** | [v1.8.4 stable installer](https://github.com/panditfloki/matra/releases/tag/v1.8.4) | v1.8.5 is being developed and tested separately on Windows |
+| **macOS** | [v1.8.5 Beta 1 for Apple Silicon](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1) | [Mac source on the beta branch](https://github.com/panditfloki/matra/tree/beta/native/macos) |
 
-Release status checked on **30 September 2026**. The version shown in a screenshot
-is not a download announcement.
+Release status checked on **30 September 2026**. Windows stable and macOS beta
+have separate downloads and release channels.
+
+### Install on macOS
+
+1. Open the [Mac beta release](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1).
+2. Download the **macOS arm64 DMG** and **SHA256SUMS.txt**.
+3. Quit Mātrā, open the DMG and drag **Matra.app** into **Applications**.
+4. Eject the DMG and launch Mātrā from Applications.
+
+Requires an **Apple Silicon Mac with macOS 15 or later**. Native glass requires
+macOS 26; earlier versions use solid surfaces. An Intel installer is not included.
+This beta uses the tested developer build and ad-hoc signing. Developer ID signing
+and Apple notarization are pending. If macOS blocks installation, stop and review
+the warning. Preferences and provider sign-ins are retained when replacing the app.
+
+Beta updates are installed manually. The automatic-install preference is present,
+but a published signed update feed and a complete upgrade test are still pending.
 
 ### Install on Windows
 
-1. Open the [latest release](https://github.com/panditfloki/matra/releases/latest).
+1. Open the [Windows stable release](https://github.com/panditfloki/matra/releases/tag/v1.8.4).
 2. Download **Matra-Setup.exe**. The release also provides **SHA256SUMS.txt**.
 3. Run Setup, then launch Mātrā from the Start menu.
 
@@ -103,7 +120,7 @@ on the provider, plan, installed tool and signed-in session.
 | Grok | Weekly allowance from the signed-in CLI session |
 | GLM | Z.ai Coding Plan utilisation |
 
-The Mac preview includes additional source options. A source appearing in Settings
+The Mac beta includes additional source options. A source appearing in Settings
 does not guarantee that its service exposes every metric.
 
 **Codex is not all of ChatGPT.** Ordinary ChatGPT browser and app conversations
@@ -112,7 +129,7 @@ readings; an estimated API cost is not your subscription bill.
 
 ## Appearance with a purpose
 
-The Mac preview offers **Liquid Glass, Dark Glass, Solid Dark, Light and System**.
+The Mac beta offers **Liquid Glass, Dark Glass, Solid Dark, Light and System**.
 Glass depends on platform support and falls back to an opaque surface where needed.
 
 In the updated Mac build, accent colours personalise app controls without changing
@@ -127,8 +144,8 @@ the meaning of quota colours:
 | Unavailable | Neutral grey |
 
 Mac Watch and Critical thresholds are adjustable. Red takes priority from 90%.
-Notification settings are separate. The Windows v1.8.5 UI uses the same default
-bands; configurable threshold and animation parity still need completion.
+Notification settings are separate. The next Windows app is being developed to
+match this visual direction; its new features remain subject to Windows testing.
 
 ## Data and privacy
 
@@ -161,8 +178,8 @@ npm run native:bundle
 
 See [native build notes](native/README.md) and the
 [Windows workflow](.github/workflows/windows.yml).
-The local Mac implementation uses Swift/AppKit; its public source and release
-packaging are part of the pending cross-platform update.
+The Mac beta uses Swift/AppKit. Build instructions, pinned dependencies and source
+are available in [the Mac beta source](https://github.com/panditfloki/matra/tree/beta/native/macos).
 
 ### Existing IDE and localhost users
 
@@ -170,9 +187,20 @@ The original VS Code-compatible extension and `localhost:4317` dashboard remain
 available in this repository. Their installation, data sources, currency settings
 and architecture are documented in the [legacy guide](docs/LEGACY-DASHBOARD.md).
 
+## Latest versions
+
+| Platform | Latest downloadable version | Channel | Package |
+|---|---|---|---|
+| **Windows** | **1.8.4** | Stable; 1.8.5 development in progress | [Matra-Setup.exe](https://github.com/panditfloki/matra/releases/download/v1.8.4/Matra-Setup.exe) |
+| **macOS** | **1.8.5 Beta 1** | Beta · Apple Silicon · macOS 15+ | [Mac beta installer and checksum](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1) |
+
+Updated **30 September 2026**. App settings on Mac report version 1.8.5, build 185.
+
 ---
 
 Built by **Pandit Floki** at **DYDXFX**.
+
+© 2026 dydxfx · https://dydxfx.com
 
 [dydxfx.com](https://dydxfx.com) ·
 [GitHub](https://github.com/panditfloki) ·
