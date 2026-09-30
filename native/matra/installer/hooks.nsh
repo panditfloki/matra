@@ -13,6 +13,18 @@ Var MatraPrepare
   SetOutPath "$INSTDIR"
 !macroend
 
+; Tauri 2.11.4 includes utils.nsh before this file. Its default check can
+; force-terminate a process, including in passive update mode. Replace the
+; fallback as well: revalidate owned paths and request only a cooperative exit.
+; Fail compilation if a future bundler changes this contract.
+!ifmacrondef CheckIfAppIsRunning
+  !error "Matra requires the reviewed Tauri process-check macro contract."
+!endif
+!macroundef CheckIfAppIsRunning
+!macro CheckIfAppIsRunning executableName productName
+  !insertmacro MATRA_PREPARE
+!macroend
+
 !macro NSIS_HOOK_PREINSTALL
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"

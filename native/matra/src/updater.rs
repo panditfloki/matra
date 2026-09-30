@@ -142,6 +142,7 @@ pub fn get_update_state() -> UpdateState {
             if let Ok(raw) = std::fs::read_to_string(marker_path()) {
                 if let Ok(target) = serde_json::from_str::<String>(&raw) {
                     if let Some(message) = confirmation(env!("CARGO_PKG_VERSION"), &target) {
+                        let _ = crate::setup_audit::record("update-confirmation", "version-confirmed", None);
                         s.ui.phase = "updated".into();
                         s.ui.installed_message = Some(message.clone());
                         s.ui.message = Some(message);
@@ -475,6 +476,7 @@ fn install(app: AppHandle, automatic: bool) {
             if automatic && !automatic_enabled(&app) {
                 return Err("Automatic installation was turned off. Nothing was installed.".into());
             }
+            crate::setup_audit::record("update-install", "checksum-verified", None)?;
             let marker = marker_path();
             std::fs::create_dir_all(marker.parent().ok_or("Invalid update status path.")?)
                 .map_err(|_| "Cannot save update status.")?;
@@ -483,11 +485,15 @@ fn install(app: AppHandle, automatic: bool) {
                 serde_json::to_vec(&offer.version).map_err(|_| "Cannot encode update status.")?,
             )
             .map_err(|_| "Cannot save update status.")?;
+            crate::setup_audit::record("update-install", "launching-setup", None)?;
             // Passive NSIS displays progress; /R restarts the app after installation.
             let mut child = std::process::Command::new(&path)
                 .args(["/UPDATE", "/P", "/R"])
                 .spawn()
                 .map_err(|_| "Could not start Windows Setup. Please retry.")?;
+            // Setup may already be asking this process to close. A logging
+            // failure here must not detach or misreport a running installer.
+            let _ = crate::setup_audit::record("update-install", "setup-started", Some(child.id()));
             if !child
                 .wait()
                 .map_err(|_| "Could not read Windows Setup status.")?
@@ -498,7 +504,10 @@ fn install(app: AppHandle, automatic: bool) {
             Ok(())
         })();
         match result {
-            Err(e) => fail(&app, &e),
+            Err(e) => {
+                let _ = crate::setup_audit::record("update-install", "failed", None);
+                fail(&app, &e)
+            },
             Ok(()) => emit(
                 &app,
                 UpdateState {

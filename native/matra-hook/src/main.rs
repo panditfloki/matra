@@ -7,6 +7,8 @@ use std::net::TcpStream;
 use std::time::Duration;
 
 mod setup;
+#[path = "../../setup_audit.rs"]
+mod setup_audit;
 
 const DEFAULT_PORT: u16 = 48676;
 const MAX_STDIN: u64 = 256 * 1024;
@@ -15,11 +17,19 @@ fn main() {
     let event = std::env::args().nth(1).unwrap_or_else(|| "ping".into());
     // Installer-only path. Never read Claude's stdin or start the GUI here.
     if event == "--prepare-install" {
-        let result = std::env::args().nth(2).ok_or_else(|| "Missing installation path".to_string())
+        let result = setup_audit::record("prepare", "started", None).and_then(|_| std::env::args().nth(2).ok_or_else(|| "Missing installation path".to_string()))
             .and_then(|path| setup::prepare(&path));
         match result {
-            Ok(()) => println!("Matra installation directory is ready."),
-            Err(error) => { eprintln!("{error}"); std::process::exit(1); }
+            Ok(()) => {
+                if let Err(error) = setup_audit::record("prepare", "ready", None) {
+                    eprintln!("{error}"); std::process::exit(1);
+                }
+                println!("Matra installation directory is ready.");
+            }
+            Err(error) => {
+                let _ = setup_audit::record("prepare", "failed", None);
+                eprintln!("{error}"); std::process::exit(1);
+            }
         }
         return;
     }

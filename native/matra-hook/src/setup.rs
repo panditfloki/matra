@@ -37,9 +37,55 @@ pub fn prepare(_: &str) -> Result<(), String> {
 }
 
 #[cfg(windows)]
+fn request_close(pid: u32) -> Result<(), String> {
+    use windows::Win32::Foundation::{BOOL, HWND, LPARAM, WPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetWindowThreadProcessId, PostMessageW, WM_CLOSE,
+    };
+    struct Request {
+        pid: u32,
+        failed: bool,
+    }
+    unsafe extern "system" fn visit(hwnd: HWND, data: LPARAM) -> BOOL {
+        let request = &mut *(data.0 as *mut Request);
+        let mut owner = 0;
+        GetWindowThreadProcessId(hwnd, Some(&mut owner));
+        // Never broadcast. OS UIPI remains in force; there is no message-filter bypass.
+        if owner == request.pid && PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0)).is_err() {
+            request.failed = true;
+        }
+        BOOL(1)
+    }
+    let mut request = Request { pid, failed: false };
+    unsafe { EnumWindows(Some(visit), LPARAM(&mut request as *mut Request as isize)) }.map_err(
+        |_| "Could not request a graceful Matra exit. Close Matra and retry.".to_string(),
+    )?;
+    if request.failed {
+        return Err("Windows refused the close request. Close Matra yourself and retry.".into());
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn wait_for_exit(
+    process: windows::Win32::Foundation::HANDLE,
+    milliseconds: u32,
+) -> Result<(), String> {
+    use windows::Win32::Foundation::WAIT_OBJECT_0;
+    use windows::Win32::System::Threading::WaitForSingleObject;
+    if unsafe { WaitForSingleObject(process, milliseconds) } == WAIT_OBJECT_0 {
+        Ok(())
+    } else {
+        Err("Matra or an active hook did not exit. Close Matra, finish the active Claude operation, then retry. Nothing was force-closed.".into())
+    }
+}
+
+#[cfg(windows)]
 pub fn prepare(destination: &str) -> Result<(), String> {
     use windows::core::PWSTR;
-    use windows::Win32::Foundation::{CloseHandle, ERROR_NO_MORE_FILES, HANDLE, WAIT_OBJECT_0};
+    use windows::Win32::Foundation::{
+        CloseHandle, ERROR_INVALID_PARAMETER, ERROR_NO_MORE_FILES, HANDLE, WAIT_OBJECT_0,
+    };
     use windows::Win32::System::Diagnostics::ToolHelp::*;
     use windows::Win32::System::Threading::*;
 
@@ -70,6 +116,7 @@ pub fn prepare(destination: &str) -> Result<(), String> {
             dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
             ..Default::default()
         };
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
         let mut next = Process32FirstW(snapshot.0, &mut entry);
         while next.is_ok() {
             let name = String::from_utf16_lossy(
@@ -86,11 +133,12 @@ pub fn prepare(destination: &str) -> Result<(), String> {
                 )
             {
                 // Hold a handle through validation and exit, avoiding PID-reuse races.
-                if let Ok(raw) = OpenProcess(
-                    PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | PROCESS_SYNCHRONIZE,
+                let opened = OpenProcess(
+                    PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
                     false,
                     entry.th32ProcessID,
-                ) {
+                );
+                if let Ok(raw) = opened {
                     let process = Handle(raw);
                     let mut buffer = vec![0u16; 32768];
                     let mut length = buffer.len() as u32;
@@ -104,15 +152,52 @@ pub fn prepare(destination: &str) -> Result<(), String> {
                     {
                         let image = String::from_utf16_lossy(&buffer[..length as usize]);
                         if owned_process(&image, destination, &legacy) {
-                            if TerminateProcess(process.0, 0).is_err()
-                                && WaitForSingleObject(process.0, 0) != WAIT_OBJECT_0
-                            {
-                                return Err("Could not close this Matra installation. Close it and try again.".into());
+                            if WaitForSingleObject(process.0, 0) == WAIT_OBJECT_0 {
+                                next = Process32NextW(snapshot.0, &mut entry);
+                                continue;
                             }
-                            if WaitForSingleObject(process.0, 30_000) != WAIT_OBJECT_0 {
-                                return Err("This Matra installation did not exit in time.".into());
+                            crate::setup_audit::record(
+                                "prepare",
+                                "owned-process-found",
+                                Some(entry.th32ProcessID),
+                            )?;
+                            if name.eq_ignore_ascii_case("matra.exe") {
+                                // WM_CLOSE is cooperative: older/unresponsive builds may decline.
+                                // A short-lived hook has no GUI; let it finish rather than killing it.
+                                let close = request_close(entry.th32ProcessID);
+                                if close.is_err()
+                                    && WaitForSingleObject(process.0, 0) != WAIT_OBJECT_0
+                                {
+                                    close?;
+                                }
+                                crate::setup_audit::record(
+                                    "prepare",
+                                    "close-requested",
+                                    Some(entry.th32ProcessID),
+                                )?;
                             }
+                            let remaining = deadline
+                                .saturating_duration_since(std::time::Instant::now())
+                                .as_millis() as u32;
+                            wait_for_exit(process.0, remaining)?;
+                            crate::setup_audit::record(
+                                "prepare",
+                                "owned-process-exited",
+                                Some(entry.th32ProcessID),
+                            )?;
                         }
+                    } else if WaitForSingleObject(process.0, 0) != WAIT_OBJECT_0 {
+                        return Err(
+                            "Cannot verify a running Matra process path. Close it and retry."
+                                .into(),
+                        );
+                    }
+                } else if let Err(error) = opened {
+                    // A process can finish between snapshot and OpenProcess. All other
+                    // failures are unknown ownership, not evidence that setup is ready.
+                    if error.code() != windows::core::HRESULT::from_win32(ERROR_INVALID_PARAMETER.0)
+                    {
+                        return Err("Cannot inspect a running Matra process. Close it and retry; Windows permissions were not changed.".into());
                     }
                 }
             }
@@ -130,6 +215,99 @@ pub fn prepare(destination: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Runs only when spawned by the parent test. No application, profile, hook
+    // or startup registry is loaded. The hidden window always expires itself.
+    #[cfg(windows)]
+    #[test]
+    fn close_window_fixture() {
+        let Ok(mode) = std::env::var("MATRA_TEST_CLOSE_FIXTURE") else {
+            return;
+        };
+        use std::io::Write;
+        use windows::core::w;
+        use windows::Win32::UI::WindowsAndMessaging::*;
+        unsafe {
+            let window = CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                w!("STATIC"),
+                w!("Matra isolated close test"),
+                WS_OVERLAPPED,
+                0,
+                0,
+                1,
+                1,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+            println!("MATRA_TEST_WINDOW_READY");
+            std::io::stdout().flush().unwrap();
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+            while IsWindow(window).as_bool() && std::time::Instant::now() < deadline {
+                let mut message = MSG::default();
+                while PeekMessageW(&mut message, None, 0, 0, PM_REMOVE).as_bool() {
+                    if message.message != WM_CLOSE || mode == "cooperative" {
+                        DispatchMessageW(&message);
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            if IsWindow(window).as_bool() {
+                DestroyWindow(window).unwrap();
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn real_close_is_cooperative_and_timeout_does_not_kill() {
+        use std::io::{BufRead, BufReader};
+        use std::os::windows::{io::AsRawHandle, process::CommandExt};
+        for mode in ["cooperative", "decline"] {
+            let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "setup::tests::close_window_fixture",
+                    "--nocapture",
+                ])
+                .env("MATRA_TEST_CLOSE_FIXTURE", mode)
+                .creation_flags(0x08000000) // CREATE_NO_WINDOW; fixture GUI also remains hidden.
+                .stdout(std::process::Stdio::piped())
+                .spawn()
+                .unwrap();
+            let mut ready = false;
+            let mut output = BufReader::new(child.stdout.take().unwrap());
+            loop {
+                let mut line = String::new();
+                if output.read_line(&mut line).unwrap() == 0 {
+                    break;
+                }
+                if line.contains("MATRA_TEST_WINDOW_READY") {
+                    ready = true;
+                    break;
+                }
+            }
+            assert!(ready, "isolated test window did not become ready");
+            request_close(child.id()).unwrap();
+            let handle = windows::Win32::Foundation::HANDLE(child.as_raw_handle());
+            if mode == "cooperative" {
+                wait_for_exit(handle, 2000).unwrap();
+            } else {
+                assert!(wait_for_exit(handle, 100).is_err());
+                assert!(
+                    child.try_wait().unwrap().is_none(),
+                    "declining process was killed"
+                );
+                // Let the fixture's own deadline close it, without any forced cleanup.
+                wait_for_exit(handle, 5000).unwrap();
+            }
+            assert!(child.wait().unwrap().success());
+        }
+    }
+
     #[test]
     fn exact_install_and_legacy_only() {
         let dest = r"C:\Users\पंडित\Apps\Mātrā";

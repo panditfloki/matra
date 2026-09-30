@@ -107,11 +107,22 @@ fn strip_ours(arr: Vec<Value>) -> Vec<Value> {
 }
 
 fn load(path: &PathBuf) -> Result<Value, String> {
-    if !path.exists() {
-        return Ok(json!({}));
+    parse(snapshot(path)?.as_deref())
+}
+
+fn snapshot(path: &PathBuf) -> Result<Option<String>, String> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => Ok(Some(text)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("Cannot read hook settings; left untouched: {e}")),
     }
-    let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let value: Value = serde_json::from_str(&text)
+}
+
+fn parse(text: Option<&str>) -> Result<Value, String> {
+    let Some(text) = text else {
+        return Ok(json!({}));
+    };
+    let value: Value = serde_json::from_str(text)
         .map_err(|e| format!("Settings JSON is invalid; left untouched: {e}"))?;
     if !value.is_object() {
         return Err("Settings must be a JSON object; left untouched".into());
@@ -120,6 +131,7 @@ fn load(path: &PathBuf) -> Result<Value, String> {
 }
 
 fn backup_and_write(path: &PathBuf, root: &Value) -> Result<(), String> {
+    use std::io::Write;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
@@ -133,7 +145,15 @@ fn backup_and_write(path: &PathBuf, root: &Value) -> Result<(), String> {
     }
     let txt = serde_json::to_string_pretty(root).map_err(|e| e.to_string())?;
     let pending = path.with_extension(format!("json.matra-pending-{}", std::process::id()));
-    std::fs::write(&pending, txt).map_err(|e| e.to_string())?;
+    let mut file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&pending)
+        .map_err(|e| format!("Cannot create pending settings; original preserved: {e}"))?;
+    file.write_all(txt.as_bytes())
+        .and_then(|_| file.sync_all())
+        .map_err(|e| e.to_string())?;
+    drop(file);
     std::fs::rename(&pending, path)
         .map_err(|e| format!("Could not replace settings; original and backup preserved: {e}"))
 }
@@ -156,10 +176,42 @@ pub fn is_installed() -> bool {
         .unwrap_or(false)
 }
 
-/// Migration only follows an existing opt-in, including a partial old hook installation.
-pub fn migrate() -> Result<String, String> {
+pub struct Migration {
+    path: PathBuf,
+    before: Option<String>,
+    after: Value,
+    changed: bool,
+}
+
+impl Migration {
+    pub fn validate(&self) -> Result<(), String> {
+        if snapshot(&self.path)? != self.before {
+            return Err("Hook settings changed during setup; left untouched. Retry setup.".into());
+        }
+        Ok(())
+    }
+    pub fn apply(self) -> Result<&'static str, String> {
+        self.validate()?;
+        if !self.changed {
+            return Ok("unchanged");
+        }
+        backup_and_write(&self.path, &self.after)?;
+        if load(&self.path)? != self.after {
+            return Err("Saved hook settings could not be verified; backup retained.".into());
+        }
+        Ok("updated")
+    }
+}
+
+/// Migration follows only an existing opt-in. Build a plan before writing anything.
+pub fn prepare_migration() -> Result<Migration, String> {
+    prepare(false)
+}
+
+fn prepare(explicit_opt_in: bool) -> Result<Migration, String> {
     let path = settings_path().ok_or("cannot find the user directory")?;
-    let root = load(&path)?;
+    let before = snapshot(&path)?;
+    let root = parse(before.as_deref())?;
     let owns_any = root["hooks"]
         .as_object()
         .into_iter()
@@ -167,11 +219,26 @@ pub fn migrate() -> Result<String, String> {
         .flat_map(|v| v.as_array().into_iter().flatten())
         .flat_map(|e| e["hooks"].as_array().into_iter().flatten())
         .any(own_command);
-    if owns_any {
-        install()
+    let after = if owns_any || explicit_opt_in {
+        let hook_exe = std::env::current_exe()
+            .map_err(|e| e.to_string())?
+            .with_file_name("matra-hook.exe");
+        if !hook_exe
+            .try_exists()
+            .map_err(|_| "Cannot inspect installed hook executable.")?
+        {
+            return Err("Installed hook executable is missing. No hooks were changed.".into());
+        }
+        merge(root.clone(), &hook_exe, own_command)?
     } else {
-        Ok("No owned hook opt-in to migrate.".into())
-    }
+        root.clone()
+    };
+    Ok(Migration {
+        path,
+        before,
+        changed: root != after,
+        after,
+    })
 }
 
 pub fn diagnostics() -> String {
@@ -197,19 +264,19 @@ pub fn diagnostics() -> String {
 }
 
 pub fn install() -> Result<String, String> {
-    let path = settings_path().ok_or("cannot find the user directory")?;
-    let hook_exe = std::env::current_exe()
-        .map_err(|e| e.to_string())?
-        .parent()
-        .ok_or("cannot locate the program directory")?
-        .join("matra-hook.exe");
-    if !hook_exe.exists() {
-        return Err(format!("missing {}", hook_exe.display()));
-    }
+    let status = prepare(true)?.apply()?;
+    Ok(format!(
+        "Matra hook settings {status}; unrelated settings preserved."
+    ))
+}
 
-    let mut root = load(&path)?;
+fn merge(
+    mut root: Value,
+    hook_exe: &std::path::Path,
+    owns: impl Fn(&Value) -> bool + Copy,
+) -> Result<Value, String> {
     if !root.is_object() {
-        root = json!({});
+        return Err("Settings must be a JSON object; left untouched.".into());
     }
     if !root["hooks"].is_null() && !root["hooks"].is_object() {
         return Err("Invalid hooks object; left untouched".into());
@@ -227,10 +294,33 @@ pub fn install() -> Result<String, String> {
         if !root["hooks"][*event].is_null() && !root["hooks"][*event].is_array() {
             return Err(format!("Invalid {event} hook list; left untouched"));
         }
-        let mut arr = strip_ours(arr);
         let cmd = format!("\"{}\" {}", hook_exe.display(), internal);
+        let wanted = json!({"type": "command", "command": cmd, "timeout": 5});
+        let owned: Vec<(&Value, &Value)> = arr
+            .iter()
+            .flat_map(|entry| {
+                entry["hooks"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter(|h| owns(h))
+                    .map(move |h| (entry, h))
+            })
+            .collect();
+        // Preserve original ordering, formatting and group metadata on a genuine no-op.
+        if owned.len() == 1
+            && *owned[0].1 == wanted
+            && if *need_matcher {
+                owned[0].0["matcher"] == "*"
+            } else {
+                owned[0].0["matcher"].is_null()
+            }
+        {
+            continue;
+        }
+        let mut arr = strip_matching(arr, owns);
         let mut entry = json!({
-            "hooks": [{ "type": "command", "command": cmd, "timeout": 5 }]
+            "hooks": [wanted]
         });
         if *need_matcher {
             entry["matcher"] = json!("*");
@@ -239,12 +329,7 @@ pub fn install() -> Result<String, String> {
         root["hooks"][*event] = json!(arr);
     }
 
-    backup_and_write(&path, &root)?;
-    Ok(format!(
-        "wrote {} ({} events)",
-        path.display(),
-        WIRING.len()
-    ))
+    Ok(root)
 }
 
 pub fn uninstall() -> Result<String, String> {
@@ -309,5 +394,60 @@ mod tests {
         assert!(own_test_command(
             &json!({"command":"\"c:/apps/matra-hook.exe\" running"})
         ));
+    }
+    #[test]
+    fn merge_is_a_no_op_even_with_foreign_groups_after_ours() {
+        let path = std::path::Path::new(r"C:\Apps\matra-hook.exe");
+        let mut first = merge(json!({"sentinel":42}), path, own_test_command).unwrap();
+        let foreign =
+            json!({"hooks":[{"type":"command","command":"echo foreign"}],"sentinel":true});
+        first["hooks"]["PreToolUse"]
+            .as_array_mut()
+            .unwrap()
+            .push(foreign);
+        assert_eq!(merge(first.clone(), path, own_test_command).unwrap(), first);
+        let mut duplicate = first.clone();
+        let own = duplicate["hooks"]["Stop"][0].clone();
+        duplicate["hooks"]["Stop"].as_array_mut().unwrap().push(own);
+        assert_eq!(merge(duplicate, path, own_test_command).unwrap(), first);
+    }
+    #[test]
+    fn no_op_keeps_bytes_and_creates_no_backup_and_stale_plan_fails() {
+        let dir = std::env::temp_dir().join(format!(
+            "matra-hooks-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&dir).unwrap();
+        struct Scratch(PathBuf);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                // Only this newly-created test directory, no recursive deletion.
+                for f in std::fs::read_dir(&self.0).unwrap().flatten() {
+                    let _ = std::fs::remove_file(f.path());
+                }
+                let _ = std::fs::remove_dir(&self.0);
+            }
+        }
+        let _cleanup = Scratch(dir.clone());
+        let path = dir.join("settings.json");
+        let bytes = "{  \"sentinel\": 42 }\r\n";
+        std::fs::write(&path, bytes).unwrap();
+        let plan = || Migration {
+            path: path.clone(),
+            before: Some(bytes.into()),
+            after: json!({"sentinel":42}),
+            changed: false,
+        };
+        assert_eq!(plan().apply().unwrap(), "unchanged");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), bytes);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
+        std::fs::write(&path, "{\"sentinel\":43}").unwrap();
+        assert!(plan().apply().is_err());
+        assert_eq!(load(&path).unwrap()["sentinel"], 43);
+        assert!(parse(Some("{invalid")).is_err());
     }
 }

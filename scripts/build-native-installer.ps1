@@ -7,6 +7,8 @@ $app = Join-Path $native 'matra'
 $artifactDir = Join-Path $repo 'artifacts'
 
 if (!$SkipTests) {
+    & node (Join-Path $native 'scripts/test-installer-contract.cjs')
+    if ($LASTEXITCODE -ne 0) { throw 'Installer contract failed.' }
     & cargo test --release --locked --manifest-path (Join-Path $native 'Cargo.toml')
     if ($LASTEXITCODE -ne 0) { throw 'Native tests failed.' }
 }
@@ -27,6 +29,9 @@ try {
 } finally {
     Pop-Location
 }
+
+& node (Join-Path $native 'scripts/test-installer-contract.cjs') (Join-Path $native 'target/release/nsis/x64/installer.nsi')
+if ($LASTEXITCODE -ne 0) { throw 'Generated installer contract failed.' }
 
 $meta = Get-Content (Join-Path $app 'tauri.conf.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 $setups = @(Get-ChildItem (Join-Path $native 'target/release/bundle/nsis') -Filter ('*_' + $meta.version + '_x64-setup.exe') -File)

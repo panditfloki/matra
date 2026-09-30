@@ -41,7 +41,7 @@ jobs:
           cache-on-failure: true
       - name: Test UI scripts and preference contracts
         run: |
-          $scripts = @('scripts/check-ui-scripts.mjs', 'scripts/test-claude-auth-ui.cjs', 'scripts/test-ko-i18n.cjs', 'scripts/test-matra-copy.cjs', 'scripts/test-matra-interactions.cjs', 'scripts/test-matra-appearance.cjs', 'scripts/test-matra-quota.cjs', 'test-codex-headline.cjs')
+          $scripts = @('scripts/check-ui-scripts.mjs', 'scripts/test-claude-auth-ui.cjs', 'scripts/test-ko-i18n.cjs', 'scripts/test-matra-copy.cjs', 'scripts/test-matra-interactions.cjs', 'scripts/test-matra-appearance.cjs', 'scripts/test-matra-quota.cjs', 'test-codex-headline.cjs', 'scripts/test-installer-contract.cjs')
           foreach ($script in $scripts) {
             node $script
             if ($LASTEXITCODE -ne 0) { throw "UI regression failed: $script" }
@@ -57,6 +57,8 @@ jobs:
         run: npx --yes @tauri-apps/cli@2.11.4 build --config tauri.bundle.conf.json -- --locked
       - name: Give the installer a stable name
         run: |
+          node scripts/test-installer-contract.cjs target/release/nsis/x64/installer.nsi
+          if ($LASTEXITCODE -ne 0) { throw 'Generated installer contract failed.' }
           $setup = @(Get-ChildItem target/release/bundle/nsis/*-setup.exe)
           if ($setup.Count -ne 1) { throw "Expected one installer, found $($setup.Count)." }
           Copy-Item $setup[0].FullName Matra-Setup.exe

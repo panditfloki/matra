@@ -30,6 +30,8 @@ mod dropzones;
 mod watcher;
 mod settings_window;
 mod updater;
+#[path = "../../setup_audit.rs"]
+mod setup_audit;
 
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
@@ -38,7 +40,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// and its tail on the left. `fitZoom` in ui/notch.html divides by the same width.
 pub const NOTCH_W: f64 = 360.0;
 /// Hand-bumped build tag, written to run.log at startup so a log can always be matched to the exe that wrote it.
-pub const BUILD: &str = "r31";
+pub const BUILD: &str = "r32-lifecycle1";
 /// The notch window's long side: the upright window's height, and both sides of the flat one.
 ///
 /// Five cells make a 447 px pill; its fillets add 38.7 px at each end and the settings orb reaches
@@ -1501,8 +1503,8 @@ fn get_lang_resolved(app: AppHandle) -> String {
 }
 
 #[tauri::command]
-fn get_autostart() -> bool {
-    autostart::is_enabled()
+fn get_autostart() -> Result<bool, String> {
+    autostart::status()
 }
 
 #[tauri::command]
@@ -1741,7 +1743,29 @@ fn report(r: Result<String, String>) {
     let log = config::config_path().with_file_name("install.log");
     if let Some(parent) = log.parent() { let _ = std::fs::create_dir_all(parent); }
     let _ = std::fs::write(log, &msg);
+    let phase = std::env::args().nth(1).unwrap_or_else(|| "command".into());
+    if let Err(error) = setup_audit::record(&phase, if failed { "failed" } else { "completed" }, None) {
+        eprintln!("{error}");
+        std::process::exit(1);
+    }
     if failed { std::process::exit(1); }
+}
+
+fn migrate_setup() -> Result<String, String> {
+    // Read both integrations before either write. This is not a cross-store
+    // transaction: each applied phase is logged so a later error is explicit.
+    let hooks = hooks_install::prepare_migration()?;
+    let startup = autostart::prepare_migration()?;
+    hooks.validate()?;
+    startup.validate()?;
+    setup_audit::record("migration-preflight", "validated", None)?;
+    let hook_result = hooks.apply();
+    setup_audit::record("hooks-migration", hook_result.as_ref().copied().unwrap_or("failed"), None)?;
+    hook_result?;
+    let startup_result = startup.apply();
+    setup_audit::record("startup-migration", startup_result.as_ref().copied().unwrap_or("failed"), None)?;
+    startup_result?;
+    Ok("Existing Matra integrations checked; only necessary owned changes applied.".into())
 }
 
 /// The subcommands that print to the parent console; only those may attach to it.
@@ -1756,13 +1780,14 @@ fn main() {
         // GUI run wants no console at all.
         if CONSOLE_CMDS.contains(&cmd.as_str()) {
             attach_console();
+            if let Err(error) = setup_audit::record(cmd, "started", None) {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
         }
         match cmd.as_str() {
             "setup-migrate" => {
-                report(hooks_install::migrate().and_then(|message| {
-                    autostart::migrate()?;
-                    Ok(message)
-                }));
+                report(migrate_setup());
                 return;
             }
             "setup-uninstall" => {
@@ -1900,6 +1925,17 @@ fn main() {
             settings_window::open_github_page,
             settings_window::open_brand_page
         ])
+        .on_window_event(|window, event| {
+            if window.label() == "notch" {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    // Standard cooperative Windows close, also used by setup.
+                    // Closing Settings still only closes Settings.
+                    api.prevent_close();
+                    let _ = setup_audit::record("application", "graceful-exit", None);
+                    window.app_handle().exit(0);
+                }
+            }
+        })
         .setup(move |app| {
             let handle = app.handle().clone();
             place_notch(&handle);
@@ -1957,6 +1993,7 @@ fn main() {
                 let c = st.cfg.lock().unwrap();
                 config::save(&c);
             }
+            let _ = setup_audit::record("application", "ready", None);
             Ok(())
         })
         .run(tauri::generate_context!())
