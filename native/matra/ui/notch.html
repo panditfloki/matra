@@ -222,11 +222,8 @@
   body.folded .handle{opacity:0;pointer-events:none}
   @media (prefers-reduced-motion: reduce){#pill,#rest,body.folded #rest,.cell,.handle{transition:none}}
 
-  /* The two handles, one off each end of the pill, as on the Mac (SettingsOrb and MoveHandle):
-     settings past the far fillet, move past the near one. At rest each is a quarter arc tucked into
-     that fillet's pocket, concentric with it and a gap inside; under the pointer the same circle
-     fills in and takes its glyph. The Mac's measures, unscaled: arc radius 28.5, stroke 6.8, disc
-     46.6, glyph 21. `placeHandles` puts each box's centre on its fillet's centre. */
+  /* Settings and the grip share the lower end of the capsule. The theme stylesheet
+     supplies their neutral material and shared bottom-hover reveal. */
   .handle{position:absolute;width:57px;height:57px;display:none;--arc:270deg}
   .handle.placed{display:block}
   .handle.hover{cursor:pointer}
@@ -252,19 +249,20 @@
 <link rel="stylesheet" href="matra-theme.css">
 <script defer src="matra-theme.js"></script>
 </head>
-<body>
+<body data-edge="right">
 <div id="root">
   <div id="card"></div>
   <div id="tail"></div>
+  <svg id="controls-cue" viewBox="0 0 32 32" aria-hidden="true"><path d="M3 29V23Q3 3 27 3"/></svg>
   <div id="move" class="handle" aria-label="Drag notch" title="Drag notch">
     <svg class="h-rest" viewBox="-36 -36 72 72" aria-hidden="true">
       <circle r="28.5" fill="none" stroke="#2e2e2e" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
       <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
     </svg>
     <div class="h-disc"></div>
-    <!-- Six-dot grip, with the existing handle's size, colour and behavior. -->
+    <!-- A bare six-dot grip below the settings disc. -->
     <svg class="h-glyph matra-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <g fill="currentColor" stroke="none"><circle cx="8.5" cy="6" r="1.5"/><circle cx="15.5" cy="6" r="1.5"/><circle cx="8.5" cy="12" r="1.5"/><circle cx="15.5" cy="12" r="1.5"/><circle cx="8.5" cy="18" r="1.5"/><circle cx="15.5" cy="18" r="1.5"/></g>
+      <g fill="currentColor" stroke="none"><circle cx="7" cy="5" r="2.5"/><circle cx="17" cy="5" r="2.5"/><circle cx="7" cy="12" r="2.5"/><circle cx="17" cy="12" r="2.5"/><circle cx="7" cy="19" r="2.5"/><circle cx="17" cy="19" r="2.5"/></g>
     </svg>
   </div>
   <div id="orb" class="handle" aria-label="Settings" title="Settings">
@@ -273,7 +271,7 @@
       <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
     </svg>
     <div class="h-disc"></div>
-    <svg class="h-glyph matra-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3h4l.5 2.3 1.8 1 2.2-.7 2 3.5-1.7 1.6v2.1l1.7 1.6-2 3.5-2.2-.7-1.8 1L14 21h-4l-.5-2.3-1.8-1-2.2.7-2-3.5 1.7-1.6v-2.1L3.5 9.6l2-3.5 2.2.7 1.8-1Z"/><circle cx="12" cy="12" r="3.2"/></svg>
+    <svg class="h-glyph matra-control-icon" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><path fill-rule="evenodd" d="M12 4.5a7.5 7.5 0 1 1 0 15 7.5 7.5 0 0 1 0-15Zm0 4.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(45 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(90 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(135 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(180 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(225 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(270 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(315 12 12)"/></g></svg>
   </div>
   <div id="pill"></div><!-- one .cell per provider, stacked vertically (upstream: data-driven, the same layout for 1–5 cells) -->
   <div id="rest"></div><!-- after the pill, so its outline is drawn over the clipped pill -->
@@ -328,14 +326,16 @@ let activity=[]; // working state of the non-Claude providers: {provider,state:'
 let notchEdge='right';
 // Show on hover — the logic is beside the move handle below; declared here, since reportHot reads `folded` from the first frame
 let onHover=false, folded=false, pointerIn=false, menuOpen=false, foldTimer=null;
-/* How much of the window the taskbar covers, in CSS px, from Rust: top, right, bottom, left. The pill
-   stays against the screen edge; the card is kept out of these. */
+/* How much of the window the taskbar covers, in CSS px, from Rust: top, right, bottom, left.
+   The capsule, its controls and the card stay inside the usable span of the edge. */
 let insets=[0,0,0,0];
 function applyInsets(v){
   const next=Array.isArray(v)&&v.length===4?v.map(n=>Math.max(0,Number(n)||0)):[0,0,0,0];
   if(next.every((n,i)=>n===insets[i])) return;
   insets=next;
-  if(card&&card.classList.contains('show')){ placeCard(); reportHot(); }
+  ['top','right','bottom','left'].forEach((side,i)=>document.documentElement.style.setProperty('--notch-inset-'+side,next[i]+'px'));
+  if(card&&card.classList.contains('show')) placeCard();
+  reportHot();
 }
 // Pushed on every placement, and asked for once in case the placement happened before this page was listening
 listen('notch_insets',e=>applyInsets(e.payload)).catch(()=>{});
@@ -1474,8 +1474,10 @@ function reportHot(){
       if(edgeIsVertical())rects.push([b[0],Math.min(a[1]+a[3],b[1]+b[3]),b[2],Math.max(0,Math.max(a[1],b[1])-Math.min(a[1]+a[3],b[1]+b[3]))]);
       else rects.push([Math.min(a[0]+a[2],b[0]+b[2]),b[1],Math.max(0,Math.max(a[0],b[0])-Math.min(a[0]+a[2],b[0]+b[2])),b[3]]);
     };
-    if(hovered==='orb')addHandle(orb);
-    if(showMove&&(hovered==='move'||carrying))addHandle(moveHandle);
+    if(hovered||carrying){
+      addHandle(orb);
+      if(showMove)addHandle(moveHandle);
+    }
   }
   callq('set_hot',{rects,expanded:open}).catch(()=>{});
 }
@@ -1635,11 +1637,11 @@ function notice(msg){
 }
 
 /* ---- The handles ----------------------------------------------------------
-   Settings past the far end of the pill, move past the near one. Placed whenever the hot rectangles
-   are reported, since those follow every change to the pill. Hover is a circle round each fillet's
-   centre, as on the Mac, not the whole box; the card gives way while either is under the pointer.
+   Settings followed by the grip at the far end, below a vertical capsule. Placed whenever the hot
+   rectangles are reported, since those follow every change to the pill. Both controls reveal from
+   the lower border together; the card gives way while either is under the pointer.
    A click on the settings orb opens Settings; holding the move handle carries the notch. */
-const orb=document.getElementById('orb'), moveHandle=document.getElementById('move');
+const orb=document.getElementById('orb'), moveHandle=document.getElementById('move'), controlsCue=document.getElementById('controls-cue');
 const HANDLE_REACH=16, HANDLE_GAP=2; // Docked: separate circles, a shared axis and a small gap
 let dockActive=false, dockTimer=null;
 function setDockActive(active){
@@ -1669,28 +1671,30 @@ function placeHandles(){
   const inset=(HANDLE_REACH+HANDLE_GAP)*z;
   const vertical=edgeIsVertical();
   const far=vertical?[r.left+r.width/2,r.bottom+inset]:[r.right+inset,r.top+r.height/2];
-  const near=vertical?[r.left+r.width/2,r.top-inset]:[r.left-inset,r.top+r.height/2];
+  const next=vertical?[far[0],far[1]+(2*HANDLE_REACH+HANDLE_GAP)*z]:[far[0]+(2*HANDLE_REACH+HANDLE_GAP)*z,far[1]];
   orbAt=put(orb,far[0],far[1],z);
   // No point at all when it is switched off, since hover, the press and the hot area all read this
-  moveAt=showMove?put(moveHandle,near[0],near[1],z):null;
+  moveAt=showMove?put(moveHandle,next[0],next[1],z):null;
   if(!showMove) moveHandle.classList.remove('placed','hover');
+  controlsCue.style.left=(vertical?(notchEdge==='left'?r.left:r.right-32*z):r.right+HANDLE_GAP*z)/z+'px';
+  controlsCue.style.top=(vertical?r.bottom+HANDLE_GAP*z:(notchEdge==='top'?r.top:r.bottom-32*z))/z+'px';
   return true;
 }
 function near(at,x,y){ return !!at&&Math.hypot(x-at.x,y-at.y)<=at.reach; }
 function onHandle(x,y){ return !dockActive||folded?null:near(orbAt,x,y)?'orb':near(moveAt,x,y)?'move':null; }
-// Reveal one satellite from its adjacent end border, not from the provider area.
-// Include the tiny bridge to the circle so moving onto the button is continuous.
+// Reveal the pair from the lower border. Include both gaps so the pointer can
+// travel from the capsule to settings and then to the grip without losing them.
 function handleIntent(x,y){
   if(!dockActive||folded)return null;
   const direct=onHandle(x,y);if(direct)return direct;
   const p=pill.getBoundingClientRect(),z=parseFloat(document.documentElement.style.zoom)||1,b=10*z;
   const v=edgeIsVertical();
   if(v&&x>=p.left&&x<=p.right){
-    if(moveAt&&y>=moveAt.y-moveAt.reach&&y<=p.top+b)return 'move';
+    if(moveAt&&y>orbAt.y+orbAt.reach&&y<=moveAt.y+moveAt.reach)return 'move';
     if(orbAt&&y>=p.bottom-b&&y<=orbAt.y+orbAt.reach)return 'orb';
   }
   if(!v&&y>=p.top&&y<=p.bottom){
-    if(moveAt&&x>=moveAt.x-moveAt.reach&&x<=p.left+b)return 'move';
+    if(moveAt&&x>orbAt.x+orbAt.reach&&x<=moveAt.x+moveAt.reach)return 'move';
     if(orbAt&&x>=p.right-b&&x<=orbAt.x+orbAt.reach)return 'orb';
   }
   return null;
@@ -1698,6 +1702,7 @@ function handleIntent(x,y){
 function setHovered(which){
   if(which===hovered) return;
   hovered=which;
+  document.body.classList.toggle('controls-revealed',!!which||carrying);
   orb.classList.toggle('hover',which==='orb');
   moveHandle.classList.toggle('hover',which==='move'||carrying);
   reportHot();

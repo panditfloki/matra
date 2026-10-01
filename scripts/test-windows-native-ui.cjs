@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const path = require('node:path');
+const {testNativeHandles} = require('./native-handle-test.js');
 if (process.env.GITHUB_ACTIONS !== 'true' || process.platform !== 'win32') throw new Error('Disposable Windows CI only');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 function evaluate(page, expression, shot) {
@@ -90,6 +91,9 @@ async function saved(command, predicate) {
   await ready('settings');
   await saved('get_matra_accent', value => value === '36a8eb');
   await saved('get_automatic_updates', value => value === false);
+  const controls=await testNativeHandles(expression=>evaluate('notch',expression));
+  assert.equal(controls.cases,16,'Six/ten provider fixtures fit four native edges with and without bottom/right work insets');
+  console.log('PASS: far-end settings/grip pair, shared hover reveal, exact native hot payload, disabled grip and usable viewport', JSON.stringify(controls));
   // Exercise the new card inside the packaged renderer with synthetic data.
   // This checks rendering and hover handling, not live availability or OS hover.
   evaluate('notch', `(()=>{

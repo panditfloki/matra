@@ -566,6 +566,16 @@ struct Account {
     fetched_at: u64,
 }
 
+impl Account {
+    fn rate_limited(&mut self, retry_after: u64, now: u64) {
+        self.consecutive_429 += 1;
+        let wait = backoff_secs(self.consecutive_429 - 1, retry_after);
+        // A refused refresh does not change the status or age of the held reading.
+        self.note = format!("Rate limited, retrying in {wait}s");
+        self.backoff_until = now + wait * 1000;
+    }
+}
+
 fn key(p: &Profile) -> String {
     p.dir.to_string_lossy().to_string()
 }
@@ -599,6 +609,24 @@ fn split_persisted(snap: &UsageSnapshot, order: &[Profile]) -> HashMap<String, V
         }
     }
     out
+}
+
+fn cached_accounts(snap: &UsageSnapshot, order: &[Profile]) -> HashMap<String, Account> {
+    split_persisted(snap, order)
+        .into_iter()
+        .map(|(account_key, windows)| {
+            (
+                account_key,
+                Account {
+                    windows,
+                    // Cache is a previous observation, not a fresh account check.
+                    status: "stale".into(),
+                    fetched_at: snap.fetched_at,
+                    ..Default::default()
+                },
+            )
+        })
+        .collect()
 }
 
 /// One reading out of every account's, in profile order. The status is the best news any account has:
@@ -688,15 +716,7 @@ fn poll_account(p: &Profile, acc: &mut Account, group: Option<&str>) {
                     acc.note = "Credential rejected (switched accounts?)".into();
                 }
                 Err(FetchErr::RateLimited(ra)) => {
-                    acc.consecutive_429 += 1;
-                    let wait = backoff_secs(acc.consecutive_429 - 1, ra);
-                    // The status is left alone: a refused refresh says nothing about the reading we are
-                    // holding, which is exactly as old as it was a moment ago. Marking it stale here
-                    // dimmed the ring on the first 429, which on Windows is often the first minute of a
-                    // rate limit. Age decides, as it does on the Mac (`UsageStore` keeps the previous
-                    // status until `staleAfter`), and the note says why it is not moving.
-                    acc.note = format!("Rate limited, retrying in {wait}s");
-                    acc.backoff_until = now_ms() + wait * 1000;
+                    acc.rate_limited(ra, now_ms());
                 }
                 Err(FetchErr::Other(msg)) => {
                     // No reading at all is an error worth showing; a reading we could not refresh is
@@ -720,10 +740,7 @@ pub fn start(app: AppHandle) {
             let _ = app.emit("usage", &snap);
             snap
         };
-        let mut accounts: HashMap<String, Account> = HashMap::new();
-        for (k, windows) in split_persisted(&persisted, &profiles()) {
-            accounts.entry(k).or_default().windows = windows;
-        }
+        let mut accounts = cached_accounts(&persisted, &profiles());
         loop {
             // A sign-in the user started owns the credential until it finishes. Polling through it
             // reads a file being rewritten and reports a signed-out account mid-login.
@@ -878,6 +895,54 @@ mod tests {
         assert_eq!(split[&key(&order[0])].len(), 1);
         assert_eq!(split[&key(&order[1])][0].id, "session@work");
         assert_eq!(split.len(), 2, "windows from an account that is gone are dropped");
+    }
+
+    #[test]
+    fn cached_startup_rate_limit_keeps_the_reading_stale_and_dated() {
+        let order = vec![prof(None)];
+        let persisted = UsageSnapshot {
+            // A previous failed startup could have persisted needsAuth with good windows.
+            status: "needsAuth".into(),
+            windows: vec![win("session"), win("seven_day")],
+            fetched_at: 123,
+            ..Default::default()
+        };
+        let mut accounts = cached_accounts(&persisted, &order);
+        let startup = aggregate(&order, &accounts);
+        assert_eq!(startup.status, "stale");
+        assert_eq!(startup.fetched_at, 123);
+
+        accounts.get_mut(&key(&order[0])).unwrap().rate_limited(120, EXP);
+        let limited = aggregate(&order, &accounts);
+        assert_eq!(limited.status, "stale", "a 429 must not hide cached usage as signed out");
+        assert_eq!(limited.windows.len(), 2);
+        assert_eq!(limited.windows[0].id, "session");
+        assert_eq!(limited.fetched_at, 123, "a refused refresh must not redate the cache");
+        assert_eq!(limited.note, "Rate limited, retrying in 120s");
+        assert_eq!(limited.backoff_until, EXP + 120_000);
+    }
+
+    #[test]
+    fn rate_limit_does_not_invent_a_cached_reading_or_change_a_successful_one() {
+        let order = vec![prof(None)];
+        let mut accounts = cached_accounts(&UsageSnapshot::default(), &order);
+        assert!(accounts.is_empty(), "empty caches must not seed a stale reading");
+        let account = accounts.entry(key(&order[0])).or_default();
+        account.rate_limited(120, EXP);
+        let empty = aggregate(&order, &accounts);
+        assert_eq!(empty.status, "needsAuth");
+        assert!(empty.windows.is_empty());
+        assert_eq!(empty.fetched_at, 0);
+
+        let account = accounts.get_mut(&key(&order[0])).unwrap();
+        account.status = "ok".into();
+        account.windows = vec![win("session")];
+        account.fetched_at = 456;
+        account.rate_limited(120, EXP);
+        let held = aggregate(&order, &accounts);
+        assert_eq!(held.status, "ok", "a later 429 preserves the last successful status");
+        assert_eq!(held.fetched_at, 456);
+        assert_eq!(held.windows.len(), 1);
     }
 
     #[test]

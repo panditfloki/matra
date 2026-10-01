@@ -13,7 +13,8 @@ versioning is [SemVer](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 - Windows notch recovers its native always-on-top state and stacking above overlapping application windows. Recovery preserves keyboard focus, geometry, hidden state and popup menus.
 - Windows installer checks follow the actual package version and exercise native stacking recovery in the installed app.
-- Settings uses a gear icon; the drag control uses a six-dot grip. Their layout and behavior are retained.
+- Settings and the six-dot drag grip share the bottom of the notch and reveal together from the lower border. The filled gear uses the selected theme material; the grip has no surrounding disc.
+- Claude retains its dated cached reading when the first refresh after restarting is rate limited, instead of showing it as signed out.
 
 
 

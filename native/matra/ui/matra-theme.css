@@ -102,12 +102,14 @@ html[data-matra-theme] .handle.hover .h-glyph{opacity:1;transform:scale(1)}
 html[data-matra-theme] #pill{width:62px;padding:14px 0;gap:10px;border-radius:22px;transition:clip-path .48s cubic-bezier(.4,0,.2,1)}
 /* Reveal from the resting centre lip upwards first, then settle the lower end.
    Clip only: provider layout, backdrop and hit-test anchors do not scale. */
-html[data-matra-theme] #pill{max-height:calc(100% - 96px);overflow-y:auto;scrollbar-width:none}
+html[data-matra-theme] #pill{max-height:calc(100% - 144px - var(--notch-inset-top,0px) - var(--notch-inset-bottom,0px));overflow-y:auto;scrollbar-width:none}
 html[data-matra-theme] #pill .cell{flex-shrink:0}
 html[data-matra-theme] body[data-edge="top"] #pill,
-html[data-matra-theme] body[data-edge="bottom"] #pill{max-height:none;max-width:calc(100% - 96px);overflow-x:auto;overflow-y:hidden}
+html[data-matra-theme] body[data-edge="bottom"] #pill{max-height:none;max-width:calc(100% - 144px - var(--notch-inset-left,0px) - var(--notch-inset-right,0px));left:calc(50% + (var(--notch-inset-left,0px) - var(--notch-inset-right,0px))/2);overflow-x:auto;overflow-y:hidden}
 html[data-matra-theme] body[data-edge="left"] #pill,
-html[data-matra-theme] body[data-edge="right"] #pill{--clip-rise:inset(-40px -1px calc(50% - 39.5px) -1px round 0)}
+html[data-matra-theme] body[data-edge="right"] #pill{top:calc(50% + (var(--notch-inset-top,0px) - var(--notch-inset-bottom,0px))/2);--clip-rise:inset(-40px -1px calc(50% - 39.5px) -1px round 0)}
+html[data-matra-theme] body[data-edge="left"] #rest,html[data-matra-theme] body[data-edge="right"] #rest{top:calc(50% + (var(--notch-inset-top,0px) - var(--notch-inset-bottom,0px))/2)}
+html[data-matra-theme] body[data-edge="top"] #rest,html[data-matra-theme] body[data-edge="bottom"] #rest{left:calc(50% + (var(--notch-inset-left,0px) - var(--notch-inset-right,0px))/2)}
 html[data-matra-theme] body.expanding[data-edge="left"] #pill,
 html[data-matra-theme] body.expanding[data-edge="right"] #pill{animation:matra-unfold .5s cubic-bezier(.4,0,.2,1) both}
 @keyframes matra-unfold{0%{clip-path:var(--clip-rest)}65%{clip-path:var(--clip-rise)}100%{clip-path:var(--clip-open)}}
@@ -133,19 +135,25 @@ html[data-matra-theme] body[data-edge="left"] #pill{--clip-rest:inset(calc(50% -
 html[data-matra-theme] body[data-edge="top"] #pill{--clip-rest:inset(0 calc(50% - 39.5px) calc(100% - 5px) calc(50% - 39.5px) round 0 0 6px 6px)}
 html[data-matra-theme] body[data-edge="bottom"] #pill{--clip-rest:inset(calc(100% - 5px) calc(50% - 39.5px) 0 calc(50% - 39.5px) round 6px 6px 0 0)}
 html[data-matra-theme] .handle{width:32px;height:32px;z-index:3;border-radius:50%;opacity:0;pointer-events:none;transition:opacity 160ms ease-out}
-html[data-matra-theme] body.controls-visible:not(.folded) .handle.hover,html[data-matra-theme] body.controls-visible:not(.folded) .handle.armed{opacity:1;pointer-events:auto}
+html[data-matra-theme] body.controls-visible.controls-revealed:not(.folded) .handle.placed{opacity:1;pointer-events:auto}
 html[data-matra-theme] .handle .h-disc{width:32px;height:32px;margin:-16px 0 0 -16px;border-radius:50%;border:1px solid var(--matra-stroke);opacity:1;transform:none}
-html[data-matra-theme] .handle .h-glyph{width:16px;height:16px;margin:-8px 0 0 -8px;fill:var(--matra-muted);opacity:.85;transform:none}
-html[data-matra-theme] .handle.hover .h-glyph{fill:var(--matra-accent);transform:none}
-html[data-matra-theme] .handle.hover .h-disc{border-color:var(--matra-accent);transform:none}
+html[data-matra-theme] .handle .h-glyph{width:22px;height:22px;margin:-11px 0 0 -11px;fill:currentColor;opacity:.9;transform:none}
+html[data-matra-theme] .handle.hover .h-glyph{opacity:1;transform:none}
+html[data-matra-theme] .handle.hover .h-disc{border-color:var(--matra-stroke);transform:none}
 html[data-matra-theme] .handle .h-disc,html[data-matra-theme] .handle .h-glyph{transition:transform 180ms ease-out,opacity 180ms ease-out}
-html[data-matra-theme] .handle:not(.hover):not(.armed) .h-disc,html[data-matra-theme] .handle:not(.hover):not(.armed) .h-glyph{transform:scale(.88)}
+html[data-matra-theme] .handle:not(.hover):not(.armed) .h-disc,html[data-matra-theme] .handle:not(.hover):not(.armed) .h-glyph{transform:none}
 @media(prefers-reduced-motion:reduce){html[data-matra-theme] .handle,html[data-matra-theme] .handle>*{transition:none}}
 html[data-matra-theme] #move{cursor:grab}
-html[data-matra-theme] .handle .matra-control-icon{fill:none!important;stroke:var(--matra-muted);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-html[data-matra-theme] .handle.hover .matra-control-icon{stroke:var(--matra-accent)}
+html[data-matra-theme] .handle .matra-control-icon{fill:currentColor;stroke:none;color:var(--matra-text)}
+html[data-matra-theme] #move .h-disc{display:none}
+html[data-matra-theme] #move .h-glyph{width:24px;height:24px;margin:-12px 0 0 -12px}
 html[data-matra-theme] #move .matra-control-icon{color:var(--matra-muted)}
-html[data-matra-theme] #move.hover .matra-control-icon{color:var(--matra-accent)}
+html[data-matra-theme] #move.hover .matra-control-icon{color:var(--matra-text)}
+html[data-matra-theme] #controls-cue{position:absolute;width:32px;height:32px;fill:none;stroke:var(--matra-muted);stroke-width:5;stroke-linecap:round;opacity:0;pointer-events:none;transition:opacity 160ms ease-out}
+html[data-matra-theme] body.controls-visible:not(.controls-revealed):not(.folded) #controls-cue{opacity:.65}
+html[data-matra-theme] body[data-edge="right"] #controls-cue{transform:scaleX(-1)}
+html[data-matra-theme] body[data-edge="top"] #controls-cue{transform:rotate(-90deg)}
+html[data-matra-theme] body[data-edge="bottom"] #controls-cue{transform:rotate(90deg) scaleX(-1)}
 .ringwrap .feedback{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;transform-origin:center}
 .ringwrap .feedback circle{fill:none;stroke:var(--matra-text);stroke-width:1.8;stroke-linecap:round;stroke-dasharray:25 114}
 .ringwrap.reading-updated .feedback{opacity:1;animation:matra-complete 1s steps(18) both}
