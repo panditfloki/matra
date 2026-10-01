@@ -71,7 +71,7 @@ jobs:
         run: |
           # Retry transport failures only; checksum validation below is mandatory.
           for ($attempt = 1; $attempt -le 3; $attempt++) {
-            gh release download v1.8.4 --repo panditfloki/matra --pattern Matra-Setup.exe --pattern SHA256SUMS.txt --dir target/baseline --clobber
+            gh release download v1.8.5 --repo panditfloki/matra --pattern Matra-Setup.exe --pattern SHA256SUMS.txt --dir target/baseline --clobber
             if ($LASTEXITCODE -eq 0) { break }
             if ($attempt -lt 3) { Start-Sleep -Seconds (2 * $attempt) }
           }

@@ -8,7 +8,7 @@
 Your AI limits, at the edge of your screen.</p>
 
 <p align="center">
-  <a href="https://github.com/panditfloki/matra/releases/download/v1.8.5/Matra-Setup.exe">Windows · v1.8.5</a> ·
+  <a href="https://github.com/panditfloki/matra/releases/download/v1.8.6/Matra-Setup.exe">Windows · v1.8.6</a> ·
   <a href="https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1">macOS · v1.8.5 Beta 1</a> ·
   <a href="#a-closer-look">Screenshots</a> ·
   <a href="#availability">Release status</a> ·
@@ -69,10 +69,10 @@ pressure. Values and availability depend on each provider and account.
 
 | Platform | Download | Development |
 |---|---|---|
-| **Windows** | [v1.8.5 stable installer](https://github.com/panditfloki/matra/releases/tag/v1.8.5) | Codex statistics, reset credits and 30-day history; five appearance choices |
+| **Windows** | [v1.8.6 stable installer](https://github.com/panditfloki/matra/releases/tag/v1.8.6) | Codex statistics, reset credits and 30-day history; five appearance choices |
 | **macOS** | [v1.8.5 Beta 1 for Apple Silicon](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1) | [Mac source on the beta branch](https://github.com/panditfloki/matra/tree/beta/native/macos) |
 
-Release status checked on **30 September 2026**. Windows stable and macOS beta
+Release status checked on **2 October 2026**. Windows stable and macOS beta
 have separate downloads and release channels.
 
 ### Install on macOS
@@ -93,7 +93,7 @@ but a published signed update feed and a complete upgrade test are still pending
 
 ### Install on Windows
 
-1. Open the [Windows stable release](https://github.com/panditfloki/matra/releases/tag/v1.8.5).
+1. Open the [Windows stable release](https://github.com/panditfloki/matra/releases/tag/v1.8.6).
 2. Download **Matra-Setup.exe**. The release also provides **SHA256SUMS.txt**.
 3. Run Setup, then launch Mātrā from the Start menu.
 
@@ -129,7 +129,7 @@ readings; an estimated API cost is not your subscription bill.
 
 ## Appearance with a purpose
 
-Windows v1.8.5 and the Mac beta offer **Liquid Glass, Dark Glass, Solid Dark, Light and System**.
+Windows v1.8.6 and the Mac beta offer **Liquid Glass, Dark Glass, Solid Dark, Light and System**.
 Glass depends on platform support and falls back to an opaque surface where needed.
 
 In both builds, accent colours personalise app controls without changing
@@ -190,10 +190,10 @@ and architecture are documented in the [legacy guide](docs/LEGACY-DASHBOARD.md).
 
 | Platform | Latest downloadable version | Channel | Package |
 |---|---|---|---|
-| **Windows** | **1.8.5** | Stable · Windows x64 | [Matra-Setup.exe](https://github.com/panditfloki/matra/releases/download/v1.8.5/Matra-Setup.exe) |
+| **Windows** | **1.8.6** | Stable · Windows x64 | [Matra-Setup.exe](https://github.com/panditfloki/matra/releases/download/v1.8.6/Matra-Setup.exe) |
 | **macOS** | **1.8.5 Beta 1** | Beta · Apple Silicon · macOS 15+ | [Mac beta installer and checksum](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1) |
 
-Updated **30 September 2026**. Windows stable is version 1.8.5. App settings on Mac report version 1.8.5, build 185.
+Updated **2 October 2026**. Windows stable is version 1.8.6. App settings on Mac report version 1.8.5, build 185.
 
 ---
 

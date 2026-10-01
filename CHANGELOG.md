@@ -8,6 +8,14 @@ versioning is [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.6] - 2026-10-02
+
+### Fixed
+- Windows notch recovers its native always-on-top state and stacking above overlapping application windows. Recovery preserves keyboard focus, geometry, hidden state and popup menus.
+- Windows installer checks follow the actual package version and exercise native stacking recovery in the installed app.
+
+
+
 ## [1.7.5] — 2026-08-23
 
 ### Fixed

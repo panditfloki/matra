@@ -29,6 +29,7 @@ mod diag;
 mod dropzones;
 mod watcher;
 mod settings_window;
+mod topmost;
 mod updater;
 #[path = "../../setup_audit.rs"]
 mod setup_audit;
@@ -40,7 +41,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// and its tail on the left. `fitZoom` in ui/notch.html divides by the same width.
 pub const NOTCH_W: f64 = 460.0;
 /// Hand-bumped build tag, written to run.log at startup so a log can always be matched to the exe that wrote it.
-pub const BUILD: &str = "r33-codex-details";
+pub const BUILD: &str = "r34-topmost";
 /// The notch window's long side: the upright window's height, and both sides of the flat one.
 ///
 /// Five cells make a 447 px pill; its fillets add 38.7 px at each end and the settings orb reaches
@@ -365,6 +366,7 @@ pub fn place_notch(app: &AppHandle) {
             mon.work
         ));
     }
+    topmost::restore(app);
 }
 
 /// How often the work area is re-read. It only changes by hand — the taskbar moved to another edge,
@@ -1964,6 +1966,7 @@ fn main() {
             std::thread::spawn(move || reload_glyphs(&gh));
             start_pointer_watchdog(handle.clone());
             start_work_area_watch(handle.clone());
+            topmost::start(handle.clone());
             // Seen-clears-it scan
             let acker = handle.clone();
             std::thread::spawn(move || {

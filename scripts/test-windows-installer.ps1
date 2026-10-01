@@ -8,6 +8,7 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_OS -ne 'Windows') {
     throw 'This lifecycle test is restricted to a disposable GitHub Windows runner.'
 }
 $repo = Split-Path $PSScriptRoot -Parent
+$expectedVersion = (Get-Content -LiteralPath (Join-Path $repo 'native/matra/tauri.conf.json') -Raw | ConvertFrom-Json).version
 $installDir = Join-Path $env:LOCALAPPDATA 'Programs\Matra CI Mātrā पंडित'
 $exe = Join-Path $installDir 'matra.exe'
 $uninstaller = Join-Path $installDir 'uninstall.exe'
@@ -52,7 +53,7 @@ $fixture | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $claudeFile -Enco
 # Fresh installation must not enable startup or hooks without consent.
 Run-Checked $Installer "/S /D=$installDir"
 Assert-True (Test-Path $exe) 'Fresh installation completed at a Unicode path'
-Assert-True ((Get-Item $exe).VersionInfo.ProductVersion -like '1.8.5*') 'Installed product version is 1.8.5'
+Assert-True ((Get-Item $exe).VersionInfo.ProductVersion -like "$expectedVersion*") "Installed product version is $expectedVersion"
 Assert-True (!(Run-Value)) 'Fresh installation did not enable startup'
 Assert-True ((Get-HookCommands).Count -eq 1) 'Fresh installation did not enable hooks'
 Run-Checked $exe 'doctor'
@@ -90,6 +91,7 @@ try {
     $native = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru -RedirectStandardError (Join-Path $dataDir 'launch-stderr.log')
     & node (Join-Path $PSScriptRoot 'test-windows-native-ui.cjs')
     $uiFailed = $LASTEXITCODE -ne 0
+    if (!$uiFailed) { & (Join-Path $PSScriptRoot 'test-windows-topmost.ps1') -AppProcessId $native.Id }
 } finally {
     Remove-ItemProperty -Path $debugKey -Name 'matra.exe'
     Remove-Item Env:\WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
@@ -147,7 +149,7 @@ Assert-True ($settled.theme -eq 'glass' -and $settled.notch_edge -eq 'left' -and
 $before = (Get-FileHash -LiteralPath $configFile -Algorithm SHA256).Hash
 Run-Checked $Installer "/S /UPDATE /D=$installDir"
 Assert-True ($old.WaitForExit(30000)) 'Upgrade stopped the previous installed process'
-Assert-True ((Get-Item $exe).VersionInfo.ProductVersion -like '1.8.5*') 'Upgrade installed 1.8.5'
+Assert-True ((Get-Item $exe).VersionInfo.ProductVersion -like "$expectedVersion*") "Upgrade installed $expectedVersion"
 Assert-True ((Get-FileHash -LiteralPath $configFile -Algorithm SHA256).Hash -eq $before) 'Upgrade preserved preferences byte-for-byte'
 Assert-True ((Run-Value) -ceq "`"$exe`" --silent") 'Upgrade preserved startup opt-in'
 Assert-True ((Get-HookCommands).Count -eq 8) 'Upgrade preserved hook opt-in without duplicates'
@@ -156,7 +158,7 @@ Run-Checked $exe 'doctor'
 $upgraded = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru
 Start-Sleep -Seconds 3
 $upgraded.Refresh()
-Assert-True (!$upgraded.HasExited) 'Upgraded 1.8.5 app stayed running'
+Assert-True (!$upgraded.HasExited) "Upgraded $expectedVersion app stayed running"
 $reloaded = Get-Content -LiteralPath $configFile -Raw | ConvertFrom-Json
 Assert-True ($reloaded.theme -eq 'glass' -and $reloaded.notch_edge -eq 'left' -and $reloaded.scale -eq 0.8 -and $reloaded.weekly_ring -eq 'inside') 'Upgraded app loaded the previous preferences'
 Assert-True ($reloaded.automatic_updates -eq $false -and $reloaded.quota_colors.watch -eq 0.5 -and $reloaded.quota_colors.critical -eq 0.7) 'New preferences have safe backward-compatible defaults'
