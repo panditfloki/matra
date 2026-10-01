@@ -256,24 +256,24 @@
 <div id="root">
   <div id="card"></div>
   <div id="tail"></div>
-  <div id="move" class="handle">
+  <div id="move" class="handle" aria-label="Drag notch" title="Drag notch">
     <svg class="h-rest" viewBox="-36 -36 72 72" aria-hidden="true">
       <circle r="28.5" fill="none" stroke="#2e2e2e" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
       <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
     </svg>
     <div class="h-disc"></div>
-    <!-- Compact grip, sharing the settings sliders' geometry and stroke weight. -->
+    <!-- Six-dot grip, with the existing handle's size, colour and behavior. -->
     <svg class="h-glyph matra-control-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M7 8h10M7 12h10M7 16h10"/>
+      <g fill="currentColor" stroke="none"><circle cx="8.5" cy="6" r="1.5"/><circle cx="15.5" cy="6" r="1.5"/><circle cx="8.5" cy="12" r="1.5"/><circle cx="15.5" cy="12" r="1.5"/><circle cx="8.5" cy="18" r="1.5"/><circle cx="15.5" cy="18" r="1.5"/></g>
     </svg>
   </div>
-  <div id="orb" class="handle">
+  <div id="orb" class="handle" aria-label="Settings" title="Settings">
     <svg class="h-rest" viewBox="-36 -36 72 72" aria-hidden="true">
       <circle r="28.5" fill="none" stroke="#2e2e2e" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
       <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
     </svg>
     <div class="h-disc"></div>
-    <svg class="h-glyph matra-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h3m4 0h7M5 16h7m4 0h3"/><circle cx="10" cy="8" r="2"/><circle cx="14" cy="16" r="2"/></svg>
+    <svg class="h-glyph matra-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3h4l.5 2.3 1.8 1 2.2-.7 2 3.5-1.7 1.6v2.1l1.7 1.6-2 3.5-2.2-.7-1.8 1L14 21h-4l-.5-2.3-1.8-1-2.2.7-2-3.5 1.7-1.6v-2.1L3.5 9.6l2-3.5 2.2.7 1.8-1Z"/><circle cx="12" cy="12" r="3.2"/></svg>
   </div>
   <div id="pill"></div><!-- one .cell per provider, stacked vertically (upstream: data-driven, the same layout for 1–5 cells) -->
   <div id="rest"></div><!-- after the pill, so its outline is drawn over the clipped pill -->

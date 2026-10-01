@@ -120,7 +120,7 @@ Assert-True (Test-Path $configFile) 'Uninstall preserved saved preferences'
 
 # Upgrade from the actual public 1.8.4 installer. No rollout or release creation.
 Run-Checked $PreviousInstaller "/S /D=$installDir"
-Assert-True ((Get-Item $exe).VersionInfo.ProductVersion -like '1.8.4*') 'Public 1.8.4 baseline installed'
+Assert-True ((Get-Item $exe).VersionInfo.ProductVersion -like '1.8.5*') 'Public 1.8.5 baseline installed'
 Run-Checked $exe 'install-hooks'
 # 1.8.4's console-registry readback cannot round-trip this Unicode path. Seed
 # its existing opt-in directly; the new binary's real on/disabled paths were

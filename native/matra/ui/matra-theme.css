@@ -144,6 +144,8 @@ html[data-matra-theme] .handle:not(.hover):not(.armed) .h-disc,html[data-matra-t
 html[data-matra-theme] #move{cursor:grab}
 html[data-matra-theme] .handle .matra-control-icon{fill:none!important;stroke:var(--matra-muted);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 html[data-matra-theme] .handle.hover .matra-control-icon{stroke:var(--matra-accent)}
+html[data-matra-theme] #move .matra-control-icon{color:var(--matra-muted)}
+html[data-matra-theme] #move.hover .matra-control-icon{color:var(--matra-accent)}
 .ringwrap .feedback{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:0;transform-origin:center}
 .ringwrap .feedback circle{fill:none;stroke:var(--matra-text);stroke-width:1.8;stroke-linecap:round;stroke-dasharray:25 114}
 .ringwrap.reading-updated .feedback{opacity:1;animation:matra-complete 1s steps(18) both}
