@@ -118,17 +118,15 @@ Assert-True ((Get-HookCommands).Count -eq 1) 'Uninstall removed only owned hooks
 Assert-ForeignHook
 Assert-True (Test-Path $configFile) 'Uninstall preserved saved preferences'
 
-# Upgrade from the actual public 1.8.4 installer. No rollout or release creation.
+# Upgrade from the actual public 1.8.5 installer. No rollout or release creation.
 Run-Checked $PreviousInstaller "/S /D=$installDir"
 Assert-True ((Get-Item $exe).VersionInfo.ProductVersion -like '1.8.5*') 'Public 1.8.5 baseline installed'
 Run-Checked $exe 'install-hooks'
-# 1.8.4's console-registry readback cannot round-trip this Unicode path. Seed
-# its existing opt-in directly; the new binary's real on/disabled paths were
-# exercised above. The upgrade must retain this exact Windows Run entry.
+# Seed an existing startup opt-in. The current binary's real on/disabled paths
+# were exercised above. Upgrade must retain this exact Windows Run entry.
 New-ItemProperty -Path $runKey -Name MatraNotch -PropertyType String -Value "`"$exe`" --silent" -Force | Out-Null
 Assert-True ((Run-Value) -ceq "`"$exe`" --silent") 'Baseline has an enabled Unicode startup fixture'
-# The public baseline matches hooks by basename. Introduce the foreign hook
-# after its opt-in so this upgrade gate tests 1.8.5, not the old install command.
+# Ensure the foreign hook exists independently of the baseline's install command.
 if (!((Get-HookCommands) -contains '"D:\Foreign\matra-hook.exe" running')) {
     $baselineHooks = Get-Content -LiteralPath $claudeFile -Raw | ConvertFrom-Json
     $baselineHooks.hooks.PreToolUse = @($baselineHooks.hooks.PreToolUse) + $fixture.hooks.PreToolUse
@@ -136,8 +134,7 @@ if (!((Get-HookCommands) -contains '"D:\Foreign\matra-hook.exe" running')) {
 }
 Assert-True ((Get-HookCommands).Count -eq 8) 'Upgrade starts with seven owned hooks and one foreign hook'
 Assert-ForeignHook
-# Use only fields that actually existed in the public 1.8.4 Config struct.
-# Accent, quota colours and automatic updates were added by this candidate.
+# Seed a legacy preference subset to verify defaults for omitted fields too.
 $saved = @{ theme = 'glass'; notch_edge = 'left'; scale = 0.8; weekly_ring = 'inside'; glm_notch_fixed = $true; notch_on_hover = $true; notch_motion = $true; notch_visible = $true; tray_visible = $true }
 $saved | ConvertTo-Json | Set-Content -LiteralPath $configFile -Encoding utf8NoBOM
 $old = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru
