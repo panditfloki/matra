@@ -174,6 +174,11 @@ struct StatusItemArtwork {
     /// provider's mark. It is part of the template image, so AppKit gives it
     /// the same tint as the rest of the item.
     let activityBadgeProviderIDs: Set<String>
+    /// Settings > Brand colours. Off (the default) keeps the template image
+    /// exactly as before. On, the marks carry their brand fills, so the image
+    /// cannot be a template: text, rules and rings are then drawn in the label
+    /// colour, resolved against the menu bar's appearance at draw time.
+    let brandColors: Bool
 
     /// The menu bar's own type size, with figures of one width: "72%" and
     /// "18%" take the same room, so nothing jitters as the numbers move.
@@ -181,11 +186,13 @@ struct StatusItemArtwork {
          font: NSFont = .monospacedDigitSystemFont(ofSize: NSFont.menuBarFont(ofSize: 0).pointSize,
                                                    weight: .regular),
          height: CGFloat = NSStatusBar.system.thickness,
-         activityBadgeProviderIDs: Set<String> = []) {
+         activityBadgeProviderIDs: Set<String> = [],
+         brandColors: Bool = false) {
         self.summary = summary
         self.font = font
         self.height = height
         self.activityBadgeProviderIDs = activityBadgeProviderIDs
+        self.brandColors = brandColors
     }
 
     private enum Mark {
@@ -225,8 +232,10 @@ struct StatusItemArtwork {
             for (mark, alpha) in marks { draw(mark, alpha: alpha) }
             return true
         }
-        image.cacheMode = .always
-        image.isTemplate = true
+        // A coloured image is drawn again on every use, so a change of menu
+        // bar appearance reaches its label-coloured text.
+        image.cacheMode = brandColors ? .never : .always
+        image.isTemplate = !brandColors
         return image
     }
 
@@ -299,10 +308,27 @@ struct StatusItemArtwork {
         (string as NSString).size(withAttributes: [.font: font]).width
     }
 
+    /// Draws a mark with `drawMark`, then lays its brand fill over the mark's
+    /// own pixels, all at `alpha`. The layer keeps the fill off anything drawn
+    /// before it, such as the weekly ring around the mark.
+    private func branded(_ fill: ProviderBrandFill, box: NSRect, alpha: CGFloat, drawMark: () -> Void) {
+        guard let context = NSGraphicsContext.current?.cgContext else { return drawMark() }
+        context.saveGState()
+        context.setAlpha(alpha)
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        drawMark()
+        // Resolved here, while AppKit draws the image for the menu bar's
+        // current appearance.
+        fill.paint(over: box, in: context, label: NSColor.labelColor.cgColor)
+        context.endTransparencyLayer()
+        context.restoreGState()
+    }
+
     private func draw(_ mark: Mark, alpha: CGFloat) {
         // Black at some opacity: a template image is read only for its alpha,
-        // and AppKit supplies the colour.
-        let ink = NSColor.black.withAlphaComponent(alpha)
+        // and AppKit supplies the colour. A brand-coloured image is not a
+        // template, so it supplies its own label colour.
+        let ink = (brandColors ? NSColor.labelColor : NSColor.black).withAlphaComponent(alpha)
         switch mark {
         case .text(let string, let origin):
             // Without `.usesLineFragmentOrigin` the rect's origin is the baseline.
@@ -349,9 +375,17 @@ struct StatusItemArtwork {
             if let asset = NSImage(named: glyph.assetName), asset.size.width > 0, asset.size.height > 0 {
                 let scale = min(rect.width / asset.size.width, rect.height / asset.size.height)
                 let fitted = NSSize(width: asset.size.width * scale, height: asset.size.height * scale)
-                asset.draw(in: NSRect(x: rect.midX - fitted.width / 2, y: rect.midY - fitted.height / 2,
-                                      width: fitted.width, height: fitted.height),
-                           from: .zero, operation: .sourceOver, fraction: alpha)
+                let assetRect = NSRect(x: rect.midX - fitted.width / 2, y: rect.midY - fitted.height / 2,
+                                       width: fitted.width, height: fitted.height)
+                if brandColors {
+                    // A template asset draws opaque black: its shape, which
+                    // the brand fill then recolours inside the layer.
+                    branded(glyph.brandFill(drawnFromAsset: true), box: assetRect, alpha: alpha) {
+                        asset.draw(in: assetRect, from: .zero, operation: .sourceOver, fraction: 1)
+                    }
+                    return
+                }
+                asset.draw(in: assetRect, from: .zero, operation: .sourceOver, fraction: alpha)
                 return
             }
             let path = NSBezierPath()
@@ -365,6 +399,13 @@ struct StatusItemArtwork {
                 path.move(to: point(first))
                 for p in loop.dropFirst() { path.line(to: point(p)) }
                 path.close()
+            }
+            if brandColors {
+                branded(glyph.brandFill(drawnFromAsset: false), box: rect, alpha: alpha) {
+                    NSColor.black.setFill()
+                    path.fill()
+                }
+                return
             }
             ink.setFill()
             path.fill()

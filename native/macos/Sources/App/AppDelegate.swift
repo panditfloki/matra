@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lmstudioMetrics: LMStudioMetrics?
     private var preferences: Preferences?
     private var settings: SettingsWindowController?
+    private var dashboard: DashboardWindowController?
     private var designPreview: MatraDesignPreview?
     private var whatsNew: WhatsNewWindowController?
     /// Held for the life of the app: releasing it stops the scheduled checks.
@@ -53,6 +54,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Only strictly older instances are asked to go, which is what keeps two
     /// simultaneous launches from each terminating the other and leaving none.
+    /// A live preview polls real accounts, so it may run only under the
+    /// separate preview identity (own settings and storage) and only while
+    /// the installed app is quit: two pollers would double every request.
+    private static func livePreviewMayStart() -> Bool {
+        let problem: String?
+        if !MatraStorage.isPreviewIdentity {
+            problem = "This build is not the preview build. Run make preview-build, then launch the live preview again."
+        } else if !NSRunningApplication.runningApplications(withBundleIdentifier: MatraStorage.installedBundleID).isEmpty {
+            problem = "Quit the installed Mātrā first, then launch the live preview again. Running both would poll every account twice."
+        } else {
+            problem = nil
+        }
+        guard let problem else { return true }
+        let alert = NSAlert()
+        alert.messageText = "Live preview not started"
+        alert.informativeText = problem
+        alert.runModal()
+        NSApp.terminate(nil)
+        return false
+    }
+
     private static func retireOlderInstances() {
         guard let identifier = Bundle.main.bundleIdentifier else { return }
         let mine = ProcessInfo.processInfo.processIdentifier
@@ -96,10 +118,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // replaces this a moment later, once preferences exist.
         NSApp.setActivationPolicy(.regular)
         guard !isRunningTests else { return }
-        if Runtime.isDesignPreview {
+        if Runtime.isLivePreview && !Self.livePreviewMayStart() { return }
+        if Runtime.isDesignPreview && !Runtime.isLivePreview {
             let preview = MatraDesignPreview()
             self.designPreview = preview
             self.settings = preview.settings
+            self.dashboard = preview.dashboard
+            self.statusItem = preview.statusItem
             preview.show()
             return
         }
@@ -241,7 +266,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .receive(on: RunLoop.main)
                 .sink { [weak fleet] in fleet?.apply(updatePending: $0) }
                 .store(in: &cancellables)
-            if !isRunningTests { updater.start() }
+            // A live preview runs from a build folder: it never checks for,
+            // downloads or installs an update.
+            if !isRunningTests && !Runtime.isLivePreview { updater.start() }
 
             let relay = OllamaActivityRelay()
             self.ollamaRelay = relay
@@ -421,6 +448,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             self.settings = settings
 
+            let dashboard = DashboardWindowController(model: DashboardModel(store: store, isLivePreview: Runtime.isLivePreview),
+                preferences: preferences, openSettings: { [weak settings] in settings?.show() })
+            self.dashboard = dashboard
+            fleet.onOpenDashboard = { [weak dashboard] id in dashboard?.show(providerID: id) }
+
             // What changed, once per version — including on a fresh install,
             // where it is the introduction.
             let whatsNew = WhatsNewWindowController(
@@ -446,6 +478,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             let statusItem = StatusItemController { [weak settings] in settings?.show() }
             self.statusItem = statusItem
+            statusItem.onOpenDashboard = { [weak dashboard] in dashboard?.show() }
+            statusItem.richMenu = RichMenuBarController(model: dashboard.model, preferences: preferences,
+                openSettings: { [weak settings] in settings?.show() },
+                openDashboard: { [weak dashboard] id in dashboard?.show(providerID: id) })
             statusItem.onRefreshProvider = { [weak store] id in store?.refresh(providerID: id) }
             statusItem.onRefreshAll = { [weak store] in store?.refreshNow() }
             // The menu's tick writes to the same preference Settings writes to,
@@ -462,11 +498,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusItem.limits = preferences.menuBarLimits
             statusItem.resetTimeFormat = preferences.resetTimeFormat
             statusItem.showsWeeklyLimit = preferences.showsWeeklyLimitInMenuBar
+            statusItem.brandColors = preferences.brandColors
+            preferences.$brandColors
+                .receive(on: RunLoop.main)
+                .sink { statusItem.brandColors = $0 }
+                .store(in: &cancellables)
 
             preferences.$appPresence
                 .receive(on: RunLoop.main)
                 .sink { presence in
-                    NSApp.setActivationPolicy(presence.activationPolicy)
+                    AppWindowPresentation.restore(presence)
                     if presence.wantsStatusItem { statusItem.show() } else { statusItem.hide() }
                 }
                 .store(in: &cancellables)
@@ -606,6 +647,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preferences.$accentColor
                 .receive(on: RunLoop.main)
                 .sink { [weak fleet] in fleet?.apply(accentColor: $0) }
+                .store(in: &cancellables)
+
+            preferences.$brandColors
+                .receive(on: RunLoop.main)
+                .sink { [weak fleet] in fleet?.apply(brandColors: $0) }
                 .store(in: &cancellables)
 
             preferences.$watchLimit
@@ -865,7 +911,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // that passed through — behaviour nobody has been able to try on a Mac
         // with two of them, and an unverified guess is worse here than a ring
         // that ages the way it already does.
-        if let defaultProvider = claudeProviders.first(where: { $0.profile.slug == nil }) {
+        // A live preview reads credentials but never renews them.
+        if !Runtime.isLivePreview, let defaultProvider = claudeProviders.first(where: { $0.profile.slug == nil }) {
             let refresher = ClaudeTokenRefresher(
                 expiry: { await defaultProvider.tokenExpiry },
                 reload: { await defaultProvider.reloadTokenExpiry() }
@@ -963,7 +1010,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         preferences.$phoneLinkEnabled
             .receive(on: RunLoop.main)
             .sink { [weak self] enabled in
-                guard PhoneLink.isAvailable, let self = self, let srv = self.phoneLinkServer else { return }
+                // Phone Link stays with the installed app, never the preview.
+                guard PhoneLink.isAvailable, !Runtime.isLivePreview, let self = self, let srv = self.phoneLinkServer else { return }
                 Task { @MainActor in
                     if enabled {
                         self.phoneLinkServerStatus?.state = .starting
@@ -987,6 +1035,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         fleet.apply(scale: preferences.notchScale)
         fleet.apply(resetTimeFormat: preferences.resetTimeFormat)
         fleet.apply(accentColor: preferences.accentColor)
+        fleet.apply(brandColors: preferences.brandColors)
         fleet.apply(watchLimit: preferences.watchLimit, criticalLimit: preferences.criticalLimit)
         fleet.apply(colorTransitionStyle: preferences.colorTransitionStyle)
         fleet.apply(weeklyRing: preferences.weeklyRing)
@@ -1188,14 +1237,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// With no dock icon, no menu bar item and no notch on screen, there is
     /// otherwise nothing left to click — choosing Hide would be a one-way door.
     /// Launching the app again while it is already running lands here, so
-    /// opening it from Applications or Spotlight reopens settings.
+    /// opening it from Applications or Spotlight reopens the dashboard.
     func applicationShouldHandleReopen(_ sender: NSApplication,
                                        hasVisibleWindows: Bool) -> Bool {
-        openSettings()
+        openDashboard()
         return true
     }
 
     @MainActor func openSettings() { settings?.show() }
+    @MainActor func openUsagePanel() { statusItem?.openUsagePanel() }
+    @MainActor func openDashboard() {
+        if let dashboard { dashboard.show() } else { settings?.show() }
+    }
     @MainActor func openConnectPhone() {
         guard PhoneLink.isAvailable, let pairing = phoneLinkPairing, let registry = phoneLinkRegistry, let status = phoneLinkServerStatus else { return }
         if preferences?.phoneLinkEnabled == false { preferences?.phoneLinkEnabled = true }

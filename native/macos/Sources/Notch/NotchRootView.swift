@@ -164,7 +164,8 @@ struct NotchRootView: View {
                         deepSeekPricingEnabled: model.deepSeekPricingEnabled,
                         deepSeekPricingSchedule: model.deepSeekPricingSchedule,
                         tailOffset: tooltipTailOffset(index: index, snapshot: snapshot),
-                        onFocusSession: model.onFocusSession
+                        onFocusSession: model.onFocusSession,
+                        onOpenDetails: { model.onOpenDashboard?(snapshot.id) }
                     )
                         // Deliberately *no* `.id` here: the card is one object
                         // that travels and resizes between cells, which reads
@@ -193,6 +194,7 @@ struct NotchRootView: View {
         .animation(motion(NotchMotion.unfold), value: model.isExpanded)
         .tint(model.accentColor.color)
         .environment(\.matraAccentColor, model.accentColor.color)
+        .environment(\.matraBrandColors, model.brandColors)
         .environment(\.notchSurfaceStyle, model.surfaceStyle)
         .environment(\.tooltipSecondaryInk, TooltipGlassContrast.secondaryInk(
             surfaceStyle: model.surfaceStyle,

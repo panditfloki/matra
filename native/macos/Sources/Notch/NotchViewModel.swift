@@ -154,6 +154,7 @@ final class NotchViewModel: ObservableObject {
     /// the one action people actually get stuck without a second, ordinary
     /// route that only needs SwiftUI's own gesture recognition to work.
     var onOpenSettings: (() -> Void)?
+    var onOpenDashboard: ((String?) -> Void)?
     /// An update offered in the notch, and how far along taking it is — see
     /// `UpdateCard`.
     @Published var updatePrompt: UpdatePrompt?
@@ -201,6 +202,8 @@ final class NotchViewModel: ObservableObject {
     /// Mirrors the persisted Appearance choice so the separate notch window
     /// redraws immediately when Settings changes it.
     @Published var accentColor: AccentColorChoice = .system
+    /// Settings > Brand colours, mirrored for the same reason as `accentColor`.
+    @Published var brandColors: Bool = false
     /// Whether a provider's weekly limit gets a ring of its own, and where.
     /// Mirrored here for the same reason `accentColor` is: the notch is a
     /// separate window, and it has to redraw the moment Settings changes this.

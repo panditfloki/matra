@@ -124,7 +124,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
 /// whatever is stacked under the panel show through it, and the sidebar and
 /// the pane can take different materials so they read as two surfaces rather
 /// than one flat fill.
-private struct VisualEffect: NSViewRepresentable {
+struct VisualEffect: NSViewRepresentable {
     let material: NSVisualEffectView.Material
 
     func makeNSView(context: Context) -> NSVisualEffectView {
@@ -157,7 +157,7 @@ private struct VisualEffect: NSViewRepresentable {
 /// The panel's surfaces. Near-black and flat: the window a shade darker than
 /// the sidebar, hairlines instead of shadows, white at stepped opacities for
 /// text rather than system greys that shift with the desktop behind them.
-private enum SettingsPalette {
+enum SettingsPalette {
     static let window = Palette.notch
     static let sidebar = MatraBrand.elevated
     static let hairline = Palette.textPrimary.opacity(0.07)
@@ -501,35 +501,12 @@ struct SettingsView: View {
         // them across four panes, and a twelfth added later would arrive with
         // the bug and no way to notice.
         .id(preferences.language)
-        .tint(preferences.accentColor.color)
-        .environment(\.matraAccentColor, preferences.accentColor.color)
         // Fills the window rather than claiming a fixed size. Under
         // `fullSizeContentView` the content view is the whole frame — title
         // bar included — so a view sized to `SettingsView.height` left the
         // title bar's worth of transparent window above it, with the traffic
         // lights floating in the hole.
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // What actually draws the panel: the window itself is transparent
-        // (see `SettingsWindowController.show()`), so this material is the
-        // whole visible surface, and clipping it is what rounds all four
-        // corners rather than only the two macOS rounds for a titled window.
-        // Solid, not a material: the panel is dark whatever is behind it, the
-        // way a pro app's own window is, so nothing from the desktop washes
-        // through and every surface keeps the value it was designed at.
-        .background {
-            if preferences.notchSurfaceStyle.isGlass && !reduceTransparency {
-                VisualEffect(material: .underWindowBackground)
-                    .overlay(preferences.notchSurfaceStyle.settingsWash)
-            } else {
-                SettingsPalette.window
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: SettingsView.cornerRadius,
-                                    style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: SettingsView.cornerRadius, style: .continuous)
-                .strokeBorder(SettingsPalette.edge, lineWidth: 1)
-        }
+        .modifier(MatraWindowSurface(preferences: preferences))
         // SettingsWindowController owns the native appearance. Do not also
         // publish a SwiftUI preferredColorScheme: removing that preference can
         // leave its previous Light override on NSHostingView's window, so
@@ -706,7 +683,7 @@ struct SettingsView: View {
                     .font(.system(size: 12, weight: .regular))
                     .foregroundStyle(Palette.textPrimary.opacity(0.5))
                 if Runtime.isDesignPreview {
-                    Text("DESIGN PREVIEW · Sample data only · No accounts accessed")
+                    Text(Runtime.previewDataLabel)
                         .font(.system(size: 10, weight: .semibold, design: .monospaced))
                         .foregroundStyle(MatraBrand.accent)
                         .padding(.top, 5)
@@ -1123,6 +1100,12 @@ struct SettingsView: View {
                     }
                 }
                 Text("Personalises app controls and selections. Notch rings and usage bars keep their green, amber, orange and red status colours.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Toggle(L10n.settings("Brand colours"), isOn: $preferences.brandColors)
+                Text("Fills provider marks with their brand colours in the notch, menu bar and windows. Marks whose brands are black and white stay as they are; rings and bars keep their status colours.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -142,6 +142,7 @@ struct ProviderGlyphView: View {
     let glyph: ProviderGlyph
     var customIconFilename: String? = nil
     var size: CGFloat = Design.px(46)
+    @Environment(\.matraBrandColors) private var brandColors
 
     var body: some View {
         Group {
@@ -151,13 +152,13 @@ struct ProviderGlyphView: View {
                     .resizable()
                     .scaledToFit()
             } else if let image = NSImage(named: glyph.assetName) {
-                Image(nsImage: image)
+                branded(Image(nsImage: image)
                     .renderingMode(.template)
                     .resizable()
-                    .scaledToFit()
+                    .scaledToFit(), fill: glyph.brandFill(drawnFromAsset: true))
             } else {
-                GlyphShape(outline: glyph.outline)
-                    .fill(style: FillStyle(eoFill: true))
+                branded(GlyphShape(outline: glyph.outline)
+                    .fill(style: FillStyle(eoFill: true)), fill: glyph.brandFill(drawnFromAsset: false))
             }
         }
         // Scaled inside a frame of the fixed size, so the *layout* stays on a
@@ -165,5 +166,23 @@ struct ProviderGlyphView: View {
         // is evened out within it.
         .scaleEffect(glyph.opticalScale)
         .frame(width: size, height: size)
+    }
+
+    /// Off, the mark is returned untouched and takes whatever ink its caller
+    /// set. On, the brand fill replaces that ink inside the mark's own shape.
+    @ViewBuilder
+    private func branded<Mark: View>(_ mark: Mark, fill: ProviderBrandFill) -> some View {
+        if !brandColors {
+            mark
+        } else if case .accentPart(let hex, let region) = fill {
+            ZStack {
+                mark.mask(UnitRegionShape(region: region, inverted: true).fill(style: FillStyle(eoFill: true)))
+                mark.foregroundStyle(Color(hex: hex)).mask(UnitRegionShape(region: region))
+            }
+        } else if let style = fill.shapeStyle {
+            mark.foregroundStyle(style)
+        } else {
+            mark
+        }
     }
 }

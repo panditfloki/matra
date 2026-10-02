@@ -52,6 +52,7 @@ final class NotchFleet {
     private var displayPreference: DisplayPreference = .followActiveWindow
     private var resetTimeFormat: ResetTimeFormat = .automatic
     private var accentColor: AccentColorChoice = .system
+    private var brandColors = false
     private var watchLimit: Double = 0.50
     private var criticalLimit: Double = 0.70
     private var colorTransitionStyle: ColorTransitionStyle = .hardStep
@@ -77,6 +78,7 @@ final class NotchFleet {
     var onRefresh: (() -> Void)?
     var onRefreshProvider: ((String) async -> Void)?
     var onOpenSettings: (() -> Void)?
+    var onOpenDashboard: ((String?) -> Void)?
     /// The notch's answer to an update it offered.
     var onUpdateChoice: ((UpdateChoice) -> Void)?
     private var updatePrompt: UpdatePrompt?
@@ -246,6 +248,13 @@ final class NotchFleet {
         self.accentColor = accentColor
         for controller in controllers.values {
             controller.model.accentColor = accentColor
+        }
+    }
+
+    func apply(brandColors: Bool) {
+        self.brandColors = brandColors
+        for controller in controllers.values {
+            controller.model.brandColors = brandColors
         }
     }
 
@@ -459,6 +468,7 @@ final class NotchFleet {
         controller.prime(scale: scale)
         controller.model.resetTimeFormat = resetTimeFormat
         controller.model.accentColor = accentColor
+        controller.model.brandColors = brandColors
         controller.model.watchLimit = watchLimit
         controller.model.criticalLimit = criticalLimit
         controller.model.colorTransitionStyle = colorTransitionStyle
@@ -474,6 +484,7 @@ final class NotchFleet {
         controller.onRefreshProvider = onRefreshProvider
         controller.onOpenSettings = onOpenSettings
         controller.model.onOpenSettings = onOpenSettings
+        controller.model.onOpenDashboard = onOpenDashboard
         controller.model.onFocusSession = onFocusSession
         controller.model.onUpdateChoice = { [weak self] in self?.onUpdateChoice?($0) }
         controller.apply(updatePrompt: updatePrompt)

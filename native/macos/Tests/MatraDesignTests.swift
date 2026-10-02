@@ -56,18 +56,27 @@ final class MatraDesignTests: XCTestCase {
             let image = try XCTUnwrap(renderer.cgImage)
             return try XCTUnwrap(image.dataProvider?.data) as Data
         }
+        // The first captures after earlier tests can still drift by a few bytes
+        // with identical inputs (seen on the first full-suite comparison, which
+        // is light/hardStep). Render until two captures in a row agree, so a
+        // difference left between accents is the accent, not warm-up.
+        func settled(accent: Color, scheme: ColorScheme, style: ColorTransitionStyle,
+                     watch: Double = 0.50, critical: Double = 0.70) throws -> Data {
+            var previous = try pixels(accent: accent, scheme: scheme, style: style, watch: watch, critical: critical)
+            for _ in 0..<6 {
+                let next = try pixels(accent: accent, scheme: scheme, style: style, watch: watch, critical: critical)
+                if next == previous { return next }
+                previous = next
+            }
+            XCTFail("\(scheme)/\(style): renderer did not settle for identical inputs")
+            return previous
+        }
         for scheme in [ColorScheme.light, .dark] {
             for style in ColorTransitionStyle.allCases {
-                // Prime the renderer after earlier tests have changed drawing
-                // state. A same-accent control found eight differing bytes on
-                // the first full-suite capture, before any accent change.
-                _ = try pixels(accent: .blue, scheme: scheme, style: style)
-                let blue = try pixels(accent: .blue, scheme: scheme, style: style)
-                let sameBlue = try pixels(accent: .blue, scheme: scheme, style: style)
-                let red = try pixels(accent: .red, scheme: scheme, style: style)
-                XCTAssertEqual(blue, sameBlue, "\(scheme)/\(style): renderer did not settle for identical inputs")
+                let blue = try settled(accent: .blue, scheme: scheme, style: style)
+                let red = try settled(accent: .red, scheme: scheme, style: style)
                 XCTAssertEqual(blue, red, "\(scheme)/\(style): app accent changed usage pixels")
-                let custom = try pixels(accent: .red, scheme: scheme, style: style, watch: 0.30, critical: 0.60)
+                let custom = try settled(accent: .red, scheme: scheme, style: style, watch: 0.30, critical: 0.60)
                 XCTAssertNotEqual(red, custom, "Thresholds must actually reach the rendered rings and bars")
             }
         }

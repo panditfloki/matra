@@ -86,6 +86,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     /// closes — settings staying open is the one moment the Dock is allowed
     /// to gain an icon it did not ask for.
     private func surface(_ window: NSWindow) {
+        AppWindowPresentation.register(window)
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
@@ -153,7 +154,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
-        NSApp.setActivationPolicy(preferences.appPresence.activationPolicy)
+        AppWindowPresentation.restore(preferences.appPresence,
+                                      excluding: notification.object as? NSWindow)
     }
 
     /// Sit the traffic lights in the middle of the panel's header band.

@@ -11,7 +11,7 @@ BUILD_ARGS := -project $(PROJECT) -scheme $(SCHEME) -destination '$(DEST)' \
 	-clonedSourcePackagesDirPath '$(PACKAGE_CACHE)' -onlyUsePackageVersionsFromResolvedFile \
 	CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= CODE_SIGN_STYLE=Automatic
 
-.PHONY: gen build test preview run install
+.PHONY: gen build preview-build test preview preview-local preview-live run install
 
 gen:
 	$(XCODEGEN) generate
@@ -21,12 +21,28 @@ gen:
 build: gen
 	xcodebuild $(BUILD_ARGS) build
 
+# A distinct local identity lets native controls target the preview reliably
+# while the installed app keeps running. The production target is unchanged.
+preview-build: gen
+	xcodebuild $(BUILD_ARGS) PRODUCT_BUNDLE_IDENTIFIER=com.dydxfx.matra.mac.preview build
+
 test: gen
 	xcodebuild $(BUILD_ARGS) -parallel-testing-enabled NO test
 
 # Sample data only. Never constructs provider readers or changes login startup.
-preview: build
+preview: preview-build
 	MATRA_DESIGN_PREVIEW=1 "$(APP)/Contents/MacOS/Matra"
+
+# Real local Codex/Claude logs through the existing offline ccusage reader.
+# Quota polling, account discovery and update startup stay off, as above.
+preview-local: preview-build
+	MATRA_DESIGN_PREVIEW=1 MATRA_PREVIEW_DATA=local "$(APP)/Contents/MacOS/Matra"
+
+# Full live data (accounts, quotas, local logs) as the separate preview build,
+# with its own settings and storage. Quit the installed Mātrā first; the app
+# refuses to start otherwise. Updates, Phone Link and token renewal stay off.
+preview-live: preview-build
+	MATRA_DESIGN_PREVIEW=1 MATRA_PREVIEW_DATA=live "$(APP)/Contents/MacOS/Matra"
 
 run: build
 	"$(APP)/Contents/MacOS/Matra"

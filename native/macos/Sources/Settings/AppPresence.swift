@@ -33,7 +33,7 @@ enum AppPresence: String, CaseIterable, Identifiable {
         case .hidden:
             // Said here because choosing this removes every visible way back to
             // these settings, and finding that out afterwards is too late.
-            return L10n.branded("No icon anywhere. Open Matra again from Applications to bring these settings back.")
+            return L10n.branded("No icon anywhere. Open Matra again from Applications to bring the dashboard back.")
         }
     }
 

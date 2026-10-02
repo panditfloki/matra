@@ -428,6 +428,7 @@ private struct LimitWindowRow: View {
     let now: Date
     let resetTimeFormat: ResetTimeFormat
     let showsUsagePace: Bool
+    @Environment(\.expandsUsageRows) private var expandsUsageRows
     @Environment(\.colorTransitionStyle) private var colorTransitionStyle
     @Environment(\.tooltipSecondaryInk) private var secondaryInk
 
@@ -437,9 +438,13 @@ private struct LimitWindowRow: View {
                              override: window.bandOverride, watchLimit: watchLimit, criticalLimit: criticalLimit)
     }
     private var trackWidth: CGFloat { NotchLayout.cardWidth - 2 * NotchLayout.cardPadding - inset }
-    private var fillWidth: CGFloat {
+    private func bar(width: CGFloat) -> some View {
         let fraction = CGFloat(min(max(window.usedFraction ?? 0, 0), 1))
-        return max(NotchLayout.barHeight, trackWidth * fraction)
+        return ZStack(alignment: .leading) {
+            Capsule().fill(Palette.barTrack)
+            Capsule().fill(barColor).frame(width: max(NotchLayout.barHeight, width * fraction))
+        }
+        .frame(width: width, height: NotchLayout.barHeight)
     }
 
     private var paceText: Text {
@@ -473,11 +478,14 @@ private struct LimitWindowRow: View {
                 // No bar without a denominator — an empty track would read as "none
                 // used", which is not what "we do not know the limit" means.
                 if window.usedFraction != nil {
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Palette.barTrack)
-                        Capsule().fill(barColor).frame(width: fillWidth)
+                    Group {
+                        if expandsUsageRows {
+                            GeometryReader { proxy in bar(width: proxy.size.width) }
+                                .frame(height: NotchLayout.barHeight)
+                        } else {
+                            bar(width: trackWidth)
+                        }
                     }
-                    .frame(width: trackWidth, height: NotchLayout.barHeight)
                     .padding(.top, NotchLayout.labelToBar)
                 }
 
@@ -496,6 +504,7 @@ private struct MoneyBreakdownView: View {
     let title: String
     let money: UsageMoneyBreakdown
     let fidelity: Fidelity
+    @Environment(\.expandsUsageRows) private var expandsUsageRows
     @Environment(\.usageWatchLimit) private var watchLimit
     @Environment(\.usageCriticalLimit) private var criticalLimit
     @Environment(\.colorTransitionStyle) private var colorTransitionStyle
@@ -530,7 +539,7 @@ private struct MoneyBreakdownView: View {
                     Rectangle().fill(Palette.barTrack)
                 }
             }
-            .frame(width: NotchLayout.cardTextWidth, height: NotchLayout.moneyBarHeight)
+            .frame(width: expandsUsageRows ? nil : NotchLayout.cardTextWidth, height: NotchLayout.moneyBarHeight)
             .clipShape(Capsule())
             .padding(.top, NotchLayout.labelToBar)
 
@@ -539,7 +548,7 @@ private struct MoneyBreakdownView: View {
                 MoneyStat(label: L10n.t("Remaining"), value: amount(money.remaining))
                 MoneyStat(label: L10n.t("Funded"), value: amount(money.funded), color: Palette.textPrimary)
             }
-            .frame(width: NotchLayout.cardTextWidth)
+            .frame(width: expandsUsageRows ? nil : NotchLayout.cardTextWidth)
             .padding(.top, NotchLayout.moneyBarToStats)
         }
     }
@@ -561,13 +570,14 @@ private struct MoneyStat: View {
     }
 }
 
-private struct ProviderTooltip: View {
+struct ProviderTooltip: View {
     /// What a local model is doing right now, for the header's note.
     var activityNote: String?
     let snapshot: ProviderSnapshot
     let now: Date
     let resetTimeFormat: ResetTimeFormat
     let showUsagePace: Bool
+    var onOpenDetails: (() -> Void)? = nil
     @Environment(\.tooltipSecondaryInk) private var secondaryInk
 
     /// Only worth saying when the numbers are not current. A remembered reading
@@ -599,13 +609,15 @@ private struct ProviderTooltip: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TooltipHeader(title: snapshot.kind == .localRuntime
-                          ? L10n.t("\(snapshot.localModel?.brand?.displayName ?? snapshot.displayName) · Local")
-                          : L10n.t("\(snapshot.displayName) Usage"),
-                          subtitle: snapshot.plan,
-                          note: activityNote ?? (snapshot.localModel?.brand != nil ? snapshot.displayName : readingAge)) {
-                ProviderGlyphView(glyph: snapshot.glyph, customIconFilename: snapshot.customIconFilename)
-                    .foregroundStyle(Palette.textPrimary)
+            Group {
+                if let onOpenDetails {
+                    Button(action: onOpenDetails) { header }
+                        .buttonStyle(.plain)
+                        .help("Open details")
+                        .accessibilityLabel("Open details for \(snapshot.displayName)")
+                } else {
+                    header
+                }
             }
 
             if let block = snapshot.block {
@@ -624,6 +636,24 @@ private struct ProviderTooltip: View {
                                     showsPerformance: snapshot.showsLocalPerformance,
                                     ledger: snapshot.localLedger, now: now)
             } else {
+                windowRows
+            }
+        }
+    }
+
+    private var header: some View {
+        TooltipHeader(title: snapshot.kind == .localRuntime
+                          ? L10n.t("\(snapshot.localModel?.brand?.displayName ?? snapshot.displayName) · Local")
+                          : L10n.t("\(snapshot.displayName) Usage"),
+                          subtitle: snapshot.plan,
+                          note: activityNote ?? (snapshot.localModel?.brand != nil ? snapshot.displayName : readingAge)) {
+                ProviderGlyphView(glyph: snapshot.glyph, customIconFilename: snapshot.customIconFilename)
+                    .foregroundStyle(Palette.textPrimary)
+            }
+
+    }
+
+    private var windowRows: some View {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(groupedWindows.enumerated()), id: \.element.id) { groupIndex, group in
                         if let title = group.title {
@@ -656,8 +686,6 @@ private struct ProviderTooltip: View {
                     }
                 }
                 .padding(.bottom, groupedWindows.contains(where: { $0.title != nil }) ? Design.px(8) : 0)
-            }
-        }
     }
 }
 
@@ -809,7 +837,7 @@ private struct CodexDailyUsageChart: View {
 }
 
 /// Unused rate-limit resets on this account.
-private struct UsageResetCreditsSection: View {
+struct UsageResetCreditsSection: View {
     let credits: UsageResetCredits
     let now: Date
     @Environment(\.tooltipSecondaryInk) private var secondaryInk
@@ -887,7 +915,7 @@ private struct UsageResetCreditsSection: View {
 
 /// Account-wide Codex activity. Unlike the quota rows above, this is sourced
 /// from the Codex profile usage endpoint and is not a local estimate.
-private struct CodexUsageSection: View {
+struct CodexUsageSection: View {
     let usage: CodexTokenUsage
     let now: Date
 
@@ -1091,6 +1119,7 @@ struct TooltipCard: View {
     /// A tap on a session row jumps to that session's terminal — nil leaves
     /// the rows as plain text.
     var onFocusSession: ((pid_t) -> Void)? = nil
+    var onOpenDetails: (() -> Void)? = nil
     @AppStorage(Preferences.showUsagePaceKey) private var showUsagePace = false
 
     /// The phase a local model is in, and the queue behind it, for the header.
@@ -1132,7 +1161,7 @@ struct TooltipCard: View {
             ZStack(alignment: .topLeading) {
                 VStack(alignment: .leading, spacing: 0) {
                     ProviderTooltip(activityNote: localActivityNote, snapshot: snapshot, now: now, resetTimeFormat: resetTimeFormat,
-                                    showUsagePace: showUsagePace)
+                                    showUsagePace: showUsagePace, onOpenDetails: onOpenDetails)
                     if let resetCredits = snapshot.availableResetCredits(at: now) {
                         UsageResetCreditsSection(credits: resetCredits, now: now)
                     }

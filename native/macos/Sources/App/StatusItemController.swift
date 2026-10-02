@@ -18,6 +18,14 @@ import AppKit
 final class StatusItemController: NSObject, NSMenuDelegate {
     private var item: NSStatusItem?
     private let onOpenSettings: () -> Void
+    private let isPreview: Bool
+    private var iconHelp: String { isPreview ? "Mātrā Preview · \(previewNote)" : L10n.branded("Matra") }
+    /// What the preview's readings are. Set before the item is shown.
+    var previewNote = "Sample data only"
+    var onOpenDashboard: (() -> Void)?
+    var richMenu: RichMenuBarController? {
+        didSet { configureInteraction() }
+    }
     /// Refetch one provider, leaving the others alone.
     var onRefreshProvider: ((String) -> Void)?
     /// Refetch every provider.
@@ -84,6 +92,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             redrawArtwork()
         }
     }
+    /// Settings > Brand colours. On, the marks are drawn in brand colour and
+    /// the item is no longer a template image; off, nothing about it changes.
+    var brandColors = false {
+        didSet {
+            guard brandColors != oldValue else { return }
+            redrawArtwork()
+        }
+    }
     /// Wakes the item when its first countdown next changes, since the minutes
     /// run down between readings. One-shot and re-armed on every update: a
     /// minute's precision is all the bar shows.
@@ -95,7 +111,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     var cells: () -> [ProviderSnapshot] = { [] }
     var activity: (ProviderSnapshot) -> ActivitySummary? = { _ in nil }
 
-    init(onOpenSettings: @escaping () -> Void) {
+    init(isPreview: Bool = false, onOpenSettings: @escaping () -> Void) {
+        self.isPreview = isPreview
         self.onOpenSettings = onOpenSettings
         super.init()
     }
@@ -107,7 +124,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = Self.icon()
-        item.button?.toolTip = L10n.branded("Matra")
+        item.button?.toolTip = iconHelp
         // The pulse is a mask on the button's layer, and has to follow the
         // button's width as the item is laid out around a new image.
         item.button?.wantsLayer = true
@@ -118,6 +135,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         item.menu = menu
 
         self.item = item
+        configureInteraction()
         guard let button = item.button else { return }
         observe(NSView.frameDidChangeNotification, on: .default, object: button) { controller in
             controller.pulse.relayout()
@@ -144,6 +162,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     func hide() {
         guard let item else { return }
+        richMenu?.close()
         countdownTimer?.invalidate()
         countdownTimer = nil
         pulse.clear()
@@ -153,6 +172,35 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         summary = nil
         NSStatusBar.system.removeStatusItem(item)
         self.item = nil
+    }
+
+    private func configureInteraction() {
+        guard let item else { return }
+        if richMenu != nil {
+            item.menu = nil
+            item.button?.target = self
+            item.button?.action = #selector(statusButtonClicked)
+            item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        }
+    }
+
+    @objc func openUsagePanel() {
+        guard let button = item?.button else {
+            if isPreview { Log.usage.debug("Preview usage panel requested while status item is hidden") }
+            return
+        }
+        richMenu?.toggle(relativeTo: button)
+        if isPreview { Log.usage.debug("Preview usage panel shown: \(self.richMenu?.popover?.isShown == true)") }
+    }
+
+    @objc private func statusButtonClicked() {
+        guard let button = item?.button else { return }
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            let menu = NSMenu()
+            menu.delegate = self
+            rebuild(menu: menu, now: Date())
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
+        } else { openUsagePanel() }
     }
 
     private func observe(_ name: Notification.Name, on center: NotificationCenter, object: AnyObject?,
@@ -214,13 +262,16 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
         if next.entries.isEmpty {
             pulse.clear()
-            item.length = NSStatusItem.squareLength
+            item.length = isPreview ? NSStatusItem.variableLength : NSStatusItem.squareLength
             button.image = Self.icon()
-            button.toolTip = L10n.branded("Matra")
+            button.title = isPreview ? " Preview" : ""
+            button.imagePosition = isPreview ? .imageLeft : .imageOnly
+            button.toolTip = iconHelp
             button.setAccessibilityLabel(nil)
             return
         }
         item.length = NSStatusItem.variableLength
+        button.title = ""
         button.imagePosition = .imageOnly
         redrawArtwork()
         let details = next.entries.map(\.detail).joined(separator: "\n")
@@ -254,7 +305,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let working = visibleActiveProviderIDs
         let artwork = StatusItemArtwork(
             summary: summary,
-            activityBadgeProviderIDs: reducesMotion ? working : []
+            activityBadgeProviderIDs: reducesMotion ? working : [],
+            brandColors: brandColors
         )
         button.image = artwork.image()
         let glyphs = Dictionary(uniqueKeysWithValues: summary.entries.compactMap { entry in
@@ -299,6 +351,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// Exposed for tests: what the menu says without needing a status item.
     func rebuild(menu: NSMenu, now: Date) {
         menu.removeAllItems()
+        if isPreview {
+            menu.addItem(withTitle: "Mātrā Preview · \(previewNote)", action: nil, keyEquivalent: "")
+            menu.addItem(.separator())
+        }
         if snapshots.isEmpty {
             let empty = NSMenuItem(title: L10n.t("Waiting for the first reading…"), action: nil, keyEquivalent: "")
             empty.isEnabled = false
@@ -328,10 +384,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         showLimits.state = limits.isOn ? .on : .off
         menu.addItem(showLimits)
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: L10n.t("Refresh all"), action: #selector(refreshAll), keyEquivalent: "r"
-        ).target = self
-        if PhoneLink.isAvailable {
+        if !isPreview {
+            menu.addItem(
+                withTitle: L10n.t("Refresh all"), action: #selector(refreshAll), keyEquivalent: "r"
+            ).target = self
+        }
+        if PhoneLink.isAvailable && !isPreview {
             menu.addItem(
                 withTitle: L10n.t("Connect Phone…"), action: #selector(connectPhone), keyEquivalent: ""
             ).target = self
@@ -339,6 +397,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(
             withTitle: L10n.t("Settings…"), action: #selector(openSettings), keyEquivalent: ","
         ).target = self
+        if onOpenDashboard != nil {
+            menu.addItem(withTitle: "Open Dashboard", action: #selector(openDashboard), keyEquivalent: "1").target = self
+        }
         menu.addItem(.separator())
         menu.addItem(
             withTitle: L10n.branded("Quit Matra"), action: #selector(quit), keyEquivalent: "q"
@@ -365,6 +426,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openSettings() { onOpenSettings() }
+    @objc private func openDashboard() { onOpenDashboard?() }
     @objc private func quit() { NSApp.terminate(nil) }
 
     @objc private func refreshProvider(_ sender: NSMenuItem) {
@@ -387,7 +449,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if snapshot.kind == .usage, let since = snapshot.status.staleSince, since != .distantPast {
             title += " · \(ElapsedCopy.ago(since: since, now: now))"
         }
-        let header = NSMenuItem(title: title, action: #selector(refreshProvider(_:)), keyEquivalent: "")
+        let header = NSMenuItem(title: title, action: isPreview ? nil : #selector(refreshProvider(_:)), keyEquivalent: "")
         header.target = self
         header.representedObject = snapshot.id
         return header

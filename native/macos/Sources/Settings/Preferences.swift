@@ -282,6 +282,13 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(accentColor.rawValue, forKey: Keys.accentColor) }
     }
 
+    /// Whether provider marks are filled with their brand colours. Off by
+    /// default, which keeps the black-and-white marks and the menu bar's
+    /// template image; a missing key (every install before this setting) is off.
+    @Published var brandColors: Bool {
+        didSet { defaults.set(brandColors, forKey: Keys.brandColors) }
+    }
+
     /// The material the expanded notch, tooltip and settings orb are painted with.
     @Published var notchSurfaceStyle: NotchSurfaceStyle {
         didSet { defaults.set(notchSurfaceStyle.rawValue, forKey: Keys.notchSurfaceStyle) }
@@ -521,6 +528,7 @@ final class Preferences: ObservableObject {
         static let resetTimeFormat = "resetTimeFormat"
         static let scope = "notchScope"
         static let accentColor = "accentColor"
+        static let brandColors = "brandColors"
         // A new key, so there is nothing under the old app name to migrate.
         static let weeklyRing = "weeklyRing"
         static let weeklyRingDashed = "weeklyRingDashed"
@@ -869,6 +877,7 @@ final class Preferences: ObservableObject {
         // and a control that is missing by default is one nobody finds.
         self.accentColor = defaults.string(forKey: Keys.accentColor)
             .flatMap(AccentColorChoice.init(rawValue:)) ?? .system
+        self.brandColors = defaults.object(forKey: Keys.brandColors) as? Bool ?? false
         self.notchSurfaceStyle = defaults.string(forKey: Keys.notchSurfaceStyle)
             .flatMap(NotchSurfaceStyle.init(rawValue:)) ?? .defaultStyle
         let storedWatchLimit = defaults.object(forKey: Keys.watchLimit) as? Double ?? 0.50

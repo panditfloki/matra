@@ -474,6 +474,52 @@ final class StatusItemSummaryTests: XCTestCase {
         XCTAssertGreaterThan(image.size.width, 0)
     }
 
+    /// Settings > Brand colours: off keeps the template image; on draws
+    /// Claude's mark in its brand colour, so the image is no longer a template.
+    func testBrandColoursLeaveTheTemplateAloneWhenOffAndPaintTheMarkWhenOn() throws {
+        let result = summary([claude(0.72, resetIn: hour)])
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
+        let off = StatusItemArtwork(summary: result, font: font, height: 22)
+        let on = StatusItemArtwork(summary: result, font: font, height: 22, brandColors: true)
+        XCTAssertTrue(off.image().isTemplate)
+        XCTAssertFalse(on.image().isTemplate)
+        XCTAssertEqual(on.size, off.size, "colour never moves other menu bar items")
+
+        let box = try XCTUnwrap(on.glyphFrame(for: "claude"))
+        let image = on.image()
+        let scale: CGFloat = 2
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                   pixelsWide: Int(image.size.width * scale),
+                                   pixelsHigh: Int(image.size.height * scale),
+                                   bitsPerSample: 8, samplesPerPixel: 4,
+                                   hasAlpha: true, isPlanar: false,
+                                   colorSpaceName: .deviceRGB,
+                                   bytesPerRow: 0, bitsPerPixel: 0)!
+        rep.size = image.size
+        NSAppearance(named: .aqua)!.performAsCurrentDrawingAppearance {
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+            image.draw(in: NSRect(origin: .zero, size: image.size))
+            NSGraphicsContext.restoreGraphicsState()
+        }
+        let brand = NSColor(hex: 0xD97757)
+        var branded = 0
+        for y in 0..<rep.pixelsHigh {
+            for x in 0..<rep.pixelsWide {
+                let point = NSPoint(x: CGFloat(x) / scale, y: image.size.height - CGFloat(y) / scale)
+                guard box.contains(point),
+                      let pixel = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB),
+                      pixel.alphaComponent > 0.9 else { continue }
+                if abs(pixel.redComponent - brand.redComponent) < 0.08,
+                   abs(pixel.greenComponent - brand.greenComponent) < 0.08,
+                   abs(pixel.blueComponent - brand.blueComponent) < 0.08 {
+                    branded += 1
+                }
+            }
+        }
+        XCTAssertGreaterThan(branded, 10, "Claude's mark is filled with #D97757")
+    }
+
     private func ink(_ image: NSImage, in rect: NSRect) -> Int {
         let scale: CGFloat = 2
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil,

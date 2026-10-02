@@ -2018,6 +2018,13 @@ final class NotchWindowController {
         keepOpen.target = menuActions
         keepOpen.isEnabled = true
         menu.addItem(keepOpen)
+        if model.onOpenDashboard != nil {
+            let details = NSMenuItem(title: model.hoveredSnapshot == nil ? "Open Dashboard" : "Open details",
+                                     action: #selector(MenuActions.openDashboard(_:)), keyEquivalent: "")
+            details.target = menuActions
+            details.isEnabled = true
+            menu.addItem(details)
+        }
         menu.addItem(.separator())
 
         let refresh = NSMenuItem(
@@ -2052,7 +2059,11 @@ final class NotchWindowController {
     private lazy var menuActions = MenuActions(
         refresh: { [weak self] in self?.onRefresh?() },
         signIn: { [weak self] index in self?.signInItems[safe: index]?.action() },
-        togglePinned: { [weak self] in self?.togglePinned() }
+        togglePinned: { [weak self] in self?.togglePinned() },
+        openDashboard: { [weak self] in
+            guard let self else { return }
+            self.model.onOpenDashboard?(self.model.hoveredSnapshot?.id)
+        }
     )
 }
 
@@ -2063,19 +2074,23 @@ final class MenuActions: NSObject {
     private let refresh: () -> Void
     private let signIn: (Int) -> Void
     private let pin: () -> Void
+    private let dashboard: () -> Void
 
     init(
         refresh: @escaping () -> Void,
         signIn: @escaping (Int) -> Void,
-        togglePinned: @escaping () -> Void
+        togglePinned: @escaping () -> Void,
+        openDashboard: @escaping () -> Void = {}
     ) {
         self.refresh = refresh
         self.signIn = signIn
         self.pin = togglePinned
+        self.dashboard = openDashboard
     }
 
     @objc func refreshNow(_ sender: Any?) { refresh() }
     @objc func togglePinned(_ sender: Any?) { pin() }
+    @objc func openDashboard(_ sender: Any?) { dashboard() }
 
     @objc func signIn(_ sender: Any?) {
         guard let item = sender as? NSMenuItem else { return }
