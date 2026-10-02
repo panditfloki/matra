@@ -3,7 +3,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const context = { window: {} };
-for(const file of ['matra-motion.js','matra-update-view.js']) vm.runInNewContext(readFileSync(path.join(__dirname,'../codenotch/ui',file),'utf8'),context);
+for(const file of ['matra-motion.js','matra-update-view.js']) vm.runInNewContext(readFileSync(path.join(__dirname,'../matra/ui',file),'utf8'),context);
 const tracker = new context.window.MatraMotionTracker();
 assert.equal(tracker.reading('claude','session',.12,true),null);
 assert.equal(tracker.reading('claude','session',.12,true),null);

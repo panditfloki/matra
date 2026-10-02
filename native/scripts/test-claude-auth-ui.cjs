@@ -2,7 +2,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const assert=require('node:assert/strict');
-const html=fs.readFileSync(path.join(__dirname,'../codenotch/ui/notch.html'),'utf8');
+const html=fs.readFileSync(path.join(__dirname,'../matra/ui/notch.html'),'utf8');
 const start='// CLAUDE_AUTH_ACTIONS_START', end='// CLAUDE_AUTH_ACTIONS_END';
 assert.equal(html.split(start).length,2);
 assert.equal(html.split(end).length,2);

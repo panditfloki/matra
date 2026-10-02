@@ -23,7 +23,9 @@ Horizontal body uses 8px cross-axis padding. Ring and text sizes unchanged.
 All dimensions follow existing Small .8 / Medium 1 / Large 1.25 scaling.
 
 Preview.10 quota rings: independent current and weekly colours. Used quota below
-50% emerald, 50–74% amber, 75–89% orange, 90%+ red. Unknown/non-metered values
+Watch is green, Watch to Critical is amber, Critical to 90% is orange, 90%+ red.
+Defaults are 50% Watch and 70% Critical. Red takes priority above either threshold.
+App accent colours never change usage rings or bars. Unknown/non-metered values
 never get a quota-warning arc. Opaque ring backing protects contrast on Glass;
 deep shades on Light/Glass, bright shades on Dark. Main stroke 5.1 SVG units
 (4px at the 44px ring size), weekly 3.2 units (2.5px). Activity stays neutral.
@@ -39,7 +41,7 @@ Website type: Inter for body, JetBrains Mono for technical labels and logotype.
 Use local fallbacks when unavailable; do not claim bundled fonts that are absent.
 Logo variables are italic, operators upright and accent-coloured. Not Georgia.
 
-Retain native CodeNotch geometry. Apply the chosen theme to folded and expanded
+Retain native Matra geometry. Apply the chosen theme to folded and expanded
 notch, SVG ring backgrounds/tracks, handles, hover details and settings together.
 Requested glass treatment uses translucent tinted surfaces, subtle rim highlights
 and existing native settings Mica. CSS backdrop filtering does not guarantee

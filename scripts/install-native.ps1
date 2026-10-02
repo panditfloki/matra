@@ -1,36 +1,23 @@
 param([switch]$NoLaunch)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-$meta = Get-Content (Join-Path $repo 'native/codenotch/tauri.conf.json') -Raw | ConvertFrom-Json
+$meta = Get-Content (Join-Path $repo 'native/matra/tauri.conf.json') -Raw | ConvertFrom-Json
 $destination = Join-Path $env:LOCALAPPDATA ('Programs\MatraNotch\' + $meta.version)
 $source = Join-Path $repo 'native/target/release'
 foreach ($binary in @('matra.exe', 'matra-hook.exe')) {
     if (!(Test-Path -LiteralPath (Join-Path $source $binary))) { throw "Build first: npm run native:build" }
 }
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
-# Stop only direct version children of our verified installation root.
-$installRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\MatraNotch'))
 $executable = Join-Path $destination 'matra.exe'
-$runningCandidates = @(
-    Get-Process matra -ErrorAction SilentlyContinue
-    Get-Process codenotch -ErrorAction SilentlyContinue
-)
-foreach ($runningMatra in ($runningCandidates | Where-Object {
-    $_.Path -and ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($_.Path))) -eq $installRoot)
-})) {
-    Stop-Process -InputObject $runningMatra
-    if (!$runningMatra.WaitForExit(10000)) { throw 'Matra did not exit; installation stopped.' }
-}
+$prepare = Start-Process -FilePath (Join-Path $source 'matra-hook.exe') -ArgumentList ('--prepare-install "' + $destination + '"') -PassThru -Wait
+if ($prepare.ExitCode -ne 0) { throw 'Matra did not exit; installation stopped.' }
 Copy-Item -LiteralPath (Join-Path $source 'matra.exe') -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $source 'matra-hook.exe') -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $repo 'native/LICENSE') -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $repo 'native/UPSTREAM.md') -Destination $destination -Force
 # Refresh only an already-enabled Matra hook. Never enable or remove foreign hooks.
-$claudeSettings=Join-Path ([Environment]::GetFolderPath('UserProfile')) '.claude\settings.json'
-if ((Test-Path -LiteralPath $claudeSettings) -and ((Get-Content -LiteralPath $claudeSettings -Raw) -match 'matra-hook\.exe')) {
-    $hookUpdate=Start-Process -FilePath $executable -ArgumentList 'install-hooks' -WindowStyle Hidden -PassThru -Wait
-    if ($hookUpdate.ExitCode -ne 0) {throw 'Hook migration failed; see matra-notch/install.log. Settings backup retained.'}
-}
+$migration = Start-Process -FilePath $executable -ArgumentList 'setup-migrate' -WindowStyle Hidden -PassThru -Wait
+if ($migration.ExitCode -ne 0) { throw 'Migration failed; see matra-notch/install.log. Settings backup retained.' }
 $shortcutPath = Join-Path ([Environment]::GetFolderPath('Programs')) 'Matra Desktop.lnk'
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
@@ -49,12 +36,6 @@ $brandedShortcut.Save()
 # WScript.Shell normalizes some non-ASCII path characters. Rename through Unicode APIs.
 $unicodeShortcutPath = Join-Path ([Environment]::GetFolderPath('Programs')) ($displayName.Replace('/', '-') + '.lnk')
 Move-Item -LiteralPath $asciiShortcutPath -Destination $unicodeShortcutPath -Force
-$startupKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-$existingStartup = Get-ItemProperty -LiteralPath $startupKey -Name MatraNotch -ErrorAction SilentlyContinue
-if ($existingStartup) {
-    # Preserve the user's enabled preference, but retire its stale version path.
-    Set-ItemProperty -LiteralPath $startupKey -Name MatraNotch -Value ('"' + $executable + '" --silent')
-}
 Write-Output "Installed: $executable"
 Write-Output "Start Menu: Matra Desktop. Launch again to open Settings."
 if (!$NoLaunch) {

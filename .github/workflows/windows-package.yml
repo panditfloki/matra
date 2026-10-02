@@ -23,14 +23,14 @@ on:
 
 jobs:
   package:
-    # A platform-specific Mac beta must not receive a Windows installer.
     if: >-
       (github.repository == 'panditfloki/matra' || github.event_name == 'workflow_dispatch') &&
-      (github.event_name != 'release' || !contains(github.event.release.tag_name, '-macos-')) &&
-      (github.event_name != 'workflow_dispatch' || !contains(inputs.release_tag, '-macos-'))
+      (github.event_name != 'release' || !contains(github.event.release.tag_name, '-macos')) &&
+      (github.event_name != 'workflow_dispatch' || !contains(inputs.release_tag, '-macos'))
     permissions:
       contents: write
     runs-on: windows-latest
+    timeout-minutes: 45
     defaults:
       run:
         shell: pwsh
@@ -41,40 +41,70 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
+          cache-on-failure: true
+      - name: Test UI scripts and preference contracts
+        run: |
+          $scripts = @('scripts/check-ui-scripts.mjs', 'scripts/test-claude-auth-ui.cjs', 'scripts/test-ko-i18n.cjs', 'scripts/test-matra-copy.cjs', 'scripts/test-matra-interactions.cjs', 'scripts/test-matra-appearance.cjs', 'scripts/test-matra-quota.cjs', 'test-codex-headline.cjs', 'test-codex-details.cjs', 'scripts/test-installer-contract.cjs')
+          foreach ($script in $scripts) {
+            node $script
+            if ($LASTEXITCODE -ne 0) { throw "UI regression failed: $script" }
+          }
+      - name: Test native Windows code
+        run: cargo test --release --locked
       - name: Build the hook
         env:
           RUSTFLAGS: -C target-feature=+crt-static
-        run: cargo build --release --locked -p codenotch-hook --target-dir target/hook
+        run: cargo build --release --locked -p matra-hook --target-dir target/hook
       - name: Build the installer
-        working-directory: native/codenotch
+        working-directory: native/matra
         run: npx --yes @tauri-apps/cli@2.11.4 build --config tauri.bundle.conf.json -- --locked
       - name: Give the installer a stable name
         run: |
+          node scripts/test-installer-contract.cjs target/release/nsis/x64/installer.nsi
+          if ($LASTEXITCODE -ne 0) { throw 'Generated installer contract failed.' }
           $setup = @(Get-ChildItem target/release/bundle/nsis/*-setup.exe)
           if ($setup.Count -ne 1) { throw "Expected one installer, found $($setup.Count)." }
           Copy-Item $setup[0].FullName Matra-Setup.exe
-      - name: Install, run doctor, uninstall
+      - name: Download verified public upgrade baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          Start-Process -FilePath .\Matra-Setup.exe -ArgumentList '/S' -Wait
-          $hook = Get-ChildItem $env:LOCALAPPDATA -Filter matra-hook.exe -Recurse -Depth 5 -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $hook) { throw 'The installer did not install matra-hook.exe.' }
-          $dir = $hook.DirectoryName
-          foreach ($file in 'matra.exe', 'uninstall.exe') {
-            if (-not (Test-Path (Join-Path $dir $file))) { throw "$file is missing from $dir." }
+          # Retry transport failures only; checksum validation below is mandatory.
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            gh release download v1.8.5 --repo panditfloki/matra --pattern Matra-Setup.exe --pattern SHA256SUMS.txt --dir target/baseline --clobber
+            if ($LASTEXITCODE -eq 0) { break }
+            if ($attempt -lt 3) { Start-Sleep -Seconds (2 * $attempt) }
           }
-          Start-Process -FilePath (Join-Path $dir 'matra.exe') -ArgumentList 'doctor' -RedirectStandardOutput doctor.txt -Wait
-          $doctor = "$(Get-Content doctor.txt -Raw -ErrorAction SilentlyContinue)$(Get-Content (Join-Path $env:APPDATA 'matra-notch\doctor.log') -Raw -ErrorAction SilentlyContinue)"
-          if ($doctor -notmatch 'Matra doctor') { throw "matra.exe doctor did not run: $doctor" }
-          Start-Process -FilePath (Join-Path $dir 'uninstall.exe') -ArgumentList '/S' -Wait
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the public upgrade baseline.' }
+          $expected = ((Get-Content target/baseline/SHA256SUMS.txt | Where-Object { $_ -match 'Matra-Setup.exe$' }) -split '\s+')[0]
+          if ($expected -notmatch '^[0-9a-fA-F]{64}$') { throw 'Invalid baseline checksum file.' }
+          if ((Get-FileHash target/baseline/Matra-Setup.exe -Algorithm SHA256).Hash -ne $expected) { throw 'Baseline checksum mismatch.' }
+      - name: Fresh install, real WebView2, upgrade and uninstall
+        run: ../scripts/test-windows-installer.ps1 -Installer (Resolve-Path Matra-Setup.exe) -PreviousInstaller (Resolve-Path target/baseline/Matra-Setup.exe)
+      - name: Checksum the tested installer
+        run: |
+          $hash = (Get-FileHash Matra-Setup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Matra-Setup.exe" | Set-Content SHA256SUMS.txt -Encoding utf8NoBOM
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Matra-Windows-evidence-${{ github.sha }}
+          # Only the exact fixture screenshot glob below, never other hidden data.
+          include-hidden-files: true
+          path: |
+            .desktop-test/windows-185-*.png
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v7
         with:
           name: Matra-Setup-${{ github.sha }}
-          path: native/Matra-Setup.exe
+          path: |
+            native/Matra-Setup.exe
+            native/SHA256SUMS.txt
           if-no-files-found: error
       - name: Attach installer to release
         if: >-
-          (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v')) ||
-          (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
+          (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v') && !contains(github.event.release.tag_name, '-macos')) ||
+          (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v') && !contains(inputs.release_tag, '-macos'))
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
@@ -86,6 +116,6 @@ jobs:
           if ($release.assets.name -contains 'Matra-Setup.exe') {
             Write-Output 'Installer already attached; preserving the published binary.'
           } else {
-            gh release upload $env:TAG Matra-Setup.exe
+            gh release upload $env:TAG Matra-Setup.exe SHA256SUMS.txt
             if ($LASTEXITCODE -ne 0) { throw 'Installer upload failed.' }
           }

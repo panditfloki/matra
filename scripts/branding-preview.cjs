@@ -12,7 +12,7 @@ app.whenReady().then(async () => {
       contextIsolation: false, nodeIntegration: false, sandbox: false } });
   win.webContents.session.webRequest.onBeforeRequest((details, done) =>
     done({ cancel: /^https?:/.test(details.url) }));
-  await win.loadFile(path.join(root, 'native/codenotch/ui/settings.html'));
+  await win.loadFile(path.join(root, 'native/matra/ui/settings.html'));
   for (const [tab, theme] of [['appearance', 'dark'], ['appearance', 'light'], ['accounts', 'dark'], ['general', 'dark']]) {
     await win.webContents.executeJavaScript(`showTab(${JSON.stringify(tab)}); document.querySelector('[data-theme="${theme}"]').click();`);
     await new Promise(resolve => setTimeout(resolve, 250));

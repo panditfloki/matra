@@ -12,7 +12,7 @@ app.whenReady().then(async()=>{
   win.webContents.on('console-message',(_event,level,message)=>{if(level===3)errors.push(message);});
   win.webContents.session.webRequest.onBeforeRequest((d,done)=>done({cancel:/^https?:/.test(d.url)}));
   const js=code=>win.webContents.executeJavaScript(code);
-  await win.loadFile(path.join(root,'native/codenotch/ui/settings.html'));await sleep(400);
+  await win.loadFile(path.join(root,'native/matra/ui/settings.html'));await sleep(400);
   await js("showTab('appearance')");
   assert.equal(await js("document.querySelector('#sw-notch-motion').getAttribute('aria-checked')"),'true');
   await js("document.querySelector('#sw-notch-motion').click()");await sleep(30);
@@ -68,7 +68,7 @@ app.whenReady().then(async()=>{
   await js("window.__test.emit('update_state',{phase:'updated',message:'Updated to v1.8.2. Installation complete.'})");
   await sleep(200);fs.writeFileSync(path.join(out,'update-complete.png'),(await win.webContents.capturePage()).toPNG());
   await win.setContentSize(340,460);
-  await win.loadFile(path.join(root,'native/codenotch/ui/notch.html'));await sleep(400);
+  await win.loadFile(path.join(root,'native/matra/ui/notch.html'));await sleep(400);
   await js(`window.__test.emit('extra_usage',Object.fromEntries(['copilot','opencode','commandcode','kimi'].map(id=>[id,{status:'ok',fetched_at:Date.now(),windows:[{id:id==='copilot'?'premium_interactions':id==='commandcode'?'monthly':'rolling',used:.2},{id:'weekly',used:.8}]}])))`);
   assert.equal(await js("providers().filter(p=>EXTRA_NAMES[p.id]).length"),4);
   assert.equal(await js("headlineOf(extraSnaps.kimi,'kimi').used"),.2);

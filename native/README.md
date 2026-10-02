@@ -1,6 +1,6 @@
 # Mātrā for Windows
 
-A DYDX FX adaptation of [CodeNotch](https://github.com/vinzdg/codenotch) — the usage notch that
+A DYDX FX adaptation of [Matra](https://github.com/panditfloki/matra) — the usage notch that
 sits on the edge of your screen and answers two questions at a glance:
 **how much of my AI allowance is left**, and **is Claude still working**.
 
@@ -23,7 +23,26 @@ Providers that are not installed simply do not get a cell.
 
 ### Codex quota recovery
 
-The direct usage endpoint remains the first choice. If it fails, Codenotch can
+The existing Windows Codex hover card now also reads account profile statistics
+and reset credits from the same fixed account endpoint contracts used by the Mac
+app. Below the quota rows it shows unused resets/expiry, lifetime and peak daily
+tokens, longest chat, current/longest streak, Today, and a 30-day token chart.
+The chart has daily hover values. Missing days remain unreported; partial totals
+are labeled reported and unavailable data is not displayed as zero.
+
+These optional reads use the existing read-only Codex sign-in and normal OS TLS.
+They neither refresh nor write credentials. A failed optional read preserves the
+successful quota and only retains prior details for the same account. HTTP 429
+stops remaining requests and preserves the existing persisted retry deadline.
+These account endpoints are not a public API compatibility guarantee.
+
+The Codex card has additional width within the existing native viewport; other
+provider cards keep their prior size. Long activity titles are bounded and shown
+beside a separate status, so pasted prompts cannot fill the card or wrap Working
+vertically. All details remain inside the hover card, with scrolling on short
+viewports. This is a patch to `native/matra`, not an independent replacement app.
+
+The direct usage endpoint remains the first choice. If it fails, Matra can
 ask an installed **native** `codex.exe` via the documented
 [`account/rateLimits/read`](https://learn.chatgpt.com/docs/app-server#6-rate-limits-chatgpt)
 app-server method before falling back to a rollout snapshot. The desktop's
@@ -46,16 +65,33 @@ utilization, not an exact token count or a model-specific allowance.
 
 Why launch a process at all? A borrowed stored-token HTTP read can fail while
 the installed Codex client can still authenticate. The native client owns its
-managed OAuth lifecycle and can recover live quotas without Codenotch copying
+managed OAuth lifecycle and can recover live quotas without Matra copying
 its refresh logic. This is not guaranteed for externally managed credentials
 that require a host app: if it cannot read the quota, the usual stale/missing
 rollout status remains. Unlike the old unconditional wrapper-based path, this
 recovery runs only after HTTP failure, directly owns a native executable, and
-does not use `taskkill` or launch a Node/cmd tree. Codenotch sends no login or
+does not use `taskkill` or launch a Node/cmd tree. Matra sends no login or
 explicit token-refresh request; Codex may perform its own normal managed refresh.
 
 Regression checks: `cargo test --locked` and `node --test test-codex-headline.cjs`
 from `windows/`. Tests use synthetic quota fixtures, not account credentials.
+For the detail card, also run `node test-codex-details.cjs` from this directory.
+The 2026-09-30 local patch passed 181 Rust tests (5 live tests intentionally
+ignored), 14 detail/data/layout checks and the existing headline regressions.
+The existing installed WebView2 app returned real quota, profile statistics,
+credits and history; its rendered card and exact daily readout were inspected.
+Settings, Claude hooks and the installed helper were hash-verified unchanged.
+
+The local update exposed a pre-existing shutdown problem: the application records
+the cooperative close request but does not exit within the helper's 15-second
+deadline. The old and patched app both reproduced it. The local update used a
+guarded stop of the exact owned app process after that timeout, with a verified
+executable backup. Installer helper behavior was not relaxed. The patched app
+was restarted normally and the temporary loopback inspection listener removed.
+This check does not establish installer/lifecycle acceptance or physical-pointer
+hover acceptance; the OS cursor did not move in that attempt. No installer or
+release artifact is supplied by this patch.
+
 The optional `cargo test --release --locked codex::tests::live_native_quota -- --ignored`
 checks the actual native transport against an already signed-in local client;
 it prints no account credentials or quota values and is not run by CI.
@@ -66,12 +102,12 @@ When Claude is signed out, its card offers **Sign in**, which opens the standalo
 Claude Code CLI's browser login (`claude auth login --claudeai`). It is offered on
 the default `~/.claude` account only, since that is the one the CLI signs in.
 Finish in the browser; if it
-displays a code, paste it in the opened terminal, not in Codenotch. The card
+displays a code, paste it in the opened terminal, not in Matra. The card
 refreshes after the CLI exits without restarting the widget. The native CLI must
 already be installed; missing CLI, cancellation and launch errors are shown.
 
 This explicit action shares a busy guard with automatic token renewal. Only the
-CLI handles OAuth and writes credentials; Codenotch does not receive login codes
+CLI handles OAuth and writes credentials; Matra does not receive login codes
 or expose tokens through UI IPC. The interactive child has a 15-minute timeout.
 To read Claude again, click its ring or choose **Refresh now** from the notch's
 right-click menu. HTTP 403 is reported as an access/network refusal rather than claiming
@@ -79,15 +115,15 @@ that a still-valid login has expired. Existing automatic renewal is unchanged.
 
 ### Antigravity
 
-- **Official CLI (Preferred)**: When the official Antigravity CLI (`agy.exe`) is installed (`%LOCALAPPDATA%\agy\bin\agy.exe` or on `PATH`) and signed in, Codenotch reads official quotas directly without keeping the full IDE running.
+- **Official CLI (Preferred)**: When the official Antigravity CLI (`agy.exe`) is installed (`%LOCALAPPDATA%\agy\bin\agy.exe` or on `PATH`) and signed in, Matra reads official quotas directly without keeping the full IDE running.
 - **Execution**: Runs the official CLI in a hidden Windows pseudo-console, with a 70-second timeout and cleanup of its process tree. It does not need PowerShell scripts or a separate service.
 - **Refresh**: Checks at startup and on hover/explicit request when readings are at least five minutes old; failed attempts are also limited to once per five minutes. It keeps previous readings on failure, without switching to legacy APIs. The CLI is not launched periodically while idle.
-- **Fallback**: When the official CLI is not installed, Codenotch preserves the legacy local bridge (`language_server`), Credential Manager, and transcript model turn counting to maintain compatibility with existing installations.
+- **Fallback**: When the official CLI is not installed, Matra preserves the legacy local bridge (`language_server`), Credential Manager, and transcript model turn counting to maintain compatibility with existing installations.
 - **Official CLI Reference**: Standalone `/usage` printing is described in the [official Antigravity CLI documentation](https://www.antigravity.google/docs/cli/headless). Note: no categorical Terms of Service guarantee is made.
 
-Restart Codenotch after installing or removing `agy`: the source is selected at startup.
+Restart Matra after installing or removing `agy`: the source is selected at startup.
 The CLI's text report is parsed defensively; an unsupported format or failed sign-in
-shows an error or the last reading marked stale. Codenotch does not automate sign-in.
+shows an error or the last reading marked stale. Matra does not automate sign-in.
 
 ## Install / build
 
@@ -116,14 +152,14 @@ To build the installer the way the Windows Package workflow does:
 
 ```powershell
 # the hook gets its own target dir, so the bundler never copies it onto itself
-cargo build --release --locked -p codenotch-hook --target-dir target/hook
-cd codenotch
+cargo build --release --locked -p matra-hook --target-dir target/hook
+cd matra
 npx @tauri-apps/cli@2 build --config tauri.bundle.conf.json
 # → ..\target\release\bundle\nsis\dy-dx.f(Mātrā)_<version>_x64-setup.exe
 ```
 
 Tray menu: the readings themselves — a line per provider with its headline figure, and under it
-one line per limit window — then **Refresh all**, **Settings…** and **Quit Codenotch**. Clicking a
+one line per limit window — then **Refresh all**, **Settings…** and **Quit Matra**. Clicking a
 provider's line re-reads that provider. Everything else is in the settings window: which rings the
 notch shows, its size, the weekly ring, which screen edge it sits on and which screen,
 start with Windows, the language, Claude Code hooks, reset
@@ -131,7 +167,7 @@ position, and the data folder (`%APPDATA%\matra-notch` — logs, persisted readi
 
 Notch: clicking a ring re-reads that provider, as on the Mac. Right-clicking the notch or its card
 offers **Refresh now**, the provider's usage page (**Open claude.ai**, **Open chatgpt.com**, …) and
-**Quit Codenotch**. Neither click, nor the tray, asks Claude again while its rate-limit wait runs.
+**Quit Matra**. Neither click, nor the tray, asks Claude again while its rate-limit wait runs.
 
 ### Where the notch sits
 
@@ -152,7 +188,7 @@ attached falls back to the primary one, so unplugging a screen cannot strand the
 ### Icons
 
 Provider marks are the SVGs from [`@lobehub/icons-static-svg`](https://github.com/lobehub/lobe-icons)
-(MIT), embedded unmodified — see `codenotch/glyphs/NOTICE.md`. Drop your own
+(MIT), embedded unmodified — see `matra/glyphs/NOTICE.md`. Drop your own
 `claude|codex|cursor|gemini.svg` (or `.png`) into `%APPDATA%\matra-notch\glyphs\` to override.
 The marks remain the trademarks of their owners.
 
@@ -162,9 +198,9 @@ Three surfaces draw their own text, so each keeps its own table:
 
 | Surface | Table | Languages today |
 |---|---|---|
-| Tray menu | `codenotch/src/i18n.rs` (`tr`), `codenotch/src/traymenu.rs` (`label`) | en · ru · zh · ja · ko · uk |
-| Hover card | `codenotch/ui/notch.html` (`TEXT`, `PATTERNS`, `UI`) | en · ru · zh |
-| Settings window | `codenotch/ui/settings.html` (`STATIC_TEXT`, `STATUS_TEXT`) | en · ru · zh · ja · ko |
+| Tray menu | `matra/src/i18n.rs` (`tr`), `matra/src/traymenu.rs` (`label`) | en · ru · zh · ja · ko · uk |
+| Hover card | `matra/ui/notch.html` (`TEXT`, `PATTERNS`, `UI`) | en · ru · zh |
+| Settings window | `matra/ui/settings.html` (`STATIC_TEXT`, `STATUS_TEXT`) | en · ru · zh · ja · ko |
 
 Help is welcome on the gaps, which fall back to English rather than breaking anything:
 
@@ -184,21 +220,13 @@ fails if the menu and the card stop naming the same window.
 
 ```
 .
-├── codenotch/          the Windows app (pill, hover card, settings, providers)
-└── codenotch-hook/     tiny helper Claude Code calls to report session events
+├── matra/          the Windows app (pill, hover card, settings, providers)
+└── matra-hook/     tiny helper Claude Code calls to report session events
 ```
 
 A pull request that touches this tree is built and tested; the check is skipped
 inside forks until the pull request is opened here.
 
-## Relationship to upstream
-
-Mātrā follows the upstream design and provider semantics. Its Windows foundation comes from
-[CodeNotch](https://github.com/vinzdg/codenotch), including the Windows work developed by
-[Im-Midi/codenotch-windows](https://github.com/Im-Midi/codenotch-windows). The exact imported
-revision and Mātrā-specific changes are documented in `UPSTREAM.md`. Session detection originated
-in [Im-Midi/Pac-Man](https://github.com/Im-Midi/Pac-Man) (MIT).
-
 ## License
 
-MIT — see `LICENSE`. CodeNotch attribution and third-party notices are retained.
+MIT. See `LICENSE`. Provider marks and other independent dependencies retain their notices.

@@ -47,7 +47,7 @@ if (Test-Path -LiteralPath $target) {
 Move-Item -LiteralPath $stage -Destination $target -Force
 Copy-Item -LiteralPath (Join-Path $repo 'LICENSE') -Destination (Join-Path $dest 'LICENSE.txt') -Force
 Copy-Item -LiteralPath (Join-Path $repo 'native\LICENSE') -Destination (Join-Path $dest 'THIRD-PARTY-NOTICES.txt') -Force
-Copy-Item -LiteralPath (Join-Path $repo 'native\codenotch\glyphs\NOTICE.md') -Destination (Join-Path $dest 'PROVIDER-NOTICES.txt') -Force
+Copy-Item -LiteralPath (Join-Path $repo 'native\matra\glyphs\NOTICE.md') -Destination (Join-Path $dest 'PROVIDER-NOTICES.txt') -Force
 $utf8 = New-Object Text.UTF8Encoding($false)
 [IO.File]::WriteAllText((Join-Path $dest 'SHA256SUMS.txt'), "$hash  Matra-Setup.exe`r`n", $utf8)
 $manifest = @{product='Matra';version=$Version;sha256=$hash;status=$Status;prepared_at=(Get-Date).ToUniversalTime().ToString('o')} | ConvertTo-Json
