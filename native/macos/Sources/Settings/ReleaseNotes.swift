@@ -20,14 +20,13 @@ enum ReleaseNotes {
     static var all: [ReleaseNote] {
         [ReleaseNote(
             version: "1.8.5",
-            headline: "Mātrā, shaped for your workspace.",
+            headline: "The menu bar, with the detail beside it.",
             changes: [
-                .init(title: "Three signature surfaces", detail: "Choose Liquid Glass, Dark Glass or Solid Dark. Light and System remain available. Glass ring centres share the surrounding material."),
-                .init(title: "Your accent, clear status colours", detail: "App controls follow your accent. Usage stays green below Watch, amber at Watch, orange at Critical and red from 90%."),
-                .init(title: "Your sources, live", detail: "Normal launch reads your enabled providers. Unknown readings stay neutral, with independent current and weekly limits."),
-                .init(title: "Settings in Mātrā's own words", detail: "AI sources, Display, Alerts and App & data explain each choice directly."),
-                .init(title: "Updates with your choice", detail: "Enable automatic installation for verified Mac releases, or choose when to install each update. Your preferences stay in place."),
-                .init(title: "One product identity", detail: "Mātrā branding, DYDXFX links and product licence information are consistent throughout the app.")
+                .init(title: "Menu bar tabs", detail: "Overview plus a tab for each enabled provider, switched from the reading already on screen."),
+                .init(title: "Detail beside the popover", detail: "Hover or pin a provider to open its detail in a panel next to the popover. The popover keeps its width."),
+                .init(title: "Brand colours", detail: "Off by default; colours provider marks in the menu bar, notch and app; quota colours keep their meaning. Quota colour turns red at 90% used."),
+                .init(title: "Local usage and spend", detail: "Claude and Codex: local token counts and USD API-price estimates, read from an installed ccusage. Not your subscription bill. Normal launch reads your enabled providers. Unknown readings stay neutral."),
+                .init(title: "Updates during the beta", detail: "Updates are installed manually from GitHub during the beta. A signed feed for automatic installation is not published. Your preferences stay in place.")
             ])]
     }
 

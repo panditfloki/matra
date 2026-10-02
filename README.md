@@ -9,7 +9,7 @@ Your AI limits, at the edge of your screen.</p>
 
 <p align="center">
   <a href="https://github.com/panditfloki/matra/releases/download/v1.8.6/Matra-Setup.exe">Windows · v1.8.6</a> ·
-  <a href="https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1">macOS · v1.8.5 Beta 1</a> ·
+  <a href="https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.2">macOS · v1.8.5 Beta 2</a> ·
   <a href="#a-closer-look">Screenshots</a> ·
   <a href="#availability">Release status</a> ·
   <a href="https://dydxfx.com">DYDXFX</a>
@@ -70,14 +70,14 @@ pressure. Values and availability depend on each provider and account.
 | Platform | Download | Development |
 |---|---|---|
 | **Windows** | [v1.8.6 stable installer](https://github.com/panditfloki/matra/releases/tag/v1.8.6) | Codex statistics, reset credits and 30-day history; five appearance choices |
-| **macOS** | [v1.8.5 Beta 1 for Apple Silicon](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1) | [Mac source on the beta branch](https://github.com/panditfloki/matra/tree/beta/native/macos) |
+| **macOS** | [v1.8.5 Beta 2 for Apple Silicon](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.2) | [Mac source on main](https://github.com/panditfloki/matra/tree/main/native/macos) |
 
-Release status checked on **2 October 2026**. Windows stable and macOS beta
+Release status checked on **3 October 2026**. Windows stable and macOS beta
 have separate downloads and release channels.
 
 ### Install on macOS
 
-1. Open the [Mac beta release](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1).
+1. Open the [Mac beta release](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.2).
 2. Download the **macOS arm64 DMG** and **SHA256SUMS.txt**.
 3. Quit Mātrā, open the DMG and drag **Matra.app** into **Applications**.
 4. Eject the DMG and launch Mātrā from Applications.
@@ -178,7 +178,7 @@ npm run native:bundle
 See [native build notes](native/README.md) and the
 [Windows workflow](.github/workflows/windows.yml).
 The Mac beta uses Swift/AppKit. Build instructions, pinned dependencies and source
-are available in [the Mac beta source](https://github.com/panditfloki/matra/tree/beta/native/macos).
+are available in [the Mac source on main](https://github.com/panditfloki/matra/tree/main/native/macos).
 
 ### Existing IDE and localhost users
 
@@ -191,9 +191,9 @@ and architecture are documented in the [legacy guide](docs/LEGACY-DASHBOARD.md).
 | Platform | Latest downloadable version | Channel | Package |
 |---|---|---|---|
 | **Windows** | **1.8.6** | Stable · Windows x64 | [Matra-Setup.exe](https://github.com/panditfloki/matra/releases/download/v1.8.6/Matra-Setup.exe) |
-| **macOS** | **1.8.5 Beta 1** | Beta · Apple Silicon · macOS 15+ | [Mac beta installer and checksum](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1) |
+| **macOS** | **1.8.5 Beta 2** | Beta · Apple Silicon · macOS 15+ | [Mac beta installer and checksum](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.2) |
 
-Updated **2 October 2026**. Windows stable is version 1.8.6. App settings on Mac report version 1.8.5, build 185.
+Updated **3 October 2026**. Windows stable is version 1.8.6. App settings on Mac report version 1.8.5, build 186.
 
 ---
 

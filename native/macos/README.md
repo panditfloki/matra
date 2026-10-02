@@ -1,12 +1,11 @@
 # Mātrā for macOS
 
-Native Swift/AppKit app. Version **1.8.5**, build **185**, published as
-**v1.8.5-macos-beta.1** on the repository's `beta` branch.
+Native Swift/AppKit app. Version **1.8.5**, build **186**, published as
+**v1.8.5-macos-beta.2**. Source is on `main` under `native/macos`.
 
-[Download the Mac beta](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.1).
+[Download the Mac beta](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.2).
 This is the Apple Silicon developer build tested locally. It uses ad-hoc signing;
-Developer ID signing and Apple notarization are pending. Read [INSTALL-MAC.md](INSTALL-MAC.md)
-and the [release notes](../../docs/RELEASE-v1.8.5-macos-beta.1.md).
+Developer ID signing and Apple notarization are pending. Read [INSTALL-MAC.md](INSTALL-MAC.md).
 
 ## Build
 

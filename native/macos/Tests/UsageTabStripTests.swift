@@ -9,7 +9,7 @@ import XCTest
 final class UsageTabStripTests: XCTestCase {
     private let ownerTabs: [UsageTabStrip.Item] = [
         .init(id: nil, name: "Overview", glyph: nil),
-        .init(id: "claude", name: "Claude Tutamail", glyph: .claude),
+        .init(id: "claude", name: "Claude", glyph: .claude),
         .init(id: "codex", name: "Codex", glyph: .openai),
         .init(id: "cursor", name: "Cursor", glyph: .cursor),
         .init(id: "antigravity", name: "Antigravity", glyph: .antigravity),
