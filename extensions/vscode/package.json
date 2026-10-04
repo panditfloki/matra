@@ -1,0 +1,189 @@
+{
+  "name": "matra",
+  "displayName": "Mātrā: AI Usage",
+  "description": "Independent Claude Code, Codex, Cursor and Antigravity usage monitor with reset dates and countdowns.",
+  "version": "0.1.0",
+  "publisher": "dydxfx",
+  "author": {
+    "name": "Pandit Floki",
+    "email": "pandit@dydxfx.com",
+    "url": "https://dydxfx.com"
+  },
+  "license": "MIT",
+  "homepage": "https://dydxfx.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/panditfloki/matra.git",
+    "directory": "extensions/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/panditfloki/matra/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "codex",
+    "cursor",
+    "antigravity",
+    "usage",
+    "quota",
+    "reset"
+  ],
+  "main": "./src/extension.js",
+  "extensionKind": [
+    "ui"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Mātrā reads local provider account and usage files. Trust this window to enable it."
+    },
+    "virtualWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "matra.open",
+        "title": "Mātrā: Open Dashboard",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "matra.refresh",
+        "title": "Mātrā: Refresh Usage",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "matra.resetMode",
+        "title": "Mātrā: Choose Reset Display"
+      },
+      {
+        "command": "matra.providers",
+        "title": "Mātrā: Choose Providers"
+      },
+      {
+        "command": "matra.settings",
+        "title": "Mātrā: Open Settings",
+        "icon": "$(gear)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "matra",
+          "title": "Mātrā",
+          "icon": "media/matra.svg"
+        }
+      ]
+    },
+    "views": {
+      "matra": [
+        {
+          "id": "matra.usage",
+          "name": "Usage",
+          "type": "webview"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "matra.refresh",
+          "when": "view == matra.usage",
+          "group": "navigation@1"
+        },
+        {
+          "command": "matra.open",
+          "when": "view == matra.usage",
+          "group": "navigation@2"
+        },
+        {
+          "command": "matra.settings",
+          "when": "view == matra.usage",
+          "group": "navigation@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Mātrā",
+      "properties": {
+        "matra.resetDisplay": {
+          "type": "string",
+          "enum": [
+            "date",
+            "remaining"
+          ],
+          "enumDescriptions": [
+            "Actual reset date and local time",
+            "Days, hours and minutes remaining"
+          ],
+          "default": "remaining",
+          "scope": "application",
+          "description": "How reset times appear in the sidebar, dashboard and tooltip."
+        },
+        "matra.providers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "codex",
+              "cursor",
+              "antigravity"
+            ]
+          },
+          "uniqueItems": true,
+          "default": [
+            "claude",
+            "codex",
+            "cursor",
+            "antigravity"
+          ],
+          "scope": "application",
+          "description": "Providers to read and show. Disabled providers are not polled."
+        },
+        "matra.refreshInterval": {
+          "type": "number",
+          "default": 60,
+          "minimum": 60,
+          "maximum": 900,
+          "scope": "application",
+          "description": "Seconds between background reads. Provider API cooldowns still apply."
+        },
+        "matra.statusBar": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "Show provider usage in the status bar."
+        },
+        "matra.paths.claude": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "description": "Optional absolute Claude Code data directory. Empty uses the provider default."
+        },
+        "matra.paths.codex": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "description": "Optional absolute Codex data directory. Empty uses the provider default."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "node scripts/check.js",
+    "package": "vsce package --no-dependencies"
+  },
+  "icon": "media/icon.png"
+}
