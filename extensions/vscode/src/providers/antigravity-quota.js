@@ -79,6 +79,7 @@ function parseQuota(body) {
 function parseStatus(body) {
   const status = body?.userStatus;
   if (!status || typeof status !== 'object' || Array.isArray(status)) return null;
+  if (status.isSignedIn === false) return null;
   const email = typeof status.email === 'string' && /^[^\s@]+@[^\s@]+$/.test(status.email.trim())
     ? status.email.trim() : null;
   const tier = status.userTier;
