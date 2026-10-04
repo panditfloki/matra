@@ -72,7 +72,7 @@ async function exists(file) {
 }
 
 function accountKey(value) {
-  return crypto.createHash('sha256').update(String(value).trim().toLowerCase()).digest('hex');
+  return crypto.createHash('sha256').update(String(value).trim()).digest('hex');
 }
 
 function maskIdentity(value) {

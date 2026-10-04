@@ -102,7 +102,7 @@ function parseStatus(body) {
         usedPercent: percent, resetsAt: epoch(model.quotaInfo.resetTime) });
     }
   }
-  return { key: email ? accountKey(email) : null, account: { label: maskIdentity(email), plan }, windows };
+  return { key: email ? accountKey(email.toLowerCase()) : null, account: { label: maskIdentity(email), plan }, windows };
 }
 
 function headline(windows) {

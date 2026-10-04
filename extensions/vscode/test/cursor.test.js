@@ -85,6 +85,8 @@ test('cookie requires accountID::token, with JWT sub fallback and masked email',
   assert.throws(() => credentials('bad\r\nHeader', 'user_fixture', null, null, 'Cursor', NOW));
   assert.throws(() => credentials(jwt('user_fixture', NOW / 1000), null, null, null, 'Cursor', NOW),
     { code: 'expired-auth' });
+  assert.notEqual(credentials(jwt('AccountA'), 'AccountA', null, null, 'Cursor', NOW).key,
+    credentials(jwt('accounta'), 'accounta', null, null, 'Cursor', NOW).key);
 });
 
 test('provider queries only fixed Cursor endpoint, preserves source plan and redacts all credentials', async t => {

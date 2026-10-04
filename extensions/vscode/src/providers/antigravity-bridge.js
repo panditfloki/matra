@@ -39,7 +39,10 @@ function executable(command) {
   // ps does not quote app paths containing spaces. Stop at the language-server
   // executable suffix rather than mistaking a later argument for the executable.
   const server = /^(.+?[\\/]language[_-]server(?:[_-][a-z0-9]+)*(?:\.exe)?)(?=\s|$)/i.exec(text);
-  return server?.[1] || text.split(/\s+/)[0];
+  // A later argument can itself name a branded server. Whitespace followed by
+  // another absolute path marks an argument, not a space inside an app directory.
+  if (server?.[1] && !/\s+(?:[\/\\]|[a-z]:[\/\\])/i.test(server[1])) return server[1];
+  return text.split(/\s+/)[0];
 }
 
 function processInfo(pid, command, executablePath) {

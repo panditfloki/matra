@@ -143,6 +143,8 @@ test('process discovery rejects generic language servers, decoy arguments and ma
   assert.equal(parseProcesses(`42 ${COMMAND.replace(CSRF, 'bad;header')}`, 'darwin').length, 0);
   assert.equal(parseProcesses('42 /Applications/Antigravity.app/bin/language_server_macos_arm', 'darwin').length, 0);
   assert.equal(parseProcesses('42 node /something/agy --csrf_token fixture', 'darwin').length, 0);
+  assert.equal(parseProcesses(`42 node ${COMMAND}`, 'darwin').length, 0);
+  assert.equal(parseProcesses(`42 /usr/bin/node ${COMMAND}`, 'darwin').length, 0);
   assert.equal(parseProcesses('42 /opt/bin/agy --some-flag value', 'linux')[0].kind, 'cli');
 });
 
