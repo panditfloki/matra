@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { createProvider } = require('../extensions/vscode/src/providers/codex');
+const { createProvider } = require('../src/providers/codex');
 
 const NOW = new Date(2026, 9, 5, 12, 0).getTime();
 const OLD = NOW - 24 * 60 * 60_000;
