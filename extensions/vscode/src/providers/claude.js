@@ -5,6 +5,7 @@ const path = require('node:path');
 const childProcess = require('node:child_process');
 const { number, clean, opaque, epoch, absoluteRoot, maskedEmail, readJson, cacheFile, writeCache, clearCache } = require('./codex-files');
 const { localUsage } = require('./claude-local');
+const { boundedJson } = require('./claude-response');
 
 const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const TTL = 5 * 60_000;
@@ -93,7 +94,9 @@ async function credentials(root, home, platform, execFile) {
   // rotates before Claude Code has updated its account metadata.
   const key = opaque(`${root}\0${account?.accountUuid || ''}\0${account?.organizationUuid || ''}\0${account?.emailAddress || ''}\0${oauth.accessToken}`);
   return { kind: 'ok', token: oauth.accessToken, key, expiresAt: epoch(oauth.expiresAt),
-    boundaryHint: Math.max(raw.mtime || 0, meta.mtime || 0) || null,
+    // Keychain reads have no trustworthy item timestamp through this command.
+    // Account metadata alone cannot date an opaque token's account switch.
+    boundaryHint: raw.mtime ? Math.max(raw.mtime, meta.mtime || 0) : null,
     account: { label: maskedEmail(account?.emailAddress), plan: planLabel(oauth, account) } };
 }
 
@@ -165,9 +168,10 @@ function createProvider(options = {}) {
     } else if (force || !recent) {
       try {
         // This is the only request. Never exchange or refresh a provider token.
-        const response = await fetchUsage(USAGE_URL, { method: 'GET', headers: {
+        const signal = AbortSignal.timeout(TIMEOUT);
+        const response = await fetchUsage(USAGE_URL, { method: 'GET', redirect: 'error', headers: {
           authorization: `Bearer ${auth.token}`, 'anthropic-beta': 'oauth-2025-04-20', 'content-type': 'application/json',
-        }, signal: AbortSignal.timeout(TIMEOUT) });
+        }, signal });
         if (response.status === 401 || response.status === 403) {
           state.quota = null;
           state.nextTryAt = now + TTL;
@@ -185,7 +189,7 @@ function createProvider(options = {}) {
           status = state.quota ? 'stale' : 'error';
           message = 'Claude usage could not be fetched. Try again later.';
         } else {
-          const payload = await response.json();
+          const payload = await boundedJson(response, signal);
           if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('invalid response');
           const windows = usageWindows(payload);
           state.quota = { windows, updatedAt: now };

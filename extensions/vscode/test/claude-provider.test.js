@@ -6,6 +6,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { createProvider } = require('../src/providers/claude');
+const { boundedJson } = require('../src/providers/claude-response');
 
 const NOW = new Date(2026, 9, 5, 12, 0).getTime();
 const OLD = NOW - 24 * 60 * 60_000;
@@ -71,6 +72,7 @@ test('Claude supports scoped Fable, all-model, legacy and independent unknown bu
   const f = await fixture(t, { fetch: async (url, options) => {
     assert.equal(url, 'https://api.anthropic.com/api/oauth/usage');
     assert.equal(options.method, 'GET');
+    assert.equal(options.redirect, 'error');
     assert.equal(options.headers.authorization, `Bearer ${SECRET}`);
     return response(body);
   } });
@@ -303,4 +305,55 @@ test('Claude scan caps 500 recent files and 20 session summaries', async t => {
   assert.equal(record.usage.totalTokens, 500);
   assert.equal(record.sessions.length, 20);
   assert.match(record.usage.period, /partial/);
+});
+
+test('Claude rejects oversized injected JSON and keeps the previous observation stale', async t => {
+  let first = true;
+  const f = await fixture(t, { fetch: async () => {
+    if (first) { first = false; return response(defaultUsage()); }
+    return response({ limits: defaultUsage().limits, padding: 'x'.repeat(512 * 1024) });
+  } });
+  await f.auth();
+  const provider = f.provider();
+  await provider.read({ now: NOW });
+  const record = await provider.read({ now: NOW + 360_000 });
+  assert.equal(record.status, 'stale');
+  assert.equal(record.updatedAt, NOW);
+  assert.equal(record.windows[0].usedPercent, 12.5);
+});
+
+test('Claude streamed JSON is capped at 512KB and the body is cancelled on overflow', async () => {
+  let cancelled = false;
+  let reads = 0;
+  const reader = { read: async () => { reads++; return { done: false, value: new Uint8Array(300 * 1024) }; },
+    cancel: async () => { cancelled = true; }, releaseLock() {} };
+  await assert.rejects(boundedJson({ body: { getReader: () => reader }, headers: { get: () => null } }));
+  assert.equal(cancelled, true);
+  assert.equal(reads, 2);
+});
+
+test('Claude a declared oversized body is cancelled before reading bytes', async () => {
+  let cancelled = false;
+  const reader = { read: () => { throw new Error('must not read oversized body'); },
+    cancel: async () => { cancelled = true; }, releaseLock() {} };
+  await assert.rejects(boundedJson({ body: { getReader: () => reader }, headers: { get: () => String(512 * 1024 + 1) } }));
+  assert.equal(cancelled, true);
+});
+
+test('Claude body-read abort cancels the pending stream instead of hanging', async () => {
+  let cancelled = false;
+  const controller = new AbortController();
+  const reader = { read: () => new Promise(() => {}), cancel: async () => { cancelled = true; }, releaseLock() {} };
+  const reading = boundedJson({ body: { getReader: () => reader }, headers: { get: () => null } }, controller.signal);
+  controller.abort();
+  await assert.rejects(reading);
+  assert.equal(cancelled, true);
+});
+
+test('Claude normal streamed JSON works without a fixture-only json method', async () => {
+  const bytes = Buffer.from(JSON.stringify(defaultUsage()));
+  let index = 0;
+  const reader = { read: async () => index++ === 0 ? { done: false, value: bytes } : { done: true },
+    cancel: async () => {}, releaseLock() {} };
+  assert.deepEqual(await boundedJson({ body: { getReader: () => reader }, headers: { get: () => null } }), defaultUsage());
 });
