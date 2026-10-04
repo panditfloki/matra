@@ -46,7 +46,8 @@ function restoredQuota(value) {
     const label = clean(item?.label);
     return id && label && number(item.usedPercent) !== null ? [{ id, label, usedPercent: item.usedPercent, resetsAt: epoch(item.resetsAt) }] : [];
   });
-  return windows.length ? { windows, updatedAt: epoch(value.updatedAt), plan: planLabel(value.plan) } : null;
+  return windows.length ? { windows, updatedAt: epoch(value.updatedAt), latestAt: epoch(value.latestAt) ?? epoch(value.updatedAt),
+    plan: planLabel(value.plan) } : null;
 }
 
 function createProvider(options = {}) {
@@ -78,7 +79,7 @@ function createProvider(options = {}) {
       return { ...BASE, status: 'needs-auth', message: 'Sign in to Codex to read usage for the current account.', updatedAt: null, windows: [] };
     }
     if (state?.key !== auth.key) {
-      const cutoff = state !== null ? now : Math.min(now, auth.modifiedAt || now);
+      const cutoff = state !== null || minimumBoundary > 0 ? now : Math.min(now, auth.modifiedAt || now);
       await clearCache(file);
       // Unlabelled rollouts before the credential file was last written cannot
       // safely be attributed to the new login. The boundary persists across
@@ -96,7 +97,7 @@ function createProvider(options = {}) {
       return { ...BASE, status: 'needs-auth', message: 'Codex sign-in changed. Refresh to read the current account.', updatedAt: null, windows: [] };
     }
     let retained = false;
-    if (local.quota && (!state.quota || local.quota.updatedAt >= state.quota.updatedAt)) state.quota = local.quota;
+    if (local.quota && (!state.quota || local.quota.latestAt >= (state.quota.latestAt ?? state.quota.updatedAt))) state.quota = local.quota;
     else if (state.quota) retained = true;
     await writeCache(file, { version: 1, key: state.key, boundary: state.boundary, quota: state.quota });
     const quota = state.quota;
@@ -113,6 +114,8 @@ function createProvider(options = {}) {
     if (local.identityPartial) messages.push('Local totals are partial: earlier logs cannot be attributed to this sign-in.');
     if (local.partial) messages.push('Local totals and sessions are partial because metadata was unavailable or scan limits applied.');
     return { ...BASE, status, message: messages.join(' '), updatedAt: quota?.updatedAt ?? local.lastUsageAt,
+      headlineId: quota?.windows.find(window => window.id === 'session')?.id
+        || quota?.windows.find(window => window.id === 'weekly')?.id || quota?.windows[0]?.id || BASE.headlineId,
       account: { label: auth.account.label, plan: auth.account.plan || planLabel(quota?.plan) }, windows: quota?.windows || [],
       usage: local.usage, sessions: local.sessions };
   }

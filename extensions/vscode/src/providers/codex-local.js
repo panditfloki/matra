@@ -146,6 +146,7 @@ async function scanLocal(root, auth, boundary, now) {
     // One provider timestamp represents all displayed buckets. A fresh Spark
     // row must not make an older main quota appear freshly observed.
     quota: buckets.length ? { windows: buckets.flatMap(bucket => bucket.windows), updatedAt: buckets[buckets.length - 1].updatedAt,
+      latestAt: buckets[0].updatedAt,
       plan: buckets.find(bucket => bucket.plan)?.plan || null } : null,
     partial: budget.partial, identityPartial, lastUsageAt, readableRoots: found.readableRoots };
 }

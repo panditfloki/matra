@@ -240,6 +240,30 @@ test('Claude sign-out cutoff survives extension reload and credentials restored 
   assert.deepEqual(record.sessions, []);
 });
 
+test('Claude restored login excludes delayed old-account usage emitted during the signed-out gap', async t => {
+  const f = await fixture(t);
+  await f.auth();
+  const provider = f.provider();
+  await provider.read({ now: NOW });
+  await f.auth('', OLD);
+  await provider.read({ now: NOW + 1000 });
+  await f.transcript('delayed-old-account.jsonl', [assistant({ at: NOW + 1500 })]);
+  await f.auth('test-secret-account-b', OLD, 'account-b');
+  const record = await f.provider().read({ now: NOW + 3000 });
+  assert.equal(record.usage, null);
+  assert.deepEqual(record.sessions, []);
+});
+
+test('Claude main all-model bucket is the headline when the session bucket is missing', async t => {
+  const usage = defaultUsage();
+  usage.limits = [usage.limits[2], usage.limits[1]];
+  const f = await fixture(t, { fetch: async () => response(usage) });
+  await f.auth();
+  const record = await f.provider().read({ now: NOW });
+  assert.equal(record.headlineId, 'weekly_all');
+  assert.equal(record.windows.find(window => window.id === record.headlineId).usedPercent, 34);
+});
+
 test('Claude mid-request account change discards the response', async t => {
   let release;
   const f = await fixture(t, { fetch: async () => { await new Promise(resolve => { release = resolve; }); return response(defaultUsage()); } });

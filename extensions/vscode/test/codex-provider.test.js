@@ -181,6 +181,38 @@ test('Codex a fresh Spark bucket cannot make a two-hour-old main quota look curr
   assert.equal(record.windows.find(w => w.label.startsWith('GPT-Codex-Spark')).usedPercent, 20);
 });
 
+test('Codex fresh main observations replace cache even if an older Spark bucket appears', async t => {
+  const f = await fixture(t);
+  await f.auth();
+  const oldMain = NOW - 120_000;
+  const rows = [header('session-a', NOW - 3 * 3_600_000), event(oldMain, 150, limits(70))];
+  await f.rollout('main.jsonl', rows);
+  const provider = f.provider();
+  await provider.read({ now: NOW });
+  const spark = { limit_id: 'GPT-Codex-Spark', primary: { used_percent: 20, window_minutes: 300, resets_at: (NOW + 3_600_000) / 1000 } };
+  await f.rollout('spark.jsonl', [header('spark-session', NOW - 3 * 3_600_000), event(NOW - 2 * 3_600_000, 150, spark)]);
+  await f.rollout('main.jsonl', [...rows, event(NOW + 1000, 150, limits(80))]);
+  const record = await provider.read({ now: NOW + 2000 });
+  assert.equal(record.status, 'stale');
+  assert.equal(record.updatedAt, NOW - 2 * 3_600_000);
+  assert.equal(record.windows.find(window => window.id === 'session').usedPercent, 80);
+  assert.equal(record.windows.find(window => window.label.startsWith('GPT-Codex-Spark')).usedPercent, 20);
+  // The internal selection stamp also survives an extension restart.
+  const restarted = await f.provider().read({ now: NOW + 3000 });
+  assert.equal(restarted.windows.find(window => window.id === 'session').usedPercent, 80);
+});
+
+test('Codex main weekly bucket stays headline when Spark is newer and primary is missing', async t => {
+  const f = await fixture(t);
+  await f.auth();
+  const main = limits(); delete main.primary;
+  const spark = { limit_id: 'GPT-Codex-Spark', primary: { used_percent: 95, window_minutes: 300, resets_at: (NOW + 3_600_000) / 1000 } };
+  await f.rollout('buckets.jsonl', [header(), event(NOW - 120_000, 150, main), event(NOW - 60_000, 150, spark)]);
+  const record = await f.provider().read({ now: NOW });
+  assert.equal(record.headlineId, 'weekly');
+  assert.equal(record.windows.find(window => window.id === record.headlineId).usedPercent, 34.5);
+});
+
 test('Codex first connection excludes earlier unbound quota and local history', async t => {
   const f = await fixture(t);
   await f.auth('account-a', NOW - 30_000);
@@ -232,6 +264,21 @@ test('Codex sign-out cutoff survives reload before login with a restored older a
   const record = await f.provider().read({ now: NOW + 2000 });
   assert.deepEqual(record.windows, []);
   assert.equal(record.updatedAt, null);
+  assert.equal(record.usage, null);
+  assert.deepEqual(record.sessions, []);
+});
+
+test('Codex restored login excludes delayed old-account quota and usage from the signed-out gap', async t => {
+  const f = await fixture(t);
+  await f.auth();
+  const provider = f.provider();
+  await provider.read({ now: NOW });
+  await fs.unlink(path.join(f.root, 'auth.json'));
+  await provider.read({ now: NOW + 1000 });
+  await f.rollout('delayed-old-account.jsonl', [header('session-a', NOW), event(NOW + 1500)]);
+  await f.auth('account-b', OLD);
+  const record = await f.provider().read({ now: NOW + 3000 });
+  assert.deepEqual(record.windows, []);
   assert.equal(record.usage, null);
   assert.deepEqual(record.sessions, []);
 });

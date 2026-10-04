@@ -156,7 +156,7 @@ function createProvider(options = {}) {
         : 'Sign in to Claude Code to read account usage.', updatedAt: null, windows: [] };
     }
     if (state?.key !== auth.key) {
-      const cutoff = state !== null ? now : Math.min(now, auth.boundaryHint || now);
+      const cutoff = state !== null || minimumBoundary > 0 ? now : Math.min(now, auth.boundaryHint || now);
       state = { key: auth.key, boundary: Math.max(minimumBoundary, cutoff), quota: null, nextTryAt: 0, waitReason: '' };
       await clearCache(file);
     }
@@ -234,6 +234,8 @@ function createProvider(options = {}) {
     if (local.partial) message = `${message ? `${message} ` : ''}Local token totals and sessions are partial because some metadata was unavailable or scan limits applied.`;
     if (local.identityPartial) message = `${message ? `${message} ` : ''}Earlier local history cannot be attributed across sign-ins. Only records since this connection are included.`;
     return { ...BASE, status, message, account: auth.account, updatedAt: quota?.updatedAt ?? null,
+      headlineId: quota?.windows.find(window => window.id === 'session')?.id
+        || quota?.windows.find(window => window.id === 'weekly_all')?.id || quota?.windows[0]?.id || BASE.headlineId,
       windows: quota?.windows || [], usage: local.usage, sessions: local.sessions };
   }
 
