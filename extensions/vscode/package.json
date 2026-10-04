@@ -169,13 +169,15 @@
           "type": "string",
           "default": "",
           "scope": "application",
-          "description": "Optional absolute Claude Code data directory. Empty uses the provider default."
+          "description": "Optional absolute Claude Code data directory. Empty uses the provider default.",
+          "ignoreSync": true
         },
         "matra.paths.codex": {
           "type": "string",
           "default": "",
           "scope": "application",
-          "description": "Optional absolute Codex data directory. Empty uses the provider default."
+          "description": "Optional absolute Codex data directory. Empty uses the provider default.",
+          "ignoreSync": true
         }
       }
     }

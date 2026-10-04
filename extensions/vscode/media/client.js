@@ -7,8 +7,10 @@
   function draw() {
     const focused = document.activeElement;
     const focusKey = focused?.dataset?.action ? { action: focused.dataset.action, mode: focused.dataset.mode, provider: focused.dataset.provider } : null;
+    const focusedSummary = focused?.tagName === 'SUMMARY' ? focused.parentElement?.dataset?.provider : null;
     root.innerHTML = MatraView.render(snapshot, { mode, expanded, refreshing });
     if (focusKey) Array.from(root.querySelectorAll('button')).find(b => b.dataset.action === focusKey.action && b.dataset.mode === focusKey.mode && b.dataset.provider === focusKey.provider)?.focus();
+    if (focusedSummary) Array.from(root.querySelectorAll('details')).find(d => d.dataset.provider === focusedSummary)?.querySelector('summary')?.focus();
   }
   document.addEventListener('click', event => {
     const button = event.target.closest('button[data-action]');

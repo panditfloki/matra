@@ -12,6 +12,8 @@ Mātrā's desktop app and local web server are not required. The extension reads
 
 The extension uses the stable VS Code API, version 1.85 or newer, in the local desktop extension host. VS Code forks require their own installation checks. Browser-only editors are not supported. Remote SSH windows show the accounts on your local machine, not on the remote server.
 
+In Cursor 3, use an **Editor Window**. Its separate Agents Window does not load this editor extension. The Cursor CLI supports `--classic` to open the editor.
+
 ## What you can see
 
 - Separate provider usage windows, remaining percentages and actual observation age.
