@@ -12,7 +12,9 @@ const profile = fs.mkdtempSync(path.join(process.platform === 'darwin' ? '/tmp' 
 fs.mkdirSync(artifacts, { recursive: true });
 fs.mkdirSync(path.join(profile, 'User'), { recursive: true });
 fs.writeFileSync(path.join(profile, 'User', 'settings.json'), JSON.stringify({ 'matra.providers': [], 'security.workspace.trust.enabled': false, 'workbench.startupEditor': 'none', 'telemetry.telemetryLevel': 'off', 'update.mode': 'none', 'extensions.autoUpdate': false }));
-const env = { ...process.env, MATRA_HOST_REPORT: path.join(artifacts, 'report.json') };
+const report = path.join(artifacts, 'report.json');
+fs.rmSync(report, { force: true });
+const env = { ...process.env, MATRA_HOST_REPORT: report };
 delete env.ELECTRON_RUN_AS_NODE;
 const logfile = fs.openSync(path.join(artifacts, 'host.log'), 'w');
 const child = spawn(binary, ['--user-data-dir', profile, '--extensions-dir', path.join(artifacts, 'extensions'), '--extensionDevelopmentPath', root, '--extensionTestsPath', path.join(root, 'test', 'host'), '--disable-extensions', '--skip-welcome', '--skip-release-notes', '--disable-workspace-trust', '--new-window', ...extraArgs], { env, stdio: ['ignore', logfile, logfile] });
@@ -20,7 +22,12 @@ const timeout = setTimeout(() => { child.kill('SIGTERM'); console.error('Extensi
 child.on('error', error => { clearTimeout(timeout); console.error(error.message); process.exitCode = 1; });
 child.on('exit', code => {
   clearTimeout(timeout); fs.closeSync(logfile);
-  const report = path.join(artifacts, 'report.json');
   if (code !== 0 || !fs.existsSync(report)) { console.error(`Extension host failed (${code}); see ${path.join(artifacts, 'host.log')}`); process.exitCode = 1; }
-  else console.log(fs.readFileSync(report, 'utf8'));
+  else {
+    try {
+      const result = JSON.parse(fs.readFileSync(report, 'utf8'));
+      if (result.passed !== true || result.localExtensionHost !== true) throw new Error('Host acceptance failed');
+      console.log(JSON.stringify(result, null, 2));
+    } catch (error) { console.error(error.message); process.exitCode = 1; }
+  }
 });
