@@ -20,3 +20,9 @@ test('hung provider is bounded', async () => {
   const store = new UsageStore([{ id: 'cursor', read: () => new Promise(() => {}) }], { timeoutMs: 10 });
   assert.equal((await store.refresh()).providers[0].status, 'error'); store.dispose();
 });
+test('a cached window past its reset is stale even when its reader still reports ready', async () => {
+  const store = new UsageStore([{ id: 'cursor', read: async () => ({ id: 'cursor', status: 'ready', updatedAt: 800, windows: [{ usedPercent: 99, resetsAt: 900 }] }) }], { now: () => 1000 });
+  const record = (await store.refresh()).providers[0];
+  assert.equal(record.status, 'stale'); assert.equal(record.updatedAt, 800);
+  assert.equal(record.windows[0].usedPercent, 99); store.dispose();
+});

@@ -27,6 +27,9 @@ class UsageStore {
             new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), this.timeoutMs); })
           ]);
           if (!record || record.id !== provider.id || !Array.isArray(record.windows)) throw new Error('Invalid provider result');
+          if (record.status === 'ready' && record.windows.some(w => typeof w?.resetsAt === 'number' && Number.isFinite(w.resetsAt) && w.resetsAt <= this.now())) {
+            return { ...record, status: 'stale', message: `${record.message ? `${record.message} ` : ''}A recorded reset has passed. Waiting for the provider to report the new window.` };
+          }
           return record;
         } catch {
           // Never display raw provider errors, which can contain account paths or secrets.

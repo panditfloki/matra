@@ -6,6 +6,7 @@ const os = require('node:os');
 const [binary, output, ...extraArgs] = process.argv.slice(2);
 if (!binary || !output) throw new Error('Usage: node scripts/run-host-test.js <editor-binary> <artifact-directory>');
 const root = path.resolve(__dirname, '..');
+const extensionPath = process.env.MATRA_EXTENSION_PATH ? path.resolve(process.env.MATRA_EXTENSION_PATH) : root;
 const artifacts = path.resolve(output);
 // macOS Unix socket paths are limited to 103 bytes; project-local profiles can exceed it.
 const profile = fs.mkdtempSync(path.join(process.platform === 'darwin' ? '/tmp' : os.tmpdir(), 'matra-host-'));
@@ -17,7 +18,7 @@ fs.rmSync(report, { force: true });
 const env = { ...process.env, MATRA_HOST_REPORT: report };
 delete env.ELECTRON_RUN_AS_NODE;
 const logfile = fs.openSync(path.join(artifacts, 'host.log'), 'w');
-const child = spawn(binary, ['--user-data-dir', profile, '--extensions-dir', path.join(artifacts, 'extensions'), '--extensionDevelopmentPath', root, '--extensionTestsPath', path.join(root, 'test', 'host'), '--disable-extensions', '--skip-welcome', '--skip-release-notes', '--disable-workspace-trust', '--new-window', ...extraArgs], { env, stdio: ['ignore', logfile, logfile] });
+const child = spawn(binary, ['--user-data-dir', profile, '--extensions-dir', path.join(artifacts, 'extensions'), '--extensionDevelopmentPath', extensionPath, '--extensionTestsPath', path.join(root, 'test', 'host'), '--disable-extensions', '--skip-welcome', '--skip-release-notes', '--disable-workspace-trust', '--new-window', ...extraArgs], { env, stdio: ['ignore', logfile, logfile] });
 const timeout = setTimeout(() => { child.kill('SIGTERM'); console.error('Extension host timed out'); process.exitCode = 1; }, 150000);
 child.on('error', error => { clearTimeout(timeout); console.error(error.message); process.exitCode = 1; });
 child.on('exit', code => {
