@@ -20,7 +20,7 @@ In Cursor 3, use an **Editor Window**. Its separate Agents Window does not load 
 - **Date & time**: the actual reset date and local clock time.
 - **Time left**: days, hours and minutes remaining. Expired windows say **Resetting…** until a new reading arrives.
 - A compact status-bar summary. A `~` marks a stale observation.
-- Token usage and recent sessions where local records supply them. Costs appear only where known and are labelled estimates.
+- Token usage and recent sessions for Claude Code and Codex, with partial-history labels where needed. Cost estimates are not included in this first build.
 
 Use **Manage providers** to hide tools you do not use. Disabled providers are not polled. Settings apply to your user profile and cannot be supplied by a workspace repository.
 
