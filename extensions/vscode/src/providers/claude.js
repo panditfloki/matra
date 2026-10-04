@@ -126,6 +126,7 @@ function createProvider(options = {}) {
   const execFile = options.execFile || childProcess.execFile;
   const platform = options.platform || process.platform;
   let state = null;
+  let minimumBoundary = 0;
   let loaded = false;
   let inFlight = null;
 
@@ -134,7 +135,9 @@ function createProvider(options = {}) {
     if (!loaded) {
       loaded = true;
       const cache = file ? await readJson(file) : null;
-      if (cache?.kind === 'ok' && cache.value.version === 1 && typeof cache.value.key === 'string') {
+      if (cache?.kind === 'ok' && cache.value.version === 1 && cache.value.key === null) {
+        minimumBoundary = epoch(cache.value.boundary) || 0;
+      } else if (cache?.kind === 'ok' && cache.value.version === 1 && typeof cache.value.key === 'string') {
         state = { key: cache.value.key, boundary: epoch(cache.value.boundary), quota: restoredQuota(cache.value.quota),
           nextTryAt: epoch(cache.value.nextTryAt) || 0, waitReason: clean(cache.value.waitReason) };
       }
@@ -142,13 +145,19 @@ function createProvider(options = {}) {
     const auth = await credentials(root, home, platform, execFile);
     if (auth.kind !== 'ok') {
       state = null;
+      minimumBoundary = Math.max(minimumBoundary, now);
       await clearCache(file);
+      // Retain only the non-secret sign-out cutoff. Deleting the transition
+      // entirely would let restored credentials with an old mtime reopen A's
+      // unlabelled history after a B login, including across host restarts.
+      await writeCache(file, { version: 1, key: null, boundary: minimumBoundary, quota: null });
       return { ...BASE, status: 'needs-auth', message: auth.kind === 'error'
         ? 'Claude Code credentials could not be read. Check file or macOS Keychain access.'
         : 'Sign in to Claude Code to read account usage.', updatedAt: null, windows: [] };
     }
     if (state?.key !== auth.key) {
-      state = { key: auth.key, boundary: Math.min(now, auth.boundaryHint || now), quota: null, nextTryAt: 0, waitReason: '' };
+      const cutoff = state !== null ? now : Math.min(now, auth.boundaryHint || now);
+      state = { key: auth.key, boundary: Math.max(minimumBoundary, cutoff), quota: null, nextTryAt: 0, waitReason: '' };
       await clearCache(file);
     }
     if (state.boundary === null) state.boundary = Math.min(now, auth.boundaryHint || now);
@@ -212,7 +221,9 @@ function createProvider(options = {}) {
     const after = await credentials(root, home, platform, execFile);
     if (after.kind !== 'ok' || after.key !== auth.key) {
       state = null;
+      minimumBoundary = Math.max(minimumBoundary, now);
       await clearCache(file);
+      await writeCache(file, { version: 1, key: null, boundary: minimumBoundary, quota: null });
       return { ...BASE, status: 'needs-auth', message: 'Claude sign-in changed. Refresh to read the current account.', updatedAt: null, windows: [] };
     }
     const quota = state.quota;

@@ -206,6 +206,36 @@ test('Codex account switch clears persisted quota and does not reload older unbo
   assert.deepEqual(record.sessions, []);
 });
 
+test('Codex observed account switch uses now despite a restored older auth timestamp', async t => {
+  const f = await fixture(t);
+  await f.auth();
+  await f.rollout('old-account.jsonl', [header(), event()]);
+  const provider = f.provider();
+  await provider.read({ now: NOW });
+  await f.auth('account-b', OLD);
+  const record = await provider.read({ now: NOW + 2000 });
+  assert.deepEqual(record.windows, []);
+  assert.equal(record.updatedAt, null);
+  assert.equal(record.usage, null);
+  assert.deepEqual(record.sessions, []);
+});
+
+test('Codex sign-out cutoff survives reload before login with a restored older auth timestamp', async t => {
+  const f = await fixture(t);
+  await f.auth();
+  await f.rollout('old-account.jsonl', [header(), event()]);
+  const provider = f.provider();
+  await provider.read({ now: NOW });
+  await fs.unlink(path.join(f.root, 'auth.json'));
+  await provider.read({ now: NOW + 1000 });
+  await f.auth('account-b', OLD);
+  const record = await f.provider().read({ now: NOW + 2000 });
+  assert.deepEqual(record.windows, []);
+  assert.equal(record.updatedAt, null);
+  assert.equal(record.usage, null);
+  assert.deepEqual(record.sessions, []);
+});
+
 test('Codex explicit account IDs permit matching historical rows and reject foreign-account rows', async t => {
   const f = await fixture(t);
   await f.auth('account-a', NOW - 30_000);
@@ -241,7 +271,8 @@ test('Codex sign-out clears cache and summaries without changing provider files'
   assert.deepEqual(record.windows, []);
   assert.equal(record.usage, undefined);
   assert.equal(await fs.readFile(file, 'utf8'), before);
-  await assert.rejects(fs.access(path.join(f.storagePath, 'codex-usage-v1.json')));
+  const tombstone = JSON.parse(await fs.readFile(path.join(f.storagePath, 'codex-usage-v1.json'), 'utf8'));
+  assert.deepEqual(tombstone, { version: 1, key: null, boundary: NOW + 1000, quota: null });
 });
 
 test('Codex unavailable local files retain cached quota as stale without advancing updatedAt', async t => {

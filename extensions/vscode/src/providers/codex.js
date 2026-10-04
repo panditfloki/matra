@@ -55,6 +55,7 @@ function createProvider(options = {}) {
   const file = root && cacheFile(options.storagePath, root, 'codex-usage-v1.json');
   let loaded = false;
   let state = null;
+  let minimumBoundary = 0;
   let inFlight = null;
 
   async function readOnce(now) {
@@ -62,29 +63,36 @@ function createProvider(options = {}) {
     if (!loaded) {
       loaded = true;
       const cached = file ? await readJson(file) : null;
-      if (cached?.kind === 'ok' && cached.value.version === 1 && typeof cached.value.key === 'string') state = {
+      if (cached?.kind === 'ok' && cached.value.version === 1 && cached.value.key === null) {
+        minimumBoundary = epoch(cached.value.boundary) || 0;
+      } else if (cached?.kind === 'ok' && cached.value.version === 1 && typeof cached.value.key === 'string') state = {
         key: cached.value.key, boundary: epoch(cached.value.boundary), quota: restoredQuota(cached.value.quota),
       };
     }
     const auth = await authentication(root);
     if (auth.kind !== 'ok') {
       state = null;
+      minimumBoundary = Math.max(minimumBoundary, now);
       await clearCache(file);
+      await writeCache(file, { version: 1, key: null, boundary: minimumBoundary, quota: null });
       return { ...BASE, status: 'needs-auth', message: 'Sign in to Codex to read usage for the current account.', updatedAt: null, windows: [] };
     }
     if (state?.key !== auth.key) {
+      const cutoff = state !== null ? now : Math.min(now, auth.modifiedAt || now);
       await clearCache(file);
       // Unlabelled rollouts before the credential file was last written cannot
       // safely be attributed to the new login. The boundary persists across
       // token rotations for a verified account ID.
-      state = { key: auth.key, boundary: Math.min(now, auth.modifiedAt || now), quota: null };
+      state = { key: auth.key, boundary: Math.max(minimumBoundary, cutoff), quota: null };
     }
     if (state.boundary === null) state.boundary = Math.min(now, auth.modifiedAt || now);
     const local = await scanLocal(root, auth, state.boundary, now);
     const after = await authentication(root);
     if (after.kind !== 'ok' || after.key !== auth.key) {
       state = null;
+      minimumBoundary = Math.max(minimumBoundary, now);
       await clearCache(file);
+      await writeCache(file, { version: 1, key: null, boundary: minimumBoundary, quota: null });
       return { ...BASE, status: 'needs-auth', message: 'Codex sign-in changed. Refresh to read the current account.', updatedAt: null, windows: [] };
     }
     let retained = false;

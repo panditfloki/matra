@@ -209,7 +209,35 @@ test('Claude sign-out clears persisted observations', async t => {
   const record = await provider.read({ now: NOW + 2000 });
   assert.equal(record.status, 'needs-auth');
   assert.deepEqual(record.windows, []);
-  await assert.rejects(fs.access(path.join(f.storagePath, 'claude-usage-v1.json')));
+  const tombstone = JSON.parse(await fs.readFile(path.join(f.storagePath, 'claude-usage-v1.json'), 'utf8'));
+  assert.deepEqual(tombstone, { version: 1, key: null, boundary: NOW + 2000, quota: null });
+});
+
+test('Claude observed account switch uses connection time even when old credential mtimes are restored', async t => {
+  const f = await fixture(t);
+  await f.auth();
+  await f.transcript('old-account.jsonl', [assistant()]);
+  const provider = f.provider();
+  assert.equal((await provider.read({ now: NOW })).usage.totalTokens, 38);
+  await f.auth('test-secret-account-b', OLD, 'account-b');
+  const record = await provider.read({ now: NOW + 2000, force: true });
+  assert.equal(record.usage, null);
+  assert.deepEqual(record.sessions, []);
+  assert.match(record.message, /across sign-ins/);
+});
+
+test('Claude sign-out cutoff survives extension reload and credentials restored with old mtimes', async t => {
+  const f = await fixture(t);
+  await f.auth();
+  await f.transcript('old-account.jsonl', [assistant()]);
+  const provider = f.provider();
+  await provider.read({ now: NOW });
+  await f.auth('', OLD);
+  await provider.read({ now: NOW + 1000 });
+  await f.auth('test-secret-account-b', OLD, 'account-b');
+  const record = await f.provider().read({ now: NOW + 2000 });
+  assert.equal(record.usage, null);
+  assert.deepEqual(record.sessions, []);
 });
 
 test('Claude mid-request account change discards the response', async t => {
