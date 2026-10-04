@@ -67,10 +67,10 @@ function createProvider(options = {}) {
     if (currentKey !== null && currentKey !== auth.key) { await cache.clear(); cooldown = 0; }
     currentKey = auth.key;
     const saved = await cache.get(auth.key);
-    if (!force && saved && now >= saved.updatedAt && now - saved.updatedAt < TTL_MS) return saved;
     if (now < cooldown) return saved
       ? { ...saved, status: 'stale', message: 'Cursor rate limited this reader. The last observation is shown; retry later.' }
       : empty('unavailable', 'Cursor rate limited this reader. Wait a few minutes and refresh.', auth.account, auth.source);
+    if (!force && saved && now >= saved.updatedAt && now - saved.updatedAt < TTL_MS) return saved;
     if (pending.has(auth.key)) return pending.get(auth.key);
     const operation = (async () => {
       let response;

@@ -194,6 +194,7 @@ test('401 clears cached quota; 429 honors Retry-After even on forced refresh', a
   assert.equal(limited.status, 'stale');
   const before = requests;
   assert.equal((await provider.read({ now: NOW + 2, force: true })).status, 'stale');
+  assert.equal((await provider.read({ now: NOW + 3 })).status, 'stale');
   assert.equal(requests, before);
   status = 401;
   const rejected = await provider.read({ now: NOW + 601000, force: true });
