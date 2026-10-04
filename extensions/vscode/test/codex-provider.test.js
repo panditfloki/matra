@@ -168,6 +168,19 @@ test('Codex multiple limit buckets remain separate and relative resets use the o
   assert.equal(record.windows.find(w => w.label.startsWith('GPT-Codex-Spark')).resetsAt, NOW - 60_000 + 3_600_000);
 });
 
+test('Codex a fresh Spark bucket cannot make a two-hour-old main quota look current', async t => {
+  const f = await fixture(t);
+  await f.auth();
+  const oldObservation = NOW - 2 * 3_600_000;
+  const spark = { limit_id: 'GPT-Codex-Spark', primary: { used_percent: 20, window_minutes: 300, resets_at: (NOW + 3_600_000) / 1000 } };
+  await f.rollout('buckets.jsonl', [header('session-a', NOW - 3 * 3_600_000), event(oldObservation, 150, limits(70)), event(NOW, 150, spark)]);
+  const record = await f.provider().read({ now: NOW });
+  assert.equal(record.status, 'stale');
+  assert.equal(record.updatedAt, oldObservation);
+  assert.equal(record.windows.find(w => w.id === 'session').usedPercent, 70);
+  assert.equal(record.windows.find(w => w.label.startsWith('GPT-Codex-Spark')).usedPercent, 20);
+});
+
 test('Codex first connection excludes earlier unbound quota and local history', async t => {
   const f = await fixture(t);
   await f.auth('account-a', NOW - 30_000);

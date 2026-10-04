@@ -143,7 +143,9 @@ async function scanLocal(root, auth, boundary, now) {
   return { usage: daily.length ? { period: budget.partial || identityPartial ? 'Recorded today (partial)' : 'Today (local device)',
     inputTokens: sum('input'), outputTokens: sum('output'), cachedTokens: sum('cached'), totalTokens: sum('total'), costUsd: null } : null,
     sessions: sessions.sort((a, b) => b.lastActiveAt - a.lastActiveAt).slice(0, 20),
-    quota: buckets.length ? { windows: buckets.flatMap(bucket => bucket.windows), updatedAt: buckets[0].updatedAt,
+    // One provider timestamp represents all displayed buckets. A fresh Spark
+    // row must not make an older main quota appear freshly observed.
+    quota: buckets.length ? { windows: buckets.flatMap(bucket => bucket.windows), updatedAt: buckets[buckets.length - 1].updatedAt,
       plan: buckets.find(bucket => bucket.plan)?.plan || null } : null,
     partial: budget.partial, identityPartial, lastUsageAt, readableRoots: found.readableRoots };
 }
