@@ -2,15 +2,11 @@
 const vscode = require('vscode');
 const path = require('node:path');
 const { randomBytes } = require('node:crypto');
-const { UsageStore, IDS, NAMES } = require('./store');
-const { escape, resetTime, statusText, headline, finite } = require('../media/view');
+const { UsageStore } = require('./store');
+const { IDS, NAMES, meta, load, detect, resolveEnabled } = require('./registry');
+const { escape } = require('../media/view');
+const { statusLabel, accessibleLabel, severity, tooltipMarkdown } = require('./statusbar');
 
-const HELP = {
-  claude: 'https://code.claude.com/docs/en/setup',
-  codex: 'https://developers.openai.com/codex/cli/',
-  cursor: 'https://cursor.com/dashboard',
-  antigravity: 'https://antigravity.google/'
-};
 let current;
 
 function activate(context) {
@@ -20,28 +16,33 @@ function activate(context) {
   status.name = 'Mātrā AI usage'; status.command = 'matra.open';
   const config = () => vscode.workspace.getConfiguration('matra');
   const mode = () => config().get('resetDisplay') === 'date' ? 'date' : 'remaining';
-  const enabled = () => {
-    const values = config().get('providers', IDS);
-    return IDS.filter(id => Array.isArray(values) && values.includes(id));
-  };
+  const configured = () => { const v = config().get('providers', []); return Array.isArray(v) ? v : []; };
+  let active = [];
   const snapshot = () => store?.snapshot || { schemaVersion: 1, generatedAt: Date.now(), providers: [] };
   function publish() {
     if (disposed) return;
     const data = snapshot();
-    status.text = `$(pulse) ${statusText(data)}`;
-    const tooltip = new vscode.MarkdownString();
-    tooltip.appendText('Mātrā · standalone usage\n\n');
-    for (const p of data.providers) {
-      tooltip.appendText(`${p.name}${p.account?.plan ? ` (${p.account.plan})` : ''}\n`);
-      for (const w of p.windows) tooltip.appendText(`${w.label}: ${finite(w.usedPercent) ? `${Math.round(w.usedPercent * 10) / 10}% used` : 'unavailable'} · ${resetTime(w.resetsAt, mode())}\n`);
-      if (p.status !== 'ready') tooltip.appendText(`${p.status}: ${p.message || 'No current reading'}\n`);
-      tooltip.appendText('\n');
-    }
-    tooltip.appendText('Click to open your dashboard. ~ means a stale reading.');
-    status.tooltip = tooltip;
-    status.accessibilityInformation = { label: statusText(data), role: 'button' };
-    const max = Math.max(0, ...data.providers.map(p => headline(p)?.usedPercent).filter(finite));
-    status.backgroundColor = max >= 95 ? new vscode.ThemeColor('statusBarItem.errorBackground') : max >= 80 ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
+    const level = severity(data);
+    status.text = `${level === 'normal' ? '$(pulse)' : '$(flame)'} ${statusLabel(data, { bars: config().get('statusBarBars', true), pinned: config().get('statusBarProviders', []) })}`;
+    // The hover card needs all three: theme icons for $(pulse)/$(dashboard),
+    // HTML for the coloured quota bars (a MarkdownString cannot draw one any
+    // other way), and trust for the Dashboard/Refresh command links.
+    //
+    // ⚠️ This was deliberately untrusted and HTML-free. It is safe to enable
+    // ONLY because every provider-sourced string in tooltipMarkdown() goes
+    // through md(), which escapes < > [ ] ( ) and |. The test
+    // "provider text stays escaped, which is what lets the card enable HTML at
+    // all" guards exactly that, and goes red if the escaper is weakened.
+    // If that test ever fails, turn these flags off before shipping.
+    const card = new vscode.MarkdownString(
+      tooltipMarkdown(data, { mode: mode(), intervalSeconds: Number(config().get('refreshInterval', 60)) || 60 }),
+      true,
+    );
+    card.supportHtml = true;
+    card.isTrusted = { enabledCommands: ['matra.open', 'matra.refresh'] };
+    status.tooltip = card;
+    status.accessibilityInformation = { label: accessibleLabel(data), role: 'button' };
+    status.backgroundColor = level === 'error' ? new vscode.ThemeColor('statusBarItem.errorBackground') : level === 'warning' ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
     config().get('statusBar', true) ? status.show() : status.hide();
     for (const webview of views) void webview.postMessage({ type: 'snapshot', snapshot: data, mode: mode(), refreshing });
   }
@@ -52,23 +53,43 @@ function activate(context) {
     try { await readingStore.refresh({ force }); }
     finally { if (readingStore === store) { refreshing = false; publish(); } }
   }
-  function start() {
-    store?.dispose(); clearInterval(interval);
-    const paths = {};
+  const paths = () => {
+    const out = {};
     for (const id of ['claude', 'codex']) {
       const value = config().get(`paths.${id}`, '');
-      if (typeof value === 'string' && path.isAbsolute(value)) paths[id] = value;
+      if (typeof value === 'string' && path.isAbsolute(value)) out[id] = value;
     }
-    const providers = enabled().map(id => require(`./providers/${id}`).createProvider({ storagePath: context.globalStorageUri.fsPath, paths }));
+    return out;
+  };
+  let generation = 0;
+  async function start() {
+    const mine = ++generation;
+    const ids = await resolveEnabled(configured(), { paths: paths() });
+    if (mine !== generation || disposed) return;
+    store?.dispose(); clearInterval(interval);
+    active = ids;
+    const providers = ids.map(id => load(id).createProvider({ storagePath: context.globalStorageUri.fsPath, paths: paths() }));
     store = new UsageStore(providers);
     store.subscribe(publish);
     publish(); void refresh();
     const seconds = Math.max(60, Math.min(900, Number(config().get('refreshInterval', 60)) || 60));
-    interval = setInterval(() => { if (vscode.window.state.focused) void refresh(); }, seconds * 1000);
+    interval = setInterval(() => { if (vscode.window.state.focused) { void redetect(); void refresh(); } }, seconds * 1000);
+  }
+  // Auto mode only: a tool installed (or removed) while the editor is open
+  // shows up on the next background read, without a reload.
+  async function redetect() {
+    if (configured().length || disposed) return;
+    const ids = await resolveEnabled([], { paths: paths() });
+    if (ids.join() !== active.join()) await start();
   }
   async function chooseProviders() {
-    const picked = await vscode.window.showQuickPick(IDS.map(id => ({ label: NAMES[id], id, picked: enabled().includes(id) })), { canPickMany: true, title: 'Mātrā providers', placeHolder: 'Choose the tools whose usage you want to see' });
-    if (picked) await config().update('providers', picked.map(item => item.id), vscode.ConfigurationTarget.Global);
+    const installed = await Promise.all(IDS.map(id => detect(id, { paths: paths() })));
+    const auto = { label: '$(sparkle) Every installed tool (auto)', description: 'Default. New tools appear when you install them.', auto: true, picked: !configured().length };
+    const items = IDS.map((id, i) => ({ label: NAMES[id], id, description: installed[i] ? 'installed' : 'not found on this machine', picked: configured().length ? active.includes(id) : false }));
+    const picked = await vscode.window.showQuickPick([auto, { label: '', kind: vscode.QuickPickItemKind.Separator }, ...items], { canPickMany: true, title: 'Mātrā providers', placeHolder: 'Auto shows everything installed, or pick specific tools' });
+    if (!picked) return;
+    const ids = picked.filter(item => item.id).map(item => item.id);
+    await config().update('providers', picked.some(item => item.auto) || !ids.length ? [] : ids, vscode.ConfigurationTarget.Global);
   }
   async function setResetMode(value) {
     if (value !== 'date' && value !== 'remaining') return;
@@ -87,7 +108,7 @@ function activate(context) {
       case 'setResetMode': await setResetMode(message.mode); break;
       case 'providers': await chooseProviders(); break;
       case 'settings': await settings(); break;
-      case 'providerHelp': if (IDS.includes(message.provider)) await vscode.env.openExternal(vscode.Uri.parse(HELP[message.provider])); break;
+      case 'providerHelp': if (IDS.includes(message.provider) && meta(message.provider).help) await vscode.env.openExternal(vscode.Uri.parse(meta(message.provider).help)); break;
     }
   }
   function attach(webview, owner) {
@@ -114,14 +135,14 @@ function activate(context) {
     vscode.commands.registerCommand('matra.providers', chooseProviders),
     vscode.commands.registerCommand('matra.settings', settings),
     vscode.workspace.onDidChangeConfiguration(e => {
-      if (e.affectsConfiguration('matra.providers') || e.affectsConfiguration('matra.paths') || e.affectsConfiguration('matra.refreshInterval')) start();
+      if (e.affectsConfiguration('matra.providers') || e.affectsConfiguration('matra.paths') || e.affectsConfiguration('matra.refreshInterval')) void start();
       else if (e.affectsConfiguration('matra')) publish();
     }),
     vscode.window.onDidChangeWindowState(s => { if (s.focused) void refresh(); })
   );
   const cleanup = { dispose() { if (disposed) return; disposed = true; clearInterval(interval); store?.dispose(); panel?.dispose(); views.clear(); status.dispose(); } };
   context.subscriptions.push(cleanup); current = cleanup;
-  start();
+  void start();
   return { version: 1, getSnapshot: snapshot, refresh: () => refresh(true) };
 }
 function deactivate() { current?.dispose(); current = undefined; }

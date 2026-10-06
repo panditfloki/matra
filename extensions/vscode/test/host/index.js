@@ -13,7 +13,9 @@ async function run() {
   const api = await extension.activate();
   assert.equal(api.version, 1);
   await api.refresh();
-  assert.equal(api.getSnapshot().providers.length, 0);
+  // An empty list means auto-detect, so it shows whatever this machine has installed.
+  const ids = api.getSnapshot().providers.map(item => item.id);
+  assert.equal(new Set(ids).size, ids.length);
   const commands = await vscode.commands.getCommands(true);
   for (const name of ['matra.open', 'matra.refresh', 'matra.resetMode', 'matra.providers', 'matra.settings']) assert.ok(commands.includes(name), `${name} registered`);
   await vscode.commands.executeCommand('matra.open');

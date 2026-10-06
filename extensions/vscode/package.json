@@ -2,7 +2,7 @@
   "name": "matra",
   "displayName": "Mātrā: AI Usage",
   "description": "Independent Claude Code, Codex, Cursor and Antigravity usage monitor with reset dates and countdowns.",
-  "version": "0.1.0",
+  "version": "0.1.5",
   "publisher": "dydxfx",
   "author": {
     "name": "Pandit Floki",
@@ -138,18 +138,47 @@
               "claude",
               "codex",
               "cursor",
-              "antigravity"
+              "antigravity",
+              "gemini",
+              "copilot",
+              "grok",
+              "kimi",
+              "opencode",
+              "kiro",
+              "commandcode",
+              "amp",
+              "devin"
+            ],
+            "enumDescriptions": [
+              "Reads local sessions and account quota.",
+              "Reads local sessions and account quota.",
+              "Reads local sessions and account quota.",
+              "Reads local sessions and account quota.",
+              "Planned. No reader yet, so selecting this shows nothing.",
+              "Planned. No reader yet, so selecting this shows nothing.",
+              "Planned. No reader yet, so selecting this shows nothing.",
+              "Reads local sessions and account quota.",
+              "Planned. No reader yet, so selecting this shows nothing.",
+              "Planned. No reader yet, so selecting this shows nothing.",
+              "Planned. No reader yet, so selecting this shows nothing.",
+              "Planned. No reader yet, so selecting this shows nothing.",
+              "Planned. No reader yet, so selecting this shows nothing."
             ]
           },
           "uniqueItems": true,
-          "default": [
-            "claude",
-            "codex",
-            "cursor",
-            "antigravity"
-          ],
+          "default": [],
           "scope": "application",
-          "description": "Providers to read and show. Disabled providers are not polled."
+          "markdownDescription": "Providers to read and show. **Empty (default) shows every AI tool installed on this machine.** Choose a list to show only those. Disabled providers are not polled.\n\nFive have readers today: Claude Code, Codex, Cursor, Antigravity and Kimi Code. The rest are listed as planned and are skipped until one is written, so a list containing only those reads nothing."
+        },
+        "matra.statusBarProviders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true,
+          "default": [],
+          "scope": "application",
+          "markdownDescription": "Providers to pin in the status bar, e.g. `[\"claude\", \"codex\"]`. Empty shows all of them, or only those with a reading when more than four are on. The hover card always lists every provider."
         },
         "matra.refreshInterval": {
           "type": "number",
@@ -164,6 +193,12 @@
           "default": true,
           "scope": "application",
           "description": "Show provider usage in the status bar."
+        },
+        "matra.statusBarBars": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "Show coloured bars of the quota left beside each status-bar percentage."
         },
         "matra.paths.claude": {
           "type": "string",

@@ -57,7 +57,7 @@
     const status = Object.hasOwn(states, p.status) ? p.status : 'error';
     const monograms = { claude: 'C', codex: 'O', cursor: '↗', antigravity: 'A' };
     const windows = Array.isArray(p.windows) ? p.windows : [];
-    return `<section class="provider" aria-label="${escape(p.name)}"><header class="provider-heading"><div class="provider-mark ${escape(p.id)}" aria-hidden="true">${escape(monograms[p.id] || 'M')}</div><div class="provider-title"><h2>${escape(p.name)}</h2><p>${escape(p.account?.plan || p.source || 'Local usage')}</p></div><span class="state ${status}">${states[status]}</span></header>
+    return `<section class="provider" aria-label="${escape(p.name)}"><header class="provider-heading"><div class="provider-mark ${escape(p.id)}" aria-hidden="true">${escape(monograms[p.id] || p.monogram || 'M')}</div><div class="provider-title"><h2>${escape(p.name)}</h2><p>${escape(p.account?.plan || p.source || 'Local usage')}</p></div><span class="state ${status}">${states[status]}</span></header>
       ${p.message ? `<p class="provider-message ${status}">${escape(p.message)}</p>` : ''}
       ${windows.length ? windows.map(w => windowRow(w, mode, now)).join('') : `<p class="empty-reading">${status === 'ready' ? 'No quota window reported.' : 'Usage will appear when this provider is available.'}</p>`}
       <footer class="provider-footer"><span>${escape(age(p.updatedAt, now))}</span><button class="text-button" data-action="providerHelp" data-provider="${escape(p.id)}">Setup help <span aria-hidden="true">↗</span></button></footer>

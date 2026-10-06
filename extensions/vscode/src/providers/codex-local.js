@@ -57,7 +57,10 @@ async function scanLocal(root, auth, boundary, now) {
         else if (typeof row.payload?.session_id === 'string') parsed.id = row.payload.session_id;
         parsed.label = projectLabel(row.payload?.cwd);
         parsed.createdAt = epoch(row.timestamp ?? row.payload?.timestamp);
-        parsed.accountID = row.payload?.account_id || row.payload?.user_id || null;
+        // Codex 0.160+ tags rollouts with creator_* ids. Without them every log
+        // written before the last token refresh falls behind the boundary.
+        parsed.accountID = row.payload?.account_id || row.payload?.user_id
+          || row.payload?.creator_account_id || row.payload?.creator_user_id || null;
       } else if (row.type === 'turn_context') {
         parsed.model = clean(row.payload?.model) || parsed.model;
       } else if (row.type === 'event_msg' && row.payload?.type === 'token_count') {
@@ -80,7 +83,7 @@ async function scanLocal(root, auth, boundary, now) {
   const daily = [];
   const sessions = [];
   const quotas = new Map();
-  let identityPartial = boundary > today;
+  let identityPartial = false;
   let lastUsageAt = null;
   for (const [id, session] of groups) {
     session.events.sort((a, b) => a.timestamp - b.timestamp);

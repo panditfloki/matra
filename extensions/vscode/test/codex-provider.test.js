@@ -388,3 +388,16 @@ test('Codex explicit absolute directory root works and relative roots are reject
   assert.equal(record.windows[0].usedPercent, 12);
   assert.equal((await createProvider({ ...f.options, paths: { codex: '../relative' } }).read({ now: NOW })).status, 'unavailable');
 });
+
+test('Codex attributes creator-tagged rollouts written before the latest token refresh', async t => {
+  const f = await fixture(t);
+  await f.auth('account-a', NOW - 5_000);
+  const tagged = { ...header('session-a', NOW - 3_600_000), payload: { id: 'session-a', cwd: '/private/work/Matra', creator_account_id: 'account-a', creator_user_id: 'user-account-a' } };
+  const other = { ...header('session-b', NOW - 3_600_000), payload: { id: 'session-b', cwd: '/private/work/Other', creator_account_id: 'account-b' } };
+  await f.rollout('mine.jsonl', [tagged, context(), event(NOW - 600_000, 150, limits(41))]);
+  await f.rollout('theirs.jsonl', [other, context(), event(NOW - 300_000, 150, limits(99))]);
+  const record = await f.provider().read({ now: NOW });
+  assert.notEqual(record.status, 'unavailable');
+  assert.equal(record.windows[0].usedPercent, 41);
+  assert.equal(record.sessions.length, 1);
+});
