@@ -69,7 +69,7 @@ final class GeminiCLIUsageTests: XCTestCase {
     private let now = localDate(2026, 9, 15)
 
     override func setUpWithError() throws {
-        root = URL(fileURLWithPath: NSTemporaryDirectory())
+        root = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("gemini-cli-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
@@ -202,7 +202,7 @@ final class OpenCodeGeminiUsageTests: XCTestCase {
     /// Written and closed before the reader opens it, so the WAL is
     /// checkpointed away — the same state a quit OpenCode leaves behind.
     private func makeDatabase(rows: [(created: Date, data: String)]) throws -> URL {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        let url = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("opencode-\(UUID().uuidString).db")
         databases.append(url)
 
@@ -292,7 +292,7 @@ final class OpenCodeGeminiUsageTests: XCTestCase {
 
     /// "Never installed" is not "spent nothing".
     func testAMissingDatabaseReadsAsNil() {
-        let missing = URL(fileURLWithPath: NSTemporaryDirectory())
+        let missing = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("opencode-\(UUID().uuidString).db")
         XCTAssertNil(OpenCodeGeminiUsage.read(database: missing, now: now))
     }
@@ -327,7 +327,7 @@ final class HermesGeminiUsageTests: XCTestCase {
     /// checkpointed away — the same state a quit Hermes leaves behind. The
     /// foreign key to `sessions` is dropped because the reader never joins.
     private func makeDatabase(rows: [Row]) throws -> URL {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        let url = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("hermes-\(UUID().uuidString).db")
         databases.append(url)
 
@@ -402,7 +402,7 @@ final class HermesGeminiUsageTests: XCTestCase {
 
     /// "Never installed" is not "spent nothing".
     func testAMissingDatabaseReadsAsNil() {
-        let missing = URL(fileURLWithPath: NSTemporaryDirectory())
+        let missing = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("hermes-\(UUID().uuidString).db")
         XCTAssertNil(HermesGeminiUsage.read(database: missing, now: now))
     }
@@ -517,7 +517,7 @@ final class GeminiAPISnapshotTests: XCTestCase {
     }
 
     func testTheAuthTypeIsReadFromTheCLISettings() throws {
-        let file = URL(fileURLWithPath: NSTemporaryDirectory())
+        let file = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("gemini-settings-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: file) }
         try #"{"security":{"auth":{"selectedType":"gemini-api-key"}}}"#
@@ -527,13 +527,13 @@ final class GeminiAPISnapshotTests: XCTestCase {
 
     /// The label is a courtesy; a guessed one would be worse than none.
     func testAMissingSettingsFileHasNoAuthType() {
-        let missing = URL(fileURLWithPath: NSTemporaryDirectory())
+        let missing = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("gemini-settings-\(UUID().uuidString).json")
         XCTAssertNil(GeminiAPICredentials.authType(at: missing))
     }
 
     private func missingPath(_ name: String) -> URL {
-        URL(fileURLWithPath: NSTemporaryDirectory())
+        URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("\(name)-\(UUID().uuidString)")
     }
 
@@ -602,7 +602,7 @@ final class GeminiCLIActivityTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_789_000_000)
 
     override func setUpWithError() throws {
-        root = URL(fileURLWithPath: NSTemporaryDirectory())
+        root = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("gemini-cli-monitor-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
@@ -706,7 +706,7 @@ final class HermesGeminiActivityTests: XCTestCase {
     /// checkpointed away — the same state a quit Hermes leaves behind.
     /// `withLeases: false` is the pre-lease schema.
     private func makeDatabase(rows: [Row], withLeases: Bool = true) throws -> URL {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        let url = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("hermes-activity-\(UUID().uuidString).db")
         databases.append(url)
 
@@ -826,7 +826,7 @@ final class HermesGeminiActivityTests: XCTestCase {
     }
 
     func testAMissingDatabaseIsQuietRatherThanAnError() {
-        let absent = URL(fileURLWithPath: NSTemporaryDirectory())
+        let absent = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("hermes-nowhere-\(UUID().uuidString).db")
         XCTAssertTrue(
             HermesGeminiActivity.read(database: absent, staleAfter: 45, now: now).isEmpty)
@@ -864,7 +864,7 @@ final class OpenCodeGeminiActivityTests: XCTestCase {
     /// Written and closed before the reader opens it, so the WAL is
     /// checkpointed away — the same state a quit OpenCode leaves behind.
     private func makeDatabase(sessions: [SessionRow], messages: [MessageRow]) throws -> URL {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        let url = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("opencode-activity-\(UUID().uuidString).db")
         databases.append(url)
 
@@ -1011,7 +1011,7 @@ final class OpenCodeGeminiActivityTests: XCTestCase {
     }
 
     func testAMissingDatabaseReadsAsNoSessions() {
-        let missing = URL(fileURLWithPath: NSTemporaryDirectory())
+        let missing = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("opencode-activity-\(UUID().uuidString).db")
         XCTAssertTrue(
             OpenCodeGeminiActivity.read(database: missing, staleAfter: 45, now: now).isEmpty
@@ -1036,7 +1036,7 @@ final class GeminiAPIActivityMonitorTests: XCTestCase {
     }
 
     private func temporary(_ name: String) -> URL {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        let url = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("gemini-api-monitor-\(UUID().uuidString)-\(name)")
         temporaries.append(url)
         return url

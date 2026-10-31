@@ -401,7 +401,7 @@ final class ClaudeDesktopUsageCacheTests: XCTestCase {
 
     /// Whatever else is wrong, an absent Claude Desktop is not an error.
     func testAMissingCacheDirectoryReadsAsNothing() {
-        let missing = FileManager.default.temporaryDirectory
+        let missing = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("matra-tests-absent-\(UUID().uuidString)")
         XCTAssertNil(ClaudeDesktopUsageCache(directory: missing)
             .read(organization: Self.organization))
@@ -647,7 +647,7 @@ final class ClaudeDesktopUsageCacheTests: XCTestCase {
     private func makeCacheDirectory(_ files: [String: Data],
                                     file: StaticString = #filePath,
                                     line: UInt = #line) -> URL {
-        let directory = FileManager.default.temporaryDirectory
+        let directory = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("matra-desktop-cache-\(UUID().uuidString)",
                                     isDirectory: true)
         do {

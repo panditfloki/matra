@@ -94,7 +94,7 @@ actor CodexLocalProvider: UsageProvider {
             // Named, not positional. `windows.first` would let Spark take the
             // ring whenever primary is missing — extras are appended after the
             // main pair, but a Spark-only payload still leads with spark.
-            headlineID: "primary",
+            headlineID: windows.contains(where: { $0.id == "primary" }) ? "primary" : (windows.contains(where: { $0.id == "credits" }) ? "credits" : "primary"),
             // The weekly ring is the account weekly, never Spark's own weekly.
             weeklyID: "secondary",
             tokenUsage: profileUsage,

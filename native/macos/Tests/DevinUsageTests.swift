@@ -60,15 +60,15 @@ final class DevinUsageTests: XCTestCase {
         let windows = try windows(recorded)
         let old = ProviderSnapshot(id: "devin", displayName: "Devin", glyph: .third,
                                    fidelity: .official, status: .ok, windows: windows)
-        let other = ProviderSnapshot(id: "perplexity", displayName: "Perplexity", glyph: .third,
+        let other = ProviderSnapshot(id: "unrelated", displayName: "Perplexity", glyph: .third,
                                      fidelity: .official, status: .ok, windows: [])
-        archive.save(["devin": (old, captured), "perplexity": (other, captured)])
+        archive.save(["devin": (old, captured), "unrelated": (other, captured)])
         let restored = archive.load()
         XCTAssertEqual(restored["devin"]?.snapshot.glyph, .devin)
         XCTAssertEqual(restored["devin"]?.snapshot.windows, windows)
         XCTAssertEqual(restored["devin"]?.fetchedAt, captured)
         XCTAssertEqual(restored["devin"]?.snapshot.status, .stale(since: captured))
-        XCTAssertEqual(restored["perplexity"]?.snapshot.glyph, .third)
+        XCTAssertEqual(restored["unrelated"]?.snapshot.glyph, .third)
     }
 
     func testReadsLiveResponseAndFormatsBalance() throws {
@@ -192,7 +192,7 @@ final class DevinUsageTests: XCTestCase {
     func testMissingAuthenticationDoesNotMakeNetworkRequest() async throws {
         DevinEndpoint.reset([])
         do {
-            _ = try await makeProvider(database: FileManager.default.temporaryDirectory
+            _ = try await makeProvider(database: MatraTestFiles.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)).fetchSnapshot()
             XCTFail("Expected needsAuth")
         } catch UsageProviderError.needsAuth {}
@@ -202,14 +202,14 @@ final class DevinUsageTests: XCTestCase {
     /// When the Desktop database is absent, the CLI credentials file is the
     /// fallback. A valid key there must produce a snapshot, not needsAuth.
     func testCLICredentialsAreUsedWhenDesktopDatabaseIsAbsent() async throws {
-        let cli = FileManager.default.temporaryDirectory.appendingPathComponent("cli-\(UUID().uuidString).toml")
+        let cli = MatraTestFiles.temporaryDirectory.appendingPathComponent("cli-\(UUID().uuidString).toml")
         try #"windsurf_api_key = "devin-session-token$test-key""#.write(to: cli, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: cli) }
         DevinEndpoint.reset([(200, recorded)])
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [DevinEndpoint.self]
         let provider = DevinLocalProvider(
-            database: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString),
+            database: MatraTestFiles.temporaryDirectory.appendingPathComponent(UUID().uuidString),
             cliCredentials: cli, session: URLSession(configuration: configuration))
         let snapshot = try await provider.fetchSnapshot()
         XCTAssertEqual(snapshot.status, .ok)
@@ -235,13 +235,13 @@ final class DevinUsageTests: XCTestCase {
         configuration.protocolClasses = [DevinEndpoint.self]
         // A non-existent CLI path so the fallback is not triggered by the
         // developer's own credentials file during tests.
-        let cli = FileManager.default.temporaryDirectory.appendingPathComponent("nonexistent-\(UUID().uuidString).toml")
+        let cli = MatraTestFiles.temporaryDirectory.appendingPathComponent("nonexistent-\(UUID().uuidString).toml")
         return DevinLocalProvider(database: database, cliCredentials: cli,
                                   session: URLSession(configuration: configuration))
     }
 
     private func makeDatabase() throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("devin-\(UUID().uuidString).sqlite")
+        let url = MatraTestFiles.temporaryDirectory.appendingPathComponent("devin-\(UUID().uuidString).sqlite")
         var db: OpaquePointer?
         XCTAssertEqual(sqlite3_open(url.path, &db), SQLITE_OK)
         defer { sqlite3_close(db) }

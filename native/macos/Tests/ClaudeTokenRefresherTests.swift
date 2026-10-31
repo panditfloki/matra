@@ -67,7 +67,7 @@ final class ClaudeCLITests: XCTestCase {
     }
 
     private func makeHome(executablesAt paths: [String]) throws -> URL {
-        let root = FileManager.default.temporaryDirectory
+        let root = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("ClaudeCLITests.\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
@@ -405,7 +405,7 @@ final class ClaudeTokenRefresherTests: XCTestCase {
     /// written fresh each time rather than checked in: it needs the executable
     /// bit, which a git checkout does not reliably preserve.
     private func makeStubbornScript() throws -> URL {
-        let url = FileManager.default.temporaryDirectory
+        let url = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("stubborn-\(UUID().uuidString).sh")
         try Data("#!/bin/sh\ntrap '' TERM\nsleep 30\n".utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)

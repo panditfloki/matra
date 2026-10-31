@@ -7,6 +7,9 @@ import os
 @MainActor
 final class Preferences: ObservableObject {
     static let showUsagePaceKey = "showUsagePace"
+    /// Beside `showUsagePaceKey` rather than inside `Keys`: the tooltip card
+    /// reads it straight from the store, and `Keys` is private.
+    static let showsRemainingInNotchKey = "showsRemainingInNotch"
 
     /// Provider IDs that currently have a ring. Stored as the ones that are
     /// on, so a provider added later stays off until someone switches it on —
@@ -56,6 +59,10 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(lmstudioEndpoint, forKey: Keys.lmstudioEndpoint) }
     }
 
+    @Published var omlxEndpoint: String {
+        didSet { defaults.set(omlxEndpoint, forKey: Keys.omlxEndpoint) }
+    }
+
     /// User-configured custom OpenAI-compatible endpoints.
     @Published var customEndpoints: [CustomEndpoint] {
         didSet {
@@ -64,6 +71,8 @@ final class Preferences: ObservableObject {
             }
         }
     }
+
+    /// User-configured coding accounts on other machines, reached over SSH.
 
     /// Providers whose threshold alerts are muted. Stored as the muted set so
     /// a provider added later alerts by default. Connection is stored the
@@ -206,6 +215,21 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(showUsagePace, forKey: Self.showUsagePaceKey) }
     }
 
+    /// Whether pointing at a ring, or opening the menu bar's menu, refuses every
+    /// reading a provider is holding and asks the provider itself.
+    ///
+    /// Off by default, and it has to be: it is not strictly better. A look
+    /// already asks for a live reading, which is served from a cache only while
+    /// that cache is newer than a couple of minutes. This spends a request even
+    /// when the cache was written seconds ago — and on a provider that rate
+    /// limits, one request too many is answered with a back-off that then holds
+    /// a number older than the cache would have been. Worth having for somebody
+    /// comparing Matra against a vendor's own dashboard figure by figure;
+    /// not worth making everybody pay for.
+    @Published var asksProviderOnLook: Bool {
+        didSet { defaults.set(asksProviderOnLook, forKey: Keys.asksProviderOnLook) }
+    }
+
     /// Whether Claude's big ring shows the day's share of the weekly limit
     /// instead of the session. See `DailyPace`.
     @Published var claudeDailyPaceRing: Bool {
@@ -262,6 +286,51 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(showsNotchReadings, forKey: Keys.showsNotchReadings) }
     }
 
+    /// Whether the notch reads what is left rather than what is spent: the
+    /// figure under each ring, the arcs' sweep, and the card's bars and
+    /// percentages.
+    ///
+    /// Off by default: used is what the notch has always drawn, and flipping
+    /// it changes what every meter means. Bands still judge by what is
+    /// spent — colour answers how bad, sweep answers how much — and the
+    /// usage pace still compares spent against elapsed, which is the only
+    /// comparison a deficit can be computed from.
+    @Published var showsRemainingInNotch: Bool {
+        didSet { defaults.set(showsRemainingInNotch, forKey: Self.showsRemainingInNotchKey) }
+    }
+
+    /// Whether a spent window shuts the rings beside it. A spent 5-hour with
+    /// a healthy week, or the reverse, leaves rings that read usable and are
+    /// not: with this on, both rings say shut instead — dark grey where the
+    /// notch reads what is left, the red 100% earns where it reads spent.
+    ///
+    /// On by default: a spent window pretending its rings are usable is the
+    /// worse surprise.
+    @Published var shutRingsWhenSpent: Bool {
+        didSet { defaults.set(shutRingsWhenSpent, forKey: Keys.shutRingsWhenSpent) }
+    }
+
+    /// In what order the notch draws its rings: the manual arrangement
+    /// dragging built, most remaining first, or quota expiring soonest
+    /// first. See `RingOrder` for why it is one choice rather than two
+    /// switches.
+    ///
+    /// Manual by default: the manual arrangement is what dragging built,
+    /// and re-sorting unasked would strand it.
+    @Published var ringOrder: RingOrder {
+        didSet { defaults.set(ringOrder.rawValue, forKey: Keys.ringOrder) }
+    }
+
+    /// Whether accounts with nothing left to spend leave the notch: the
+    /// headline window or the weekly allowance at 0% remaining. Stale
+    /// readings stay — an old number is not proof the account is empty.
+    ///
+    /// Off by default: rings disappearing unasked would strand the manual
+    /// arrangement, and an empty ring is still information about the account.
+    @Published var hideDepletedAccounts: Bool {
+        didSet { defaults.set(hideDepletedAccounts, forKey: Keys.hideDepletedAccounts) }
+    }
+
     @Published var weeklyRingDashed: Bool {
         didSet { defaults.set(weeklyRingDashed, forKey: Keys.weeklyRingDashed) }
     }
@@ -315,6 +384,11 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(colorTransitionStyle.rawValue, forKey: Keys.colorTransitionStyle) }
     }
 
+    /// Spinning arc or breathing disc — see `BusyIndicatorStyle`.
+    @Published var busyIndicatorStyle: BusyIndicatorStyle {
+        didSet { defaults.set(busyIndicatorStyle.rawValue, forKey: Keys.busyIndicatorStyle) }
+    }
+
     /// The language the app itself speaks.
     ///
     /// `.system` follows the Mac. Written through `L10n.apply` so the store
@@ -326,6 +400,16 @@ final class Preferences: ObservableObject {
     /// Where the app itself shows up: Dock, menu bar, or nowhere.
     @Published var appPresence: AppPresence {
         didSet { defaults.set(appPresence.rawValue, forKey: Keys.presence) }
+    }
+
+    /// The Display pane's two-way switch shares the App icon preference.
+    /// Hiding the menu item restores the Dock so Settings stays reachable.
+    var showsMenuBarIcon: Bool {
+        get { appPresence.wantsStatusItem }
+        set {
+            if newValue { appPresence = .menuBar }
+            else if appPresence == .menuBar { appPresence = .dock }
+        }
     }
 
     /// Where every notification goes: the notch, or a banner. One choice for
@@ -351,6 +435,28 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(showsWeeklyLimitInMenuBar, forKey: Keys.showsWeeklyLimitInMenuBar) }
     }
 
+    /// What a plain click on the item does. `.menu` is what it has always
+    /// done, and the menu stays a right-click away whatever is chosen: with
+    /// the app out of the Dock the menu is the only way to Settings and Quit.
+    @Published var menuBarClickAction: MenuBarClickAction {
+        didSet { defaults.set(menuBarClickAction.rawValue, forKey: Keys.menuBarClickAction) }
+    }
+
+    /// How much of each reading the item prints. `.automatic` is the rule it
+    /// has always followed — two readings with countdowns, shares alone past
+    /// that — now answerable by whoever has to live with the width.
+    @Published var menuBarReading: MenuBarReading {
+        didSet { defaults.set(menuBarReading.rawValue, forKey: Keys.menuBarReading) }
+    }
+
+    /// How the item shows that an agent is working. `.pulse` is what it has
+    /// always done, so an upgrade changes nothing; the other two exist because
+    /// movement in the menu bar is not everyone's idea of an indicator, and
+    /// stopping it used to mean turning Reduce Motion on for the whole Mac.
+    @Published var menuBarActivityStyle: MenuBarActivityStyle {
+        didSet { defaults.set(menuBarActivityStyle.rawValue, forKey: Keys.menuBarActivityStyle) }
+    }
+
     /// The providers the menu bar summarises when it does, as ids. Nil until
     /// the first choice — see `MenuBarLimits` for what that reads as. From
     /// then on it is the ones that are on, so a provider that turns up later
@@ -372,6 +478,36 @@ final class Preferences: ObservableObject {
     /// Both halves of the menu bar choice, the way the status item takes them.
     var menuBarLimits: MenuBarLimits {
         MenuBarLimits(isOn: showsLimitsInMenuBar, chosen: menuBarProviders)
+    }
+
+    /// The providers whose card in the menu is opened out, as ids.
+    ///
+    /// Closed is the base state, and closed is not nothing: the card still
+    /// carries what the limits say — the windows, their bars, the percentages,
+    /// the resets, and a block if there is one. What the switch adds is
+    /// everything the notch's tooltip carries besides: the live sessions, a
+    /// local model's readings, Codex's unused resets and account activity,
+    /// DeepSeek's usage breakdown.
+    ///
+    /// Presentation only, and per provider. Nothing here decides what is read
+    /// or how often — the same distinction `menuBarProviders` keeps.
+    @Published private(set) var expandedDetailProviders: Set<String> {
+        didSet {
+            guard expandedDetailProviders != oldValue else { return }
+            defaults.set(expandedDetailProviders.sorted(), forKey: Keys.expandedDetailProviders)
+        }
+    }
+
+    func isDetailExpanded(_ providerID: String) -> Bool {
+        expandedDetailProviders.contains(providerID)
+    }
+
+    func setDetailExpanded(_ expanded: Bool, for providerID: String) {
+        if expanded {
+            expandedDetailProviders.insert(providerID)
+        } else {
+            expandedDetailProviders.remove(providerID)
+        }
     }
 
     /// Open the notch for a few seconds when an agent stops working.
@@ -465,6 +601,7 @@ final class Preferences: ObservableObject {
         }
     }
 
+
     /// Which MiniMax console the Coding Plan is read from.
     ///
     /// International and China mainland are different hosts, and a key issued
@@ -506,6 +643,7 @@ final class Preferences: ObservableObject {
         static let phoneLinkPort = "phoneLinkPort"
 
         static let lmstudioEndpoint = "lmstudioEndpoint"
+        static let omlxEndpoint = "omlxEndpoint"
         static let introducedOllama = "introducedOllama"
         static let migratedOllamaID = "migratedOllamaLocalID"
         static let ollamaMetricsEnabled = "ollamaMetricsEnabled"
@@ -518,7 +656,11 @@ final class Preferences: ObservableObject {
         static let notificationChannel = "notificationChannel"
         static let showsLimitsInMenuBar = "showsLimitsInMenuBar"
         static let showsWeeklyLimitInMenuBar = "showsWeeklyLimitInMenuBar"
+        static let menuBarActivityStyle = "menuBarActivityStyle"
+        static let menuBarReading = "menuBarReading"
+        static let menuBarClickAction = "menuBarClickAction"
         static let menuBarProviders = "menuBarProviders"
+        static let expandedDetailProviders = "expandedDetailProviders"
         static let edge = "notchEdge"
         // A new key, so there is nothing under the old app name to migrate.
         static let size = "notchSize"
@@ -526,6 +668,7 @@ final class Preferences: ObservableObject {
         static let customSize = "customNotchScale"
         static let display = "notchDisplay"
         static let resetTimeFormat = "resetTimeFormat"
+        static let asksProviderOnLook = "asksProviderOnLook"
         static let scope = "notchScope"
         static let accentColor = "accentColor"
         static let brandColors = "brandColors"
@@ -534,13 +677,22 @@ final class Preferences: ObservableObject {
         static let weeklyRingDashed = "weeklyRingDashed"
         static let showsNotchReadings = "showsNotchReadings"
         static let weeklyReading = "weeklyReading"
+        static let shutRingsWhenSpent = "shutRingsWhenSpent"
+        static let autoOrderByRemaining = "autoOrderByRemaining"
+        static let autoOrderByDeficit = "autoOrderByDeficit"
+        static let ringOrder = "ringOrder"
+        static let hideDepletedAccounts = "hideDepletedAccounts"
         static let claudeDailyPaceRing = "claudeDailyPaceRing"
         static let weeklyHeadline = "weeklyHeadline"
         static let notchSurfaceStyle = "notchSurfaceStyle"
         static let watchLimit = "watchLimit"
         static let criticalLimit = "criticalLimit"
         static let colorTransitionStyle = "colorTransitionStyle"
+        static let busyIndicatorStyle = "busyIndicatorStyle"
         static let customEndpoints = "customEndpoints"
+        /// Entries written when remote hosts were Claude-only. Read once on
+        /// the way to the new key, then dropped — the shapes match, and kinds
+        /// default to Claude.
         static let lastSeenVersion = "lastSeenVersion"
         static let order = "providerOrder"
         static let announceSessionEnd = "announceSessionEnd"
@@ -666,6 +818,12 @@ final class Preferences: ObservableObject {
             defaults.set(data, forKey: Keys.customEndpoints)
         }
     }
+
+    /// Remote hosts read straight from disk, off the main actor.
+    ///
+    /// Copy that only has a provider id — the tooltip's sign-in guidance —
+    /// needs the `user@host` behind it, and `@Published` state is
+    /// main-actor-isolated where `UserDefaults` is thread-safe.
 
     /// The MiniMax region read straight from disk, off the main actor.
     ///
@@ -795,6 +953,10 @@ final class Preferences: ObservableObject {
             defaults.string(forKey: Keys.lmstudioEndpoint)
                 ?? LMStudioEndpoint.configuredAddress() ?? LMStudioEndpoint.defaultAddress
         ).absoluteString) ?? LMStudioEndpoint.defaultAddress
+        self.omlxEndpoint = (try? OMLXEndpoint.parse(
+            defaults.string(forKey: Keys.omlxEndpoint)
+                ?? OMLXEndpoint.configuredAddress() ?? OMLXEndpoint.defaultAddress
+        ).absoluteString) ?? OMLXEndpoint.defaultAddress
         self.mutedAlertProviders = Set(defaults.stringArray(forKey: Keys.mutedAlerts) ?? [])
         self.accountNicknames = defaults.dictionary(forKey: Keys.accountNicknames) as? [String: String] ?? [:]
         // Absent means never chosen, which is the hover behaviour the app was
@@ -820,8 +982,17 @@ final class Preferences: ObservableObject {
         // Absent means an install from before this option, which must retain
         // its existing compact status-item presentation.
         self.showsWeeklyLimitInMenuBar = defaults.bool(forKey: Keys.showsWeeklyLimitInMenuBar)
+        self.menuBarActivityStyle = defaults.string(forKey: Keys.menuBarActivityStyle)
+            .flatMap(MenuBarActivityStyle.init(rawValue:)) ?? .pulse
+        self.menuBarReading = defaults.string(forKey: Keys.menuBarReading)
+            .flatMap(MenuBarReading.init(rawValue:)) ?? .automatic
+        self.menuBarClickAction = defaults.string(forKey: Keys.menuBarClickAction)
+            .flatMap(MenuBarClickAction.init(rawValue:)) ?? .menu
         // Absent is kept distinct from empty: never chosen is not choosing none.
         self.menuBarProviders = defaults.stringArray(forKey: Keys.menuBarProviders).map(Set.init)
+        self.expandedDetailProviders = Set(
+            defaults.stringArray(forKey: Keys.expandedDetailProviders) ?? []
+        )
         // The right edge is where the notch has always been, and it is the one
         // side of a Mac that no system chrome claims by default.
         self.notchEdge = defaults.string(forKey: Keys.edge)
@@ -842,6 +1013,10 @@ final class Preferences: ObservableObject {
         self.resetTimeFormat = defaults.string(forKey: Keys.resetTimeFormat)
             .flatMap(ResetTimeFormat.init(rawValue:)) ?? .automatic
         self.showUsagePace = defaults.bool(forKey: Self.showUsagePaceKey)
+        // Off by default: see the property. A request spent on every look is a
+        // choice, and on a rate-limited provider it can cost freshness rather
+        // than buy it.
+        self.asksProviderOnLook = defaults.bool(forKey: Keys.asksProviderOnLook)
         // Off by default: it swaps what Claude's ring means, and that is a
         // choice for whoever budgets their week that way.
         self.claudeDailyPaceRing = defaults.bool(forKey: Keys.claudeDailyPaceRing)
@@ -870,6 +1045,16 @@ final class Preferences: ObservableObject {
         self.weeklyRingDashed = defaults.object(forKey: Keys.weeklyRingDashed) as? Bool ?? false
         self.showsNotchReadings = defaults.object(forKey: Keys.showsNotchReadings) as? Bool ?? true
         self.weeklyReading = defaults.object(forKey: Keys.weeklyReading) as? Bool ?? false
+        // Off by default: it swaps what every meter means, and that is a
+        // choice for whoever budgets from the other end.
+        self.showsRemainingInNotch = defaults.bool(forKey: Self.showsRemainingInNotchKey)
+        self.shutRingsWhenSpent = defaults.object(forKey: Keys.shutRingsWhenSpent) as? Bool ?? true
+        self.ringOrder = defaults.string(forKey: Keys.ringOrder).flatMap(RingOrder.init(rawValue:))
+            // Migrated once from the two switches, which could both be on —
+            // the deficit sort won then too, so it wins the migration.
+            ?? (defaults.bool(forKey: Keys.autoOrderByDeficit) ? .deficit
+                : defaults.bool(forKey: Keys.autoOrderByRemaining) ? .remaining : .manual)
+        self.hideDepletedAccounts = defaults.bool(forKey: Keys.hideDepletedAccounts)
 
         self.weeklyRing = defaults.string(forKey: Keys.weeklyRing)
             .flatMap(WeeklyRing.init(rawValue:)) ?? .off
@@ -889,6 +1074,8 @@ final class Preferences: ObservableObject {
         self.watchLimit = min(max(storedWatchLimit, 0.01), critical - 0.01)
         self.colorTransitionStyle = defaults.string(forKey: Keys.colorTransitionStyle)
             .flatMap(ColorTransitionStyle.init(rawValue:)) ?? .hardStep
+        self.busyIndicatorStyle = defaults.string(forKey: Keys.busyIndicatorStyle)
+            .flatMap(BusyIndicatorStyle.init(rawValue:)) ?? .arc
         // Absent means never chosen, which is follow-the-Mac.
         self.language = defaults.string(forKey: L10n.languageDefaultsKey)
             .flatMap(AppLanguage.init(rawValue:)) ?? .system
@@ -983,6 +1170,11 @@ final class Preferences: ObservableObject {
         }
         customEndpoints.removeAll { $0.id == id }
     }
+
+    // MARK: Remote hosts
+
+
+
 
     // MARK: Account names
 

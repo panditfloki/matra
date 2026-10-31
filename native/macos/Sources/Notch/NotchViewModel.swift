@@ -7,7 +7,7 @@ final class NotchViewModel: ObservableObject {
     /// Per runtime, so Ollama's relay switching off clears its own readings
     /// and nobody else's.
     private var performances: [String: [String: LocalModelPerformance]] = [:]
-    private var ledger = LocalTokenLedger()
+    private var ledgers: [String: LocalTokenLedger] = [:]
     private var localMetricsEnabled = false
 
     /// The Ollama relay's own id; its readings are keyed by model name.
@@ -35,8 +35,8 @@ final class NotchViewModel: ObservableObject {
 
     /// Logged tokens per cell, read against `now` as it is drawn so "today"
     /// rolls over at midnight without a new line being written.
-    func updateLedger(_ ledger: LocalTokenLedger) {
-        self.ledger = ledger
+    func updateLedger(_ ledger: LocalTokenLedger, source: String = LMStudioMetrics.providerID) {
+        ledgers[source] = ledger
         snapshots = snapshots.map(decorated)
     }
 
@@ -47,7 +47,7 @@ final class NotchViewModel: ObservableObject {
         snapshot.showsLocalPerformance = shows
         snapshot.localPerformance = shows
             ? performances[snapshot.providerID]?[Self.performanceKey(for: snapshot, model: model)] : nil
-        snapshot.localLedger = ledger.summary(for: snapshot.id, now: now)
+        snapshot.localLedger = ledgers[snapshot.providerID]?.summary(for: snapshot.id, now: now)
         snapshot.localContextFraction = snapshot.localLedger?.contextFraction(contextLength: model.contextLength)
         return snapshot
     }
@@ -216,6 +216,9 @@ final class NotchViewModel: ObservableObject {
     @Published var colorTransitionStyle: ColorTransitionStyle = .hardStep
     /// Mirrors the persisted Appearance choice so the separate notch window
     /// redraws immediately when Settings changes it.
+    @Published var busyIndicatorStyle: BusyIndicatorStyle = .arc
+    @Published var showsRemainingInNotch = false
+    @Published var shutRingsWhenSpent = true
     @Published var surfaceStyle: NotchSurfaceStyle = .defaultStyle
     /// Whether DeepSeek's billing phase rows are visible in its usage card.
     @Published var deepSeekPricingEnabled = true
@@ -1106,6 +1109,10 @@ final class NotchViewModel: ObservableObject {
 
     /// Where the grip is, in stack space.
     var gripPoint: CGPoint { CGPoint(x: gripAlong, y: orbInset) }
+
+    /// An expanded notch always offers its move handle. Discovering it must
+    /// not depend on first finding the settings orb's hover target.
+    var showsMoveGrip: Bool { isExpanded }
 
     /// Whether a point in stack space is on the grip — a capsule's worth of
     /// ground round it, generous as the settings button's.

@@ -15,9 +15,10 @@ final class MatraLiveStartupTests: XCTestCase {
 
     func testAppOwnedStorageUsesDistinctProductNamespaces() {
         let support = URL(fileURLWithPath: "/test/Application Support", isDirectory: true)
-        XCTAssertEqual(MatraStorage.supportRoot(in: support).path, "/test/Application Support/Matra")
+        let folder = Bundle.main.bundleIdentifier == MatraStorage.previewBundleID ? "Matra Preview" : "Matra"
+        XCTAssertEqual(MatraStorage.supportRoot(in: support).path, "/test/Application Support/\(folder)")
         XCTAssertEqual(ClaudeUsageCLI.scratchLocation(applicationSupport: support).path,
-                       "/test/Application Support/Matra/usage-scratch")
+                       "/test/Application Support/\(folder)/usage-scratch")
         let services = [CustomEndpoint.keychainService, PhoneLinkKeychainSecretStore.service,
                         LMStudioCredentials.keychainService, ApifyCredentials.keychainService,
                         OllamaCredentials.keychainService,

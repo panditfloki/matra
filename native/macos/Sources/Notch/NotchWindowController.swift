@@ -23,6 +23,7 @@ final class NotchWindowController {
     /// Driven by the notch's own chrome.
 
     /// Refetch a single provider, asked for by clicking its ring.
+    var onLook: (() -> Void)?
     var onRefreshProvider: ((String) async -> Void)?
     /// Open the settings window, asked for by clicking the handle.
     var onOpenSettings: (() -> Void)?
@@ -342,7 +343,7 @@ final class NotchWindowController {
             panel.startsDrag = { [weak self] point in
                 guard let self, let panel = self.panel else { return false }
                 let local = CGPoint(x: point.x, y: panel.frame.height - point.y)
-                return self.gripRevealed && self.isOverGrip(local)
+                return self.gripRevealed && !self.isOverHandle(local) && self.isOverGrip(local)
             }
             panel.onDrag = { [weak self] dx, dy in self?.dragged(dx: dx, dy: dy) }
             panel.onDragEnd = { [weak self] in
@@ -1174,9 +1175,8 @@ final class NotchWindowController {
     /// at all. Whether a point is actually *on* the handle is a finer question
     /// than a box can answer — see `isOverHandle`.
     private var handleRect: CGRect {
-        let side = model.orbHotZone
-        // The grip only once it is out: an invisible spot beside the settings
-        // button that still takes the mouse would be worse than none.
+        let side = max(model.orbHotZone, NotchLayout.gripHotZone) * model.sizeScale
+        // Use the same visibility as the renderer, including before hover.
         let grip = gripRevealed ? [model.gripPoint] : []
         let boxes = (model.orbHandlePoints + grip).map { point -> CGRect in
             let centre = placement.point(along: model.handleWing.lead + point.x * model.sizeScale,
@@ -1199,11 +1199,7 @@ final class NotchWindowController {
         )
     }
 
-    /// Whether the grip is out: it comes with the settings button, and stays
-    /// while the pointer is on it.
-    private var gripRevealed: Bool {
-        model.isExpanded && (model.isHoveringSettings || model.isHoveringMove)
-    }
+    private var gripRevealed: Bool { model.showsMoveGrip }
 
     /// Whether the pointer is on the grip, asked in the same notch-own
     /// measurements `isOverHandle` uses.
@@ -1450,6 +1446,7 @@ final class NotchWindowController {
             clearHoverWork?.cancel()
             clearHoverWork = nil
             if model.hoveredIndex != target {
+                onLook?()
                 withAnimation(.spring(response: 0.18, dampingFraction: 0.85)) {
                     model.hoveredIndex = target
                 }
@@ -1970,6 +1967,7 @@ final class NotchWindowController {
     func togglePinned() {
         model.isPinned.toggle()
         if model.isPinned {
+            onLook?()
             foldWork?.cancel()
             foldWork = nil
             withAnimation(NotchMotion.unfold) { model.isExpanded = true }

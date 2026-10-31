@@ -2,6 +2,43 @@ import SwiftUI
 import XCTest
 @testable import Matra
 
+@MainActor
+final class NotchGripInteractionTests: XCTestCase {
+    func testVisibleGripStartsDraggingWithoutHoverAndSettingsKeepsItsClicks() throws {
+        for edge in NotchEdge.allCases {
+            for size in NotchSize.allCases {
+                let controller = NotchWindowController()
+                defer { controller.stop() }
+                let m = controller.model
+                m.edge = edge
+                m.sizeScale = size.scale
+                m.updateSnapshots(Array(Fixtures.snapshots().prefix(3)))
+                m.isExpanded = true
+                controller.relocate()
+                let panel = try XCTUnwrap(controller.panelContentViewForTesting?.window as? NotchPanel)
+                let startsDrag = try XCTUnwrap(panel.startsDrag)
+                let placement = NotchPlacement(edge: edge, panelSize: panel.frame.size)
+                func point(along: CGFloat) -> CGPoint {
+                    let p = placement.point(along: m.handleWing.lead + along * m.sizeScale,
+                                            across: m.orbInset * m.sizeScale)
+                    return CGPoint(x: p.x, y: panel.frame.height - p.y)
+                }
+                XCTAssertFalse(m.isHoveringSettings)
+                XCTAssertFalse(m.isHoveringMove)
+                let grip = point(along: m.gripAlong)
+                XCTAssertTrue(startsDrag(grip), "\(edge)/\(size): grip needs a hidden hover step")
+                XCTAssertNotNil(panel.contentView?.hitTest(grip), "The visible grip must receive the press")
+                XCTAssertFalse(startsDrag(point(along: m.orbAlong)))
+                // Both generous hit circles overlap here. Settings must win.
+                XCTAssertFalse(startsDrag(point(along: (m.orbAlong + m.gripAlong) / 2)))
+
+                m.isExpanded = false
+                XCTAssertFalse(startsDrag(grip), "A folded notch must not intercept grip drags")
+            }
+        }
+    }
+}
+
 /// The layout maths can be right in every unit and still put nothing on the
 /// screen. These render the real view and count the pixels it actually paints,
 /// which is the one thing the arithmetic tests cannot tell you.
@@ -50,7 +87,7 @@ final class NotchRenderTests: XCTestCase {
                 // `ImageRenderer` with none defaults to light, where the track
                 // is black at 16% over a black body — invisible — so
                 // `greyFraction` read zero whether it was drawn or not.
-                .environment(\.colorScheme, .dark)
+                .environment(\.colorScheme, model.surfaceStyle.colorScheme ?? .dark)
         )
         renderer.scale = 1
         guard let image = renderer.cgImage else { return nil }
@@ -69,6 +106,78 @@ final class NotchRenderTests: XCTestCase {
             }
         }
         return total == 0 ? 0 : Double(inked) / Double(total)
+    }
+
+    func testMoveGripIsVisibleWithoutHoverOnEveryEdgeAndSize() throws {
+        for edge in NotchEdge.allCases {
+            for size in NotchSize.allCases {
+                let m = model(edge: edge)
+                m.sizeScale = size.scale
+                XCTAssertFalse(m.isHoveringSettings)
+                XCTAssertFalse(m.isHoveringMove)
+                let rep = try XCTUnwrap(render(m))
+                let centre = m.placement.point(
+                    along: m.handleWing.lead + m.gripAlong * m.sizeScale,
+                    across: m.orbInset * m.sizeScale)
+                let radius = Int((NotchLayout.gripLength / 2 + 2) * m.sizeScale)
+                var visiblePixels = 0
+                var contrastingPixels = 0
+                for x in max(0, Int(centre.x) - radius)..<min(rep.pixelsWide, Int(centre.x) + radius) {
+                    for y in max(0, Int(centre.y) - radius)..<min(rep.pixelsHigh, Int(centre.y) + radius) {
+                        guard let ink = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
+                              ink.alphaComponent > 0.3 else { continue }
+                        visiblePixels += 1
+                        if max(ink.redComponent, ink.greenComponent, ink.blueComponent) > 0.5 {
+                            contrastingPixels += 1
+                        }
+                    }
+                }
+                XCTAssertGreaterThan(visiblePixels, 30, "\(edge)/\(size): handle missing before hover")
+                XCTAssertGreaterThan(contrastingPixels, 8, "\(edge)/\(size): dots disappear on a dark desktop")
+                if edge == .right, size == .medium,
+                   ProcessInfo.processInfo.environment["MATRA_TEST_WORKSPACE"] != nil {
+                    try rep.representation(using: .png, properties: [:])?.write(
+                        to: MatraTestFiles.temporaryDirectory.appendingPathComponent("notch-visible-grip.png"))
+                }
+            }
+        }
+    }
+
+    func testFoldedNotchDoesNotExposeTheMoveGrip() {
+        let m = model(edge: .right)
+        m.isExpanded = false
+        m.isHoveringSettings = true
+        m.isHoveringMove = true
+        XCTAssertFalse(m.showsMoveGrip, "Stale hover must not keep a hidden drag target alive")
+    }
+
+    func testMoveGripKeepsContrastAcrossThemesAndTransparencySettings() throws {
+        for style in [NotchSurfaceStyle.light, .glass, .darkGlass] {
+            for reduced in [false, true] {
+                let m = model(edge: .right, cells: 2)
+                m.surfaceStyle = style
+                let rep = try XCTUnwrap(render(m, reduceTransparency: reduced))
+                let centre = m.placement.point(along: m.handleWing.lead + m.gripAlong,
+                                                across: m.orbInset)
+                var bright = 0, dark = 0
+                for x in (Int(centre.x) - 16)...(Int(centre.x) + 16) {
+                    for y in (Int(centre.y) - 12)...(Int(centre.y) + 12) {
+                        guard let ink = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
+                              ink.alphaComponent > 0.3 else { continue }
+                        if max(ink.redComponent, ink.greenComponent, ink.blueComponent) > 0.5 {
+                            bright += 1
+                        } else { dark += 1 }
+                    }
+                }
+                XCTAssertGreaterThan(style == .light ? dark : bright, 8,
+                                     "\(style), reduce transparency \(reduced): missing contrasting grip")
+                if style == .darkGlass, !reduced,
+                   ProcessInfo.processInfo.environment["MATRA_TEST_WORKSPACE"] != nil {
+                    try rep.representation(using: .png, properties: [:])?.write(
+                        to: MatraTestFiles.temporaryDirectory.appendingPathComponent("notch-glass-grip.png"))
+                }
+            }
+        }
     }
 
     func testTheNotchPaintsSomethingOnEveryEdge() {
@@ -215,7 +324,7 @@ final class NotchRenderTests: XCTestCase {
     /// corner it is drawn to hug. Arithmetic cannot see that: the numbers going
     /// in were right and the modifier order was not, so this looks at the
     /// pixels instead.
-    func testNothingIsPaintedBeyondTheNotchAndItsOrbAtAnySize() {
+    func testNothingIsPaintedBeyondTheNotchAndItsHandlesAtAnySize() {
         for size in NotchSize.allCases {
             let m = model(edge: .right)
             m.sizeScale = size.scale
@@ -225,11 +334,11 @@ final class NotchRenderTests: XCTestCase {
             }
             let place = NotchPlacement(edge: .right, panelSize: m.panelSize)
             let scale = size.scale
-            // What the notch and the orb legitimately reach, derived rather
-            // than guessed, plus a point for the stroke's own width.
+            // Include the now-visible grip, with a point for its outline.
             let reach = m.orbArcRadius * scale + NotchLayout.orbStroke
             let deepest = max(m.notchDepth * scale, m.orbInset * scale + reach)
-            let furthest = m.slack + max(m.shapeLength, m.orbAlong) * scale + reach
+            let gripEnd = (m.gripAlong + NotchLayout.gripWidth / 2 + 1) * scale
+            let furthest = m.slack + max(max(m.shapeLength, m.orbAlong) * scale + reach, gripEnd)
             let nearest = m.slack - reach
 
             var maxAcross = 0.0, maxAlong = -Double.infinity, minAlong = Double.infinity

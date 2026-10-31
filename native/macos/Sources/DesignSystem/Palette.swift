@@ -65,6 +65,10 @@ enum Palette {
 
     static let textPrimary   = Color(dark: NSColor(hex: 0xf8f4ed), light: NSColor(hex: 0x14110f))
     static let textSecondary = Color(dark: NSColor(hex: 0xb6ab9b), light: NSColor(hex: 0x57504a))
+    static let menuTextSecondary = textSecondary
+    static let menuCardSurface = card.opacity(0.82)
+    static let menuCardStroke = Color(dark: .white.withAlphaComponent(0.12),
+                                      light: .black.withAlphaComponent(0.08))
     /// Used only by dark, standard Liquid Glass tooltips. Other surfaces keep
     /// `textSecondary`, including their frame-accurate #808080 dark ink.
     static let readableTooltipTextSecondary = Color(dark: NSColor(hex: 0xd6cdc0), light: NSColor(hex: 0x57504a))

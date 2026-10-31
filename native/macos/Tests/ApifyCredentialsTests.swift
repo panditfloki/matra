@@ -10,7 +10,7 @@ final class ApifyCredentialsTests: XCTestCase {
     private var authURL: URL!
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent("apify-credentials-\(UUID())")
+        directory = MatraTestFiles.temporaryDirectory.appendingPathComponent("apify-credentials-\(UUID())")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         authURL = directory.appendingPathComponent("auth.json")
     }

@@ -25,6 +25,8 @@ pub struct TraySlot {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
+    #[serde(default)]
+    pub parity: crate::parity::ParitySettings,
     /// Additional readers require explicit opt-in before borrowing credentials.
     #[serde(default)]
     pub extra_providers: Vec<String>,
@@ -215,6 +217,7 @@ fn default_lang() -> String {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            parity: Default::default(),
             theme: default_theme(),
             accent: default_accent(),
             quota_colors: Default::default(),
@@ -247,6 +250,13 @@ impl Default for Config {
 }
 
 pub fn config_path() -> PathBuf {
+    #[cfg(test)]
+    {
+        let root = std::env::var_os("MATRA_TEST_WORKSPACE").map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".test-runtime"));
+        return root.join("runtime/matra-notch/config.json");
+    }
+    #[cfg(not(test))]
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("matra-notch")

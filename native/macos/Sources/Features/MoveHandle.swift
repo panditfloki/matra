@@ -41,11 +41,8 @@ enum MoveHandle {
 
 /// **The six dots that move the notch**, beside the settings button.
 ///
-/// Not a second button at the other end of the notch: two arcs, one each
-/// end, read as two things fighting over the same notch. These come out only
-/// with the settings button, beside it, as its companion — hold them and
-/// drag, and the notch goes along the screen's edge with the pointer, as
-/// ⌥-drag takes it.
+/// Visible beside settings whenever the notch is expanded. Hold them and
+/// drag to move along the screen's edge, using the same path as ⌥-drag.
 ///
 /// **Out of the settings button like goo**, the way the arcs come out of the
 /// notch: one drop pushes out of the button's edge on a neck, runs out to
@@ -174,7 +171,16 @@ struct MoveGrip: View, Animatable {
                 for (i, offset) in Self.offsets(on: edge).enumerated() {
                     let s = spread(i)
                     let r = dot * (1 + 1.9 * (1 - s)) * Self.step(t / 0.12)
-                    disc(CGPoint(x: middle.x + offset.x * s, y: middle.y + offset.y * s), r)
+                    let point = CGPoint(x: middle.x + offset.x * s, y: middle.y + offset.y * s)
+                    disc(point, r)
+                    // Dark dots alone disappear on a dark desktop. A fine
+                    // contrasting edge keeps the six-dot affordance visible.
+                    if !liquid {
+                        layer.stroke(Path(ellipseIn: CGRect(x: point.x - r, y: point.y - r,
+                                                          width: 2 * r, height: 2 * r)),
+                                     with: .color(Palette.textPrimary.opacity(0.85 * Double(s))),
+                                     lineWidth: 1)
+                    }
                 }
                 // The neck, from the button's edge out to the drop.
                 guard liquid, neck > 0.5 else { return }
@@ -210,6 +216,7 @@ struct MoveGrip: View, Animatable {
                     .background { if let dim = surfaceStyle.glassDim { Rectangle().fill(dim) } }
                     .frame(width: dot, height: dot)
                     .clipShape(Circle())
+                    .overlay { Circle().strokeBorder(Palette.textPrimary.opacity(0.85), lineWidth: 1) }
                     .scaleEffect(0.3 + 0.7 * s)
                     .opacity(Double(Self.step(separation / 0.3)))
                     .offset(x: at.x + offset.x * s, y: at.y + offset.y * s)

@@ -104,6 +104,9 @@ struct DashboardView: View {
             }
             Spacer(minLength: 12)
             VStack(alignment: .leading, spacing: 8) {
+                if !model.isPreview {
+                    sidebarButton("Project activity…", icon: "chart.bar.xaxis", selected: false) { Costs.showActivity() }
+                }
                 sidebarButton("Settings…", icon: "gearshape", selected: false, action: openSettings)
                 Link("dydxfx.com", destination: MatraBrand.website)
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(MatraBrand.accent)

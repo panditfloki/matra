@@ -115,7 +115,7 @@ final class AmpUsageTests: XCTestCase {
 
 final class AmpCredentialsTests: XCTestCase {
     private func file(_ text: String) throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("amp-\(UUID()).json")
+        let url = MatraTestFiles.temporaryDirectory.appendingPathComponent("amp-\(UUID()).json")
         try text.write(to: url, atomically: true, encoding: .utf8)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
         return url
@@ -131,7 +131,7 @@ final class AmpCredentialsTests: XCTestCase {
     }
 
     func testMissingEmptyForeignAndLookalikeKeysNeedLogin() throws {
-        let missing = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let missing = MatraTestFiles.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         var urls = [missing]
         for text in ["{}", #"{"apiKey@https://ampcode.com/":" "}"#,
                      #"{"apiKey@https://ampcode.com.evil/":"sgamp_other"}"#,
@@ -150,7 +150,7 @@ final class AmpCredentialsTests: XCTestCase {
     }
 
     func testBrokenStorageIsAnErrorRatherThanALogout() throws {
-        for url in [try file("not json"), try file("[]"), FileManager.default.temporaryDirectory] {
+        for url in [try file("not json"), try file("[]"), MatraTestFiles.temporaryDirectory] {
             XCTAssertThrowsError(try AmpCredentials.load(from: url)) { error in
                 guard case UsageProviderError.apiError = error else {
                     return XCTFail("expected a credential-read error, got \(error)")

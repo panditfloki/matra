@@ -262,10 +262,10 @@ enum NotchLayout {
     ///
     /// Rounded up to whole lines: the card's height is a stack of line boxes,
     /// and half a line of budget leaves the last one straddling the clip.
-    static func bodyTextHeight(_ text: String) -> CGFloat {
+    static func bodyTextHeight(_ text: String, width: CGFloat = cardTextWidth) -> CGFloat {
         guard !text.isEmpty else { return cardBodyLineHeight }
         let bounds = (text as NSString).boundingRect(
-            with: CGSize(width: cardTextWidth, height: .greatestFiniteMagnitude),
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: cardBodyFont]
         )
@@ -382,8 +382,20 @@ enum NotchLayout {
             + blockSpacing + 2 * chart + usageDetailChartGap
     }
 
+    static let splitRowGap = Design.px(20)
+    static let splitRowSlack = Design.px(24)
+
+    static func splitRowFits(leading: String, trailing: String, width: CGFloat) -> Bool {
+        let attributes: [NSAttributedString.Key: Any] = [.font: cardBodyFont]
+        let leadingWidth = (leading as NSString).size(withAttributes: attributes).width
+        let trailingWidth = (trailing as NSString).size(withAttributes: attributes).width
+        return leadingWidth + splitRowGap + trailingWidth + splitRowSlack <= width
+    }
+
     static func cardHeight(windowCount: Int, groupCount: Int = 0,
-                           moneyWindowCount: Int = 0, usageDetailGroupCount: Int = 0,
+                           moneyWindowCount: Int = 0, moneyResetCount: Int = 0,
+                           moneyProjectionCount: Int = 0,
+                           usageDetailGroupCount: Int = 0,
                            sessionCount: Int = 0,
                            sessionCap: Int = defaultSessionCap,
                            statusMessage: String? = nil,
@@ -394,7 +406,8 @@ enum NotchLayout {
                            localModelName: String? = nil, showsLocalPerformance: Bool = false,
                            localLedgerRows: Int = 0,
                            compactRowCount: Int = 0,
-                           showsDeepSeekPricing: Bool = true) -> CGFloat {
+                           showsDeepSeekPricing: Bool = true,
+                           costRows: Int = 0) -> CGFloat {
         let header = max(glyphSize, cardTitleLineHeight)
             + (hasPlan ? cardBodyLineHeight : 0)
         var height = 2 * cardPadding + header
@@ -424,6 +437,10 @@ enum NotchLayout {
             height += headerToBlock
                 + CGFloat(fullCount) * fullBlock
                 + CGFloat(moneyCount) * moneyBlock
+                // A balance with a period adds its reset line under the stats,
+                // and its forecast once there is one.
+                + CGFloat(min(max(0, moneyResetCount), moneyCount)
+                          + min(max(0, moneyProjectionCount), moneyCount)) * (moneyStatGap + cardBodyLineHeight)
                 + CGFloat(compactRowCount) * compactBlock
                 + CGFloat(windowCount - 1) * blockSpacing
             if groupCount > 0 {
@@ -446,6 +463,12 @@ enum NotchLayout {
 
         if hasResetCredits {
             height += codexUsageTop + hairline + codexResetCreditsHeight
+        }
+
+        // "What used it": a line of range tabs, then one line per project.
+        if costRows > 0 {
+            height += blockSpacing + cardBodyLineHeight
+                + CGFloat(costRows) * (cardBodyLineHeight + sessionRowGap)
         }
 
         height += usageDetailHeight(usageDetailGroupCount,
@@ -474,8 +497,8 @@ enum NotchLayout {
         return height
     }
 
-    static func modelNameHeight(_ name: String) -> CGFloat {
-        min(2 * cardBodyLineHeight, bodyTextHeight(name))
+    static func modelNameHeight(_ name: String, width: CGFloat = cardTextWidth) -> CGFloat {
+        min(2 * cardBodyLineHeight, bodyTextHeight(name, width: width))
     }
 
 

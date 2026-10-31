@@ -1,4 +1,5 @@
 import CoreServices
+import Darwin
 import Foundation
 
 /// Watches Pi's persisted session stream. Completed Codex/Grok responses refresh
@@ -21,13 +22,17 @@ final class PiResponseMonitor {
     private var pending: Set<String> = []
     private var debounce: DispatchWorkItem?
     private var active: [String: PiActiveTurn] = [:]
+    private let livePiDirectories: () -> Set<String>
+    private var sweepTimer: Timer?
 
     init(directory: URL? = nil,
          startedAt: Date = Date(),
+         livePiDirectories: @escaping () -> Set<String> = PiProcesses.workingDirectories,
          onResponse: @escaping (String) -> Void,
          onActivity: @escaping (String, [PiActivitySnapshot]) -> Void = { _, _ in }) {
         self.directory = directory ?? Self.defaultSessionsDirectory
         self.reader = PiSessionTailReader(startedAt: startedAt)
+        self.livePiDirectories = livePiDirectories
         self.onResponse = onResponse
         self.onActivity = onActivity
     }
@@ -69,9 +74,17 @@ final class PiResponseMonitor {
             return
         }
         self.stream = stream
+
+        let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.sweep() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        sweepTimer = timer
     }
 
     func stop() {
+        sweepTimer?.invalidate()
+        sweepTimer = nil
         debounce?.cancel()
         debounce = nil
         pending.removeAll()
@@ -85,7 +98,7 @@ final class PiResponseMonitor {
         self.stream = nil
     }
 
-    private func consume(_ paths: [String]) {
+    func consume(_ paths: [String]) {
         var affected: Set<String> = []
         for path in paths where path.hasSuffix(".jsonl") {
             let result = reader.consume(URL(fileURLWithPath: path))
@@ -95,10 +108,14 @@ final class PiResponseMonitor {
                     affected.insert(previous)
                 }
                 if event.isBusy {
+                    let cwd = active[event.sessionPath]?.cwd
+                        ?? PiSessionTailReader.workingDirectory(
+                            of: URL(fileURLWithPath: event.sessionPath))
                     active[event.sessionPath] = PiActiveTurn(
                         providerID: event.providerID,
                         model: event.model,
-                        since: event.timestamp
+                        since: event.timestamp,
+                        cwd: cwd
                     )
                     affected.insert(event.providerID)
                 } else {
@@ -107,13 +124,7 @@ final class PiResponseMonitor {
                 }
             }
         }
-        for provider in affected {
-            let sessions = active.compactMap { path, turn -> PiActivitySnapshot? in
-                guard turn.providerID == provider else { return nil }
-                return PiActivitySnapshot(id: "pi.\(path)", model: turn.model, since: turn.since)
-            }
-            onActivity(provider, sessions)
-        }
+        publish(affected)
 
         guard !pending.isEmpty else { return }
         debounce?.cancel()
@@ -126,12 +137,79 @@ final class PiResponseMonitor {
         debounce = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: work)
     }
+
+    /// Pi writes nothing when it quits mid-turn, so the turn it left open
+    /// would read as working forever. Drop every turn no running Pi can own:
+    /// none in the session's directory, or none at all when that is unknown.
+    func sweep() {
+        guard !active.isEmpty else { return }
+        let live = livePiDirectories()
+        var affected: Set<String> = []
+        for (path, turn) in active {
+            let owned = turn.cwd.map(live.contains) ?? !live.isEmpty
+            guard !owned else { continue }
+            active.removeValue(forKey: path)
+            affected.insert(turn.providerID)
+        }
+        publish(affected)
+    }
+
+    private func publish(_ providers: Set<String>) {
+        for provider in providers {
+            let sessions = active.compactMap { path, turn -> PiActivitySnapshot? in
+                guard turn.providerID == provider else { return nil }
+                return PiActivitySnapshot(id: "pi.\(path)", model: turn.model, since: turn.since)
+            }
+            onActivity(provider, sessions)
+        }
+    }
 }
 
 private struct PiActiveTurn {
     let providerID: String
     let model: String
     let since: Date
+    /// Where the session was started, from its header. Nil when unreadable.
+    let cwd: String?
+}
+
+/// Running Pi processes. Pi retitles itself `pi` (`pi-rpc` in RPC mode), so
+/// that is its argv[0] — while the kernel still calls it `node`.
+enum PiProcesses {
+    static func workingDirectories() -> Set<String> {
+        var count = proc_listpids(UInt32(PROC_ALL_PIDS), 0, nil, 0)
+        guard count > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(count) / MemoryLayout<pid_t>.stride + 16)
+        count = proc_listpids(UInt32(PROC_ALL_PIDS), 0, &pids,
+                              Int32(pids.count * MemoryLayout<pid_t>.stride))
+        guard count > 0 else { return [] }
+        return Set(pids.prefix(Int(count) / MemoryLayout<pid_t>.stride)
+            .filter(isPi)
+            .compactMap(SessionFocus.currentDirectory(of:))
+            .map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path })
+    }
+
+    static func isPi(_ pid: pid_t) -> Bool {
+        guard pid > 0 else { return false }
+        var info = proc_bsdinfo()
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info,
+                           Int32(MemoryLayout<proc_bsdinfo>.size))
+                == Int32(MemoryLayout<proc_bsdinfo>.size)
+        else { return false }
+        let comm = withUnsafePointer(to: &info.pbi_comm) {
+            $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXCOMLEN)) {
+                String(cString: $0)
+            }
+        }
+        // Only runtimes Pi ships on: reading every process's arguments every
+        // few seconds would cost far more than this check.
+        guard comm == "pi" || comm.hasPrefix("node") || comm == "bun" else { return false }
+        // The block opens with the executable path; argv[0] follows it.
+        guard let argv0 = TerminalTabFocus.environment(of: pid).dropFirst().first else {
+            return false
+        }
+        return ["pi", "pi-rpc"].contains((argv0 as NSString).lastPathComponent)
+    }
 }
 
 struct PiActivitySnapshot {
@@ -253,6 +331,22 @@ final class PiSessionTailReader {
         cursor.offset = size
         cursors[url.path] = cursor
         return result
+    }
+
+    /// The directory the session was started in, from its opening `session` line.
+    static func workingDirectory(of url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let head = try? handle.read(upToCount: 64 * 1024),
+              let line = head.split(separator: UInt8(ascii: "\n")).first,
+              let root = try? JSONSerialization.jsonObject(with: Data(line)) as? [String: Any],
+              root["type"] as? String == "session"
+        else { return nil }
+        guard let cwd = root["cwd"] as? String else { return nil }
+        // The kernel reports a process's directory with its symlinks
+        // resolved (/private/tmp, not /tmp), so the header's has to be too,
+        // or a Pi still running there reads as gone.
+        return URL(fileURLWithPath: cwd).resolvingSymlinksInPath().path
     }
 
     private func fileSize(_ url: URL) -> UInt64? {

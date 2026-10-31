@@ -14,8 +14,9 @@ enum TooltipGlassContrast {
 
     static func dim(surfaceStyle: NotchSurfaceStyle, colorScheme: ColorScheme,
                     reduceTransparency: Bool = false) -> Color? {
-        if surfaceStyle.effective == .darkGlass {
-            return Palette.darkGlassTooltipDim
+        switch surfaceStyle.effective {
+        case .darkGlass: return Palette.darkGlassTooltipDim
+        case .glass, .solid, .system, .light: break
         }
         return needsReadableDim(surfaceStyle: surfaceStyle, colorScheme: colorScheme,
                                 reduceTransparency: reduceTransparency)
@@ -171,7 +172,7 @@ private struct TooltipShell<Content: View>: View {
     @ViewBuilder let content: Content
 
     @Environment(\.matraReduceTransparency) private var reduceTransparency
-    @Environment(\.notchSurfaceStyle) private var surfaceStyle
+    @Environment(\.notchCardSurfaceStyle) private var surfaceStyle
     @Environment(\.colorScheme) private var colorScheme
 
     /// Reduce transparency means "no see-through chrome", which for this card
@@ -287,6 +288,11 @@ private struct TooltipHeader<Mark: View>: View {
     /// Sits on the header's own line, so saying when a reading was taken costs
     /// the card no extra height.
     var note: String?
+    /// A control belonging to the surface rather than to the provider, put at
+    /// the end of the header line. The notch has none — its card is a tooltip,
+    /// and nothing in it is clickable — so this is nil there and the header is
+    /// exactly what it always was.
+    var accessory: AnyView?
     @ViewBuilder let mark: Mark
     @Environment(\.tooltipSecondaryInk) private var secondaryInk
 
@@ -306,6 +312,14 @@ private struct TooltipHeader<Mark: View>: View {
                             .font(Typography.cardBody)
                             .foregroundStyle(secondaryInk)
                             .lineLimit(1)
+                    }
+                    // On the title's own line rather than centred on the
+                    // whole block, so a provider that names a tier under its
+                    // title puts the accessory exactly where one that does
+                    // not puts it.
+                    if let accessory {
+                        Spacer(minLength: Design.px(20))
+                        accessory
                     }
                 }
                 if let subtitle {
@@ -332,7 +346,7 @@ struct SplitRow<Accessory: View>: View {
     @Environment(\.tooltipSecondaryInk) private var secondaryInk
 
     var body: some View {
-        HStack(spacing: Design.px(20)) {
+        HStack(spacing: NotchLayout.splitRowGap) {
             Text(leading).foregroundStyle(leadingColor)
             Spacer(minLength: 0)
             HStack(spacing: NotchLayout.statusDotGap) {
@@ -417,34 +431,71 @@ private struct StatusRing: View {
 
 // MARK: - Providers
 
+/// The tick's leading edge for a 0...1 position along a track, kept on the
+/// track: at either end the tick stops against the edge instead of hanging
+/// halfway off it. Internal so the tests can pin the ends.
+func paceMarkerX(position: Double, trackWidth: CGFloat, markerWidth: CGFloat) -> CGFloat {
+    min(max(CGFloat(position) * trackWidth - markerWidth / 2, 0),
+        max(trackWidth - markerWidth, 0))
+}
+
+/// The tick on a window's bar marking the share of the cycle elapsed — where
+/// the fill *should* be, so a glance says whether the burn is ahead of the
+/// clock or behind it. Slightly taller than the bar, so its ends land on the
+/// card's own background where the contrast holds whatever the fill colour is.
+/// Hidden from VoiceOver: the pace line below the bar already says it in words.
+private struct PaceMarker: View {
+    /// 0...1 from the leading edge, on the bar's own terms — see
+    /// `LimitWindow.paceMarkerFraction`.
+    let position: Double
+    let trackWidth: CGFloat
+    private var width: CGFloat { Design.px(2) }
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: width / 2, style: .continuous)
+            .fill(Palette.textPrimary)
+            // Whole points, so it overhangs the bar evenly above and below.
+            .frame(width: width, height: (NotchLayout.barHeight + Design.px(6)).rounded())
+            .offset(x: paceMarkerX(position: position, trackWidth: trackWidth, markerWidth: width))
+            .accessibilityHidden(true)
+    }
+}
+
 /// One metered window: label and reset copy on a line, a track bar, then the
-/// percentage burned.
+/// percentage burned — or what is left, when the notch is set that way.
 private struct LimitWindowRow: View {
-    @Environment(\.usageWatchLimit) private var watchLimit
-    @Environment(\.usageCriticalLimit) private var criticalLimit
     let window: LimitWindow
     var inset: CGFloat = 0
     let fidelity: Fidelity
     let now: Date
     let resetTimeFormat: ResetTimeFormat
     let showsUsagePace: Bool
-    @Environment(\.expandsUsageRows) private var expandsUsageRows
+    /// Whether the reset says when it lands as well as how long there is.
+    /// Decided for the whole card — see `ProviderLimitsContent`.
+    var showsResetStamp: Bool = false
+    var showsRemaining: Bool = false
+    @Environment(\.matraAccentColor) private var accentColor
+    @Environment(\.usageWatchLimit) private var watchLimit
+    @Environment(\.usageCriticalLimit) private var criticalLimit
     @Environment(\.colorTransitionStyle) private var colorTransitionStyle
     @Environment(\.tooltipSecondaryInk) private var secondaryInk
+    @Environment(\.providerDetailWidth) private var detailWidth
 
-    /// Match the ring palette while preserving explicit provider band overrides.
+    private var band: UsageBand {
+        if let override = window.bandOverride { return override }
+        return UsageBand.band(for: window.usedFraction ?? 0, watchLimit: watchLimit, criticalLimit: criticalLimit)
+    }
+    /// Continuous when that style is chosen; a `bandOverride` is a deliberate discrete choice
+    /// from the caller regardless of style, so it stays exactly as `band.color(accent:)` renders it.
     private var barColor: Color {
         MatraQuotaBand.stroke(for: window.usedFraction, style: colorTransitionStyle,
                              override: window.bandOverride, watchLimit: watchLimit, criticalLimit: criticalLimit)
     }
-    private var trackWidth: CGFloat { NotchLayout.cardWidth - 2 * NotchLayout.cardPadding - inset }
-    private func bar(width: CGFloat) -> some View {
-        let fraction = CGFloat(min(max(window.usedFraction ?? 0, 0), 1))
-        return ZStack(alignment: .leading) {
-            Capsule().fill(Palette.barTrack)
-            Capsule().fill(barColor).frame(width: max(NotchLayout.barHeight, width * fraction))
-        }
-        .frame(width: width, height: NotchLayout.barHeight)
+    private var trackWidth: CGFloat { max(0, detailWidth - inset) }
+    private var fillWidth: CGFloat {
+        let fraction = CGFloat(min(max(Percent.metered(window.usedFraction ?? 0,
+                                                       showingRemaining: showsRemaining), 0), 1))
+        return max(NotchLayout.barHeight, trackWidth * fraction)
     }
 
     private var paceText: Text {
@@ -457,7 +508,10 @@ private struct LimitWindowRow: View {
 
     /// Blank rather than invented: some providers never say when the window rolls.
     private var resetText: String {
-        window.resetsAt.map { ResetCopy.text(for: $0, now: now, format: resetTimeFormat) } ?? ""
+        window.resetsAt.map {
+            ResetCopy.text(for: $0, now: now, format: resetTimeFormat,
+                           withAbsoluteStamp: showsResetStamp)
+        } ?? ""
     }
 
     /// A count-only row (no fraction, no reset) — like Ollama's per-model request
@@ -468,7 +522,10 @@ private struct LimitWindowRow: View {
 
     var body: some View {
         if let money = window.money {
-            MoneyBreakdownView(title: window.label, money: money, fidelity: fidelity)
+            MoneyBreakdownView(title: window.label, money: money, fidelity: fidelity,
+                               resetText: window.resetsAt == nil ? nil : resetText,
+                               projection: window.usageProjection(now: now),
+                               showsRemaining: showsRemaining)
         } else if isCountRow {
             SplitRow(leading: window.label, trailing: window.detail ?? window.usedText ?? "\(window.used ?? 0)")
         } else {
@@ -478,18 +535,19 @@ private struct LimitWindowRow: View {
                 // No bar without a denominator — an empty track would read as "none
                 // used", which is not what "we do not know the limit" means.
                 if window.usedFraction != nil {
-                    Group {
-                        if expandsUsageRows {
-                            GeometryReader { proxy in bar(width: proxy.size.width) }
-                                .frame(height: NotchLayout.barHeight)
-                        } else {
-                            bar(width: trackWidth)
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Palette.barTrack)
+                        Capsule().fill(barColor).frame(width: fillWidth)
+                        if showsUsagePace,
+                           let marker = window.paceMarkerFraction(now: now, showingRemaining: showsRemaining) {
+                            PaceMarker(position: marker, trackWidth: trackWidth)
                         }
                     }
+                    .frame(width: trackWidth, height: NotchLayout.barHeight)
                     .padding(.top, NotchLayout.labelToBar)
                 }
 
-                Text("\(window.usedFraction == nil ? "" : fidelity.qualifier)\(window.detail ?? window.summary)\(paceText)")
+                Text("\(window.usedFraction == nil ? "" : fidelity.qualifier)\(window.detail ?? window.summary(showingRemaining: showsRemaining))\(paceText)")
                     .font(Typography.cardBody)
                     .foregroundStyle(Palette.textPrimary)
                     .lineLimit(1)
@@ -504,10 +562,16 @@ private struct MoneyBreakdownView: View {
     let title: String
     let money: UsageMoneyBreakdown
     let fidelity: Fidelity
-    @Environment(\.expandsUsageRows) private var expandsUsageRows
+    /// Nil for a balance with no period, which gets no line for it.
+    var resetText: String? = nil
+    var projection: UsageProjection? = nil
+    var showsRemaining: Bool = false
+    @Environment(\.matraAccentColor) private var accentColor
     @Environment(\.usageWatchLimit) private var watchLimit
     @Environment(\.usageCriticalLimit) private var criticalLimit
+    @Environment(\.providerDetailWidth) private var detailWidth
     @Environment(\.colorTransitionStyle) private var colorTransitionStyle
+    @Environment(\.tooltipSecondaryInk) private var secondaryInk
 
     private var barColor: Color {
         MatraQuotaBand.stroke(for: money.spentFraction, style: colorTransitionStyle,
@@ -530,16 +594,17 @@ private struct MoneyBreakdownView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             SplitRow(leading: title,
-                     trailing: "\(fidelity.qualifier)\(Percent.text(for: money.spentFraction))% used")
+                     trailing: "\(fidelity.qualifier)\(money.headlineText(showingRemaining: showsRemaining))")
             GeometryReader { proxy in
                 HStack(spacing: 0) {
                     Rectangle()
                         .fill(barColor)
-                        .frame(width: proxy.size.width * CGFloat(money.spentFraction))
+                        .frame(width: proxy.size.width * CGFloat(Percent.metered(money.spentFraction,
+                                                                                 showingRemaining: showsRemaining)))
                     Rectangle().fill(Palette.barTrack)
                 }
             }
-            .frame(width: expandsUsageRows ? nil : NotchLayout.cardTextWidth, height: NotchLayout.moneyBarHeight)
+            .frame(width: detailWidth, height: NotchLayout.moneyBarHeight)
             .clipShape(Capsule())
             .padding(.top, NotchLayout.labelToBar)
 
@@ -548,9 +613,38 @@ private struct MoneyBreakdownView: View {
                 MoneyStat(label: L10n.t("Remaining"), value: amount(money.remaining))
                 MoneyStat(label: L10n.t("Funded"), value: amount(money.funded), color: Palette.textPrimary)
             }
-            .frame(width: expandsUsageRows ? nil : NotchLayout.cardTextWidth)
+            .frame(width: detailWidth)
             .padding(.top, NotchLayout.moneyBarToStats)
+
+            // A line each rather than one shared: in German the countdown alone
+            // takes most of the card's width.
+            if let resetText {
+                moneyLine(resetText, color: secondaryInk)
+            }
+            if let projection {
+                moneyLine(projectionText(projection),
+                          color: projection.runsOut ? .orange : secondaryInk)
+            }
         }
+    }
+
+    private func moneyLine(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(Typography.cardBody)
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .frame(width: NotchLayout.cardTextWidth, alignment: .leading)
+            .padding(.top, NotchLayout.moneyStatGap)
+    }
+
+    private func projectionText(_ projection: UsageProjection) -> String {
+        if let reachedAt = projection.limitReachedAt {
+            let formatter = DateFormatter()
+            formatter.locale = L10n.locale
+            formatter.setLocalizedDateFormatFromTemplate("MMMd")
+            return L10n.t("On pace to run out \(formatter.string(from: reachedAt))")
+        }
+        return L10n.t("On pace for \(amount(money.funded * projection.fractionAtReset))")
     }
 }
 
@@ -570,15 +664,25 @@ private struct MoneyStat: View {
     }
 }
 
-struct ProviderTooltip: View {
+/// What a provider's limits say: its mark and name, the tier it is on, a line
+/// when something is blocked or cannot be read, and one row per metered window
+/// — label, reset, bar, and the percentage spelled out at both ends.
+///
+/// The piece both surfaces start from. The menu bar's menu draws this and
+/// stops here, because a menu is a glance; the notch's tooltip draws it and
+/// then adds what is *happening* — see `ProviderDetailContent`.
+struct ProviderLimitsContent: View {
     /// What a local model is doing right now, for the header's note.
     var activityNote: String?
     let snapshot: ProviderSnapshot
     let now: Date
-    let resetTimeFormat: ResetTimeFormat
-    let showUsagePace: Bool
-    var onOpenDetails: (() -> Void)? = nil
+    var resetTimeFormat: ResetTimeFormat = .automatic
+    var showUsagePace: Bool = false
+    var showsRemaining: Bool = false
+    /// Drawn at the end of the header line — see `TooltipHeader.accessory`.
+    var headerAccessory: AnyView?
     @Environment(\.tooltipSecondaryInk) private var secondaryInk
+    @Environment(\.providerDetailWidth) private var detailWidth
 
     /// Only worth saying when the numbers are not current. A remembered reading
     /// has to be dated, or it quietly passes itself off as live.
@@ -587,6 +691,32 @@ struct ProviderTooltip: View {
               since != .distantPast
         else { return nil }
         return ElapsedCopy.ago(since: since, now: now)
+    }
+
+    /// Whether every reset on this card has room to say when it lands.
+    ///
+    /// All of them or none. "(20:30)" on one row and nothing on the row under
+    /// it reads as a value that went missing rather than as a column that ran
+    /// out — so the widest row decides for the card, and a card that cannot
+    /// hold the brackets keeps the plain countdown it has always had. The
+    /// notch's column is 200pt and rarely can; the menu's is half as wide
+    /// again and always does.
+    private var showsResetStamps: Bool {
+        let rows = snapshot.windows.compactMap { window -> (String, String, CGFloat)? in
+            guard let resetsAt = window.resetsAt else { return nil }
+            let inset = window.group == nil ? 0 : 2 * Design.px(16)
+            return (window.label,
+                    ResetCopy.text(for: resetsAt, now: now, format: resetTimeFormat,
+                                   withAbsoluteStamp: true),
+                    detailWidth - inset)
+        }
+        guard !rows.isEmpty else { return false }
+        return rows.allSatisfy { NotchLayout.splitRowFits(leading: $0.0, trailing: $0.1, width: $0.2) }
+    }
+
+    private var runtimeSummary: String? {
+        guard snapshot.kind == .localRuntime, snapshot.localModel == nil else { return nil }
+        return snapshot.localRuntime?.summary
     }
 
     private struct WindowGroup: Identifiable {
@@ -609,15 +739,20 @@ struct ProviderTooltip: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Group {
-                if let onOpenDetails {
-                    Button(action: onOpenDetails) { header }
-                        .buttonStyle(.plain)
-                        .help("Open details")
-                        .accessibilityLabel("Open details for \(snapshot.displayName)")
-                } else {
-                    header
-                }
+            TooltipHeader(title: snapshot.kind == .localRuntime
+                          ? L10n.t("\(snapshot.localModel?.brand?.displayName ?? snapshot.displayName) · Local")
+                          : L10n.t("\(snapshot.displayName) Usage"),
+                          // A runtime with nothing loaded has no window to
+                          // draw, so its own summary — "2 models loaded",
+                          // "Server reachable · No models loaded" — stands in
+                          // for the tier line. The notch never reaches this:
+                          // it makes a cell per model and none at all for a
+                          // runtime that has none.
+                          subtitle: snapshot.plan ?? runtimeSummary,
+                          note: activityNote ?? (snapshot.localModel?.brand != nil ? snapshot.displayName : readingAge),
+                          accessory: headerAccessory) {
+                ProviderGlyphView(glyph: snapshot.glyph, customIconFilename: snapshot.customIconFilename)
+                    .foregroundStyle(Palette.textPrimary)
             }
 
             if let block = snapshot.block {
@@ -636,24 +771,7 @@ struct ProviderTooltip: View {
                                     showsPerformance: snapshot.showsLocalPerformance,
                                     ledger: snapshot.localLedger, now: now)
             } else {
-                windowRows
-            }
-        }
-    }
-
-    private var header: some View {
-        TooltipHeader(title: snapshot.kind == .localRuntime
-                          ? L10n.t("\(snapshot.localModel?.brand?.displayName ?? snapshot.displayName) · Local")
-                          : L10n.t("\(snapshot.displayName) Usage"),
-                          subtitle: snapshot.plan,
-                          note: activityNote ?? (snapshot.localModel?.brand != nil ? snapshot.displayName : readingAge)) {
-                ProviderGlyphView(glyph: snapshot.glyph, customIconFilename: snapshot.customIconFilename)
-                    .foregroundStyle(Palette.textPrimary)
-            }
-
-    }
-
-    private var windowRows: some View {
+                let stamps = showsResetStamps
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(groupedWindows.enumerated()), id: \.element.id) { groupIndex, group in
                         if let title = group.title {
@@ -666,7 +784,7 @@ struct ProviderTooltip: View {
 
                                 VStack(alignment: .leading, spacing: NotchLayout.blockSpacing) {
                                     ForEach(Array(group.windows.enumerated()), id: \.element.id) { windowIndex, window in
-                                        LimitWindowRow(window: window, inset: 2 * Design.px(16), fidelity: snapshot.fidelity, now: now, resetTimeFormat: resetTimeFormat, showsUsagePace: showUsagePace)
+                                        LimitWindowRow(window: window, inset: 2 * Design.px(16), fidelity: snapshot.fidelity, now: now, resetTimeFormat: resetTimeFormat, showsUsagePace: showUsagePace, showsResetStamp: stamps, showsRemaining: showsRemaining)
                                             .padding(.top, windowIndex == 0 ? 0 : NotchLayout.blockSpacing)
                                     }
                                 }
@@ -679,13 +797,15 @@ struct ProviderTooltip: View {
                             .padding(.top, groupIndex == 0 ? NotchLayout.headerToBlock : Design.px(28))
                         } else {
                             ForEach(Array(group.windows.enumerated()), id: \.element.id) { windowIndex, window in
-                                LimitWindowRow(window: window, fidelity: snapshot.fidelity, now: now, resetTimeFormat: resetTimeFormat, showsUsagePace: showUsagePace)
+                                LimitWindowRow(window: window, fidelity: snapshot.fidelity, now: now, resetTimeFormat: resetTimeFormat, showsUsagePace: showUsagePace, showsResetStamp: stamps, showsRemaining: showsRemaining)
                                     .padding(.top, (groupIndex == 0 && windowIndex == 0) ? NotchLayout.headerToBlock : NotchLayout.blockSpacing)
                             }
                         }
                     }
                 }
                 .padding(.bottom, groupedWindows.contains(where: { $0.title != nil }) ? Design.px(8) : 0)
+            }
+        }
     }
 }
 
@@ -697,6 +817,7 @@ private struct RuntimeModelDetails: View {
     /// in `ProviderSnapshot.localLedgerRowCount`.
     let ledger: LocalTokenLedger.Summary?
     let now: Date
+    @Environment(\.providerDetailWidth) private var detailWidth
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -704,7 +825,7 @@ private struct RuntimeModelDetails: View {
                 .foregroundStyle(Palette.textPrimary)
                 .lineLimit(2)
                 .truncationMode(.middle)
-                .frame(height: NotchLayout.modelNameHeight(model.name), alignment: .topLeading)
+                .frame(height: NotchLayout.modelNameHeight(model.name, width: detailWidth), alignment: .topLeading)
                 .padding(.top, NotchLayout.headerToBlock)
                 .accessibilityLabel(model.name)
             VStack(spacing: NotchLayout.sessionRowGap) {
@@ -808,7 +929,6 @@ private struct CodexDailyUsageChart: View {
     let buckets: [CodexTokenUsage.DailyBucket]
     let maximum: Int
     @Environment(\.tooltipSecondaryInk) private var secondaryInk
-    @State private var highlightedDate: String?
 
     var body: some View {
         GeometryReader { proxy in
@@ -820,12 +940,10 @@ private struct CodexDailyUsageChart: View {
                 HStack(alignment: .bottom, spacing: Design.px(4)) {
                     ForEach(buckets) { bucket in
                         RoundedRectangle(cornerRadius: Design.px(3), style: .continuous)
-                            .fill(highlightedDate == bucket.startDate ? MatraBrand.accent : secondaryInk)
+                            .fill(secondaryInk)
                             .frame(maxWidth: .infinity)
                             .frame(height: proxy.size.height
                                    * CGFloat(bucket.tokens) / CGFloat(maximum))
-                            .onHover { highlightedDate = $0 ? bucket.startDate : nil }
-                            .help("\(bucket.startDate): \(UsageFormat.tokens(bucket.tokens)) tokens")
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -902,14 +1020,10 @@ struct UsageResetCreditsSection: View {
     /// Same date templates `ResetCopy` uses past the hour, so this line and
     /// the quota rows agree on what "soon" looks like.
     private static func stamp(for date: Date, now: Date, calendar: Calendar = .current) -> String {
-        let formatter = ResetCopy.formatter(for: calendar)
-        formatter.locale = L10n.locale
-        if ResetCopy.daysApart(from: now, to: date, calendar: calendar) >= 7 {
-            formatter.setLocalizedDateFormatFromTemplate("MMM d")
-        } else {
-            formatter.setLocalizedDateFormatFromTemplate("E j:mm")
-        }
-        return formatter.string(from: date)
+        let template = ResetCopy.daysApart(from: now, to: date, calendar: calendar) >= 7
+            ? "MMM d" : "E j:mm"
+        return ResetCopy.formatter(template: template, calendar: calendar,
+                                   locale: L10n.locale).string(from: date)
     }
 }
 
@@ -1101,6 +1215,124 @@ private struct SessionList: View {
     }
 }
 
+// MARK: - Shared provider detail
+
+/// Everything one provider has to say, with nothing said about where it is
+/// drawn.
+///
+/// This is the notch tooltip's contents, lifted out of the tooltip: the
+/// header, the blocked line, the grouped limit windows, a local model's
+/// readings, Codex's reset credits and account activity, DeepSeek's usage
+/// breakdown and the live sessions — in that order, which is the order the
+/// notch has always put them in.
+///
+/// It is `ProviderLimitsContent` — the part the menu bar's menu also draws —
+/// plus what is *happening*: Codex's unused resets and account activity,
+/// DeepSeek's usage breakdown, and the live sessions. The limits are the
+/// shared half, so a change to a bar, a band or a reset lands on both
+/// surfaces at once.
+///
+/// It is deliberately free of the notch's geometry. The tooltip's own card is
+/// a fixed width, a tail and a pre-solved height, because the panel behind it
+/// has to be sized in AppKit before SwiftUI lays anything out. So the
+/// container is the caller's business — `TooltipCard` wraps this in
+/// `TooltipShell` — and the one thing the rows have to be told is how wide
+/// their bars may draw, which arrives as `\.providerDetailWidth`.
+struct ProviderDetailContent: View {
+    let snapshot: ProviderSnapshot
+    var activity: ActivitySummary?
+    let now: Date
+    /// How many sessions there is room to list; the rest are counted. The
+    /// notch solves this from the display it is on, a scrolling panel has no
+    /// such ceiling.
+    var sessionCap: Int = NotchLayout.defaultSessionCap
+    /// Project rows the cost section may list, as the view model solved it.
+    var costRows: Int = 0
+    var resetTimeFormat: ResetTimeFormat = .automatic
+    var deepSeekPricingEnabled: Bool = true
+    var deepSeekPricingSchedule: DeepSeekPricing.Schedule = .current
+    /// A tap on a session row jumps to that session's terminal — nil leaves
+    /// the rows as plain text.
+    var onFocusSession: ((pid_t) -> Void)? = nil
+    /// Everything, or the limits alone.
+    ///
+    /// False stops after `ProviderLimitsContent` — the header, a block if
+    /// there is one, the status message and every limit window — and drops the
+    /// sections that are *about* the provider rather than about its quota.
+    ///
+    /// True by default, which is the notch: its card is opened by hovering one
+    /// ring and has nothing to switch. The menu gives each card a switch of
+    /// its own and passes what it says.
+    var showsExtendedDetail: Bool = true
+    /// A control the surface owns, drawn at the end of the header line. The
+    /// notch passes none; the menu passes its switch, so the switch sits
+    /// beside the provider it belongs to rather than somewhere above the card.
+    var headerAccessory: AnyView?
+    @AppStorage(Preferences.showUsagePaceKey) private var showUsagePace = false
+    @AppStorage(Preferences.showsRemainingInNotchKey) private var showsRemaining = false
+
+    /// Enough rows that nothing is ever counted instead of drawn — for a
+    /// surface that scrolls rather than clips.
+    static let uncappedSessions = Int.max
+
+    /// The phase a local model is in, and the queue behind it, for the header.
+    /// Ollama's relay only knows thinking; LM Studio's poll names the phase.
+    private var localActivityNote: String? {
+        guard snapshot.localModel != nil, let activity, activity.state == .working else { return nil }
+        return activity.note ?? activity.sessions.first?.name ?? L10n.t("Thinking")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ProviderLimitsContent(activityNote: localActivityNote, snapshot: snapshot, now: now,
+                                  resetTimeFormat: resetTimeFormat, showUsagePace: showUsagePace,
+                                  showsRemaining: showsRemaining,
+                                  headerAccessory: headerAccessory)
+            if showsExtendedDetail {
+                if let resetCredits = snapshot.availableResetCredits(at: now) {
+                    UsageResetCreditsSection(credits: resetCredits, now: now)
+                }
+                if let tokenUsage = snapshot.tokenUsage {
+                    CodexUsageSection(usage: tokenUsage, now: now)
+                } else if let history = snapshot.customUsageHistory {
+                    CodexUsageSection(usage: history.codexUsage, now: now)
+                }
+                if let usageDetail = snapshot.usageDetail, usageDetail.hasUsage {
+                    DeepSeekUsageDetail(detail: usageDetail, now: now,
+                                        schedule: deepSeekPricingSchedule,
+                                        showsPricing: deepSeekPricingEnabled)
+                }
+                if let activity, snapshot.localModel == nil {
+                    SessionList(summary: activity, now: now, cap: sessionCap,
+                                onFocus: onFocusSession)
+                }
+                if costRows > 0, let model = CostModels.model(for: snapshot.id) {
+                    CostSection(model: model, rows: costRows)
+                }
+            }
+        }
+    }
+}
+
+private struct ProviderDetailWidthKey: EnvironmentKey {
+    static var defaultValue: CGFloat { NotchLayout.cardTextWidth }
+}
+
+extension EnvironmentValues {
+    /// How wide a provider-detail row may draw its bars and charts: the text
+    /// column inside whatever surface is holding it, already less its padding.
+    ///
+    /// The notch card's column is the default, so the tooltip keeps the
+    /// frame-measured proportions it was drawn to and nothing there has to
+    /// pass anything. The Detail panel, which is resizable, sets its own —
+    /// the one measurement in these rows that belongs to the container rather
+    /// than to the notch.
+    var providerDetailWidth: CGFloat {
+        get { self[ProviderDetailWidthKey.self] }
+        set { self[ProviderDetailWidthKey.self] = newValue }
+    }
+}
+
 // MARK: - Entry point
 
 struct TooltipCard: View {
@@ -1112,6 +1344,8 @@ struct TooltipCard: View {
     /// How many sessions this screen has room to list. Solved from the display
     /// rather than fixed, so a big screen hides nothing.
     var sessionCap: Int = NotchLayout.defaultSessionCap
+    /// Project rows the cost section may list, as the view model solved it.
+    var costRows: Int = 0
     var resetTimeFormat: ResetTimeFormat = .automatic
     var deepSeekPricingEnabled: Bool = true
     var deepSeekPricingSchedule: DeepSeekPricing.Schedule = .current
@@ -1120,14 +1354,6 @@ struct TooltipCard: View {
     /// the rows as plain text.
     var onFocusSession: ((pid_t) -> Void)? = nil
     var onOpenDetails: (() -> Void)? = nil
-    @AppStorage(Preferences.showUsagePaceKey) private var showUsagePace = false
-
-    /// The phase a local model is in, and the queue behind it, for the header.
-    /// Ollama's relay only knows thinking; LM Studio's poll names the phase.
-    private var localActivityNote: String? {
-        guard snapshot.localModel != nil, let activity, activity.state == .working else { return nil }
-        return activity.note ?? activity.sessions.first?.name ?? L10n.t("Thinking")
-    }
 
     /// The same figure the hover region uses, so what is drawn and what is
     /// reachable can never drift apart.
@@ -1136,6 +1362,8 @@ struct TooltipCard: View {
             windowCount: snapshot.windows.count,
             groupCount: snapshot.windowGroupCount,
             moneyWindowCount: snapshot.windows.filter { $0.money != nil }.count,
+            moneyResetCount: snapshot.windows.filter { $0.money != nil && $0.resetsAt != nil }.count,
+            moneyProjectionCount: snapshot.windows.filter { $0.money != nil && $0.usageProjection(now: now) != nil }.count,
             usageDetailGroupCount: snapshot.usageDetail?.visibleGroups.count ?? 0,
             sessionCount: snapshot.localModel == nil ? (activity?.sessions.count ?? 0) : 0,
             sessionCap: sessionCap,
@@ -1148,7 +1376,8 @@ struct TooltipCard: View {
             showsLocalPerformance: snapshot.showsLocalPerformance,
                 localLedgerRows: snapshot.localLedgerRowCount,
             compactRowCount: snapshot.compactRowCount,
-            showsDeepSeekPricing: deepSeekPricingEnabled
+            showsDeepSeekPricing: deepSeekPricingEnabled,
+            costRows: costRows
         )
     }
 
@@ -1159,27 +1388,15 @@ struct TooltipCard: View {
             // instead of shoving each other around. Top-aligned so neither
             // drifts while the card resizes around them.
             ZStack(alignment: .topLeading) {
-                VStack(alignment: .leading, spacing: 0) {
-                    ProviderTooltip(activityNote: localActivityNote, snapshot: snapshot, now: now, resetTimeFormat: resetTimeFormat,
-                                    showUsagePace: showUsagePace, onOpenDetails: onOpenDetails)
-                    if let resetCredits = snapshot.availableResetCredits(at: now) {
-                        UsageResetCreditsSection(credits: resetCredits, now: now)
-                    }
-                    if let tokenUsage = snapshot.tokenUsage {
-                        CodexUsageSection(usage: tokenUsage, now: now)
-                    } else if let history = snapshot.customUsageHistory {
-                        CodexUsageSection(usage: history.codexUsage, now: now)
-                    }
-                    if let usageDetail = snapshot.usageDetail, usageDetail.hasUsage {
-                        DeepSeekUsageDetail(detail: usageDetail, now: now,
-                                            schedule: deepSeekPricingSchedule,
-                                            showsPricing: deepSeekPricingEnabled)
-                    }
-                    if let activity, snapshot.localModel == nil {
-                        SessionList(summary: activity, now: now, cap: sessionCap,
-                                    onFocus: onFocusSession)
-                    }
-                }
+                ProviderDetailContent(snapshot: snapshot, activity: activity, now: now,
+                                      sessionCap: sessionCap, costRows: costRows,
+                                      resetTimeFormat: resetTimeFormat,
+                                      deepSeekPricingEnabled: deepSeekPricingEnabled,
+                                      deepSeekPricingSchedule: deepSeekPricingSchedule,
+                                      onFocusSession: onFocusSession,
+                                      headerAccessory: onOpenDetails.map { action in
+                                          AnyView(Button("Open details", action: action).buttonStyle(.plain))
+                                      })
                 // An identity, so one provider's rows are never interpolated
                 // into another's — that is what slid text through positions
                 // belonging to neither layout. A crossfade rather than an

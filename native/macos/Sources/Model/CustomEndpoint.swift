@@ -32,6 +32,12 @@ public enum CustomEndpointTrackingUnit: String, Codable, CaseIterable, Sendable 
     case tokens = "tokens"
 }
 
+public enum CustomEndpointAPIType: String, Codable, CaseIterable, Sendable {
+    case openAICompatible = "openAICompatible"
+    case anthropic = "anthropic"
+    case google = "google"
+}
+
 public enum CustomEndpointUsageSource: String, Codable, CaseIterable, Sendable {
     case manual = "manual"
     case jsonEndpoint = "jsonEndpoint"
@@ -73,11 +79,14 @@ public struct CustomEndpoint: Identifiable, Codable, Equatable, Sendable {
     public var name: String
     public var baseURL: String
     public var headerKey: String
+    public var apiType: CustomEndpointAPIType
     public var selectedModel: String
     public var availableModels: [String]
     public var isEnabled: Bool
     public var accentColorHex: String
     public var iconPreset: String?
+    /// Exact OpenCode provider key, set only when activity monitoring is enabled.
+    public var openCodeProviderID: String?
     public var customIconFilename: String?
     public var usageSource: CustomEndpointUsageSource
     public var usagePreset: CustomEndpointUsagePreset?
@@ -104,11 +113,13 @@ public struct CustomEndpoint: Identifiable, Codable, Equatable, Sendable {
         name: String,
         baseURL: String,
         headerKey: String = "Authorization",
+        apiType: CustomEndpointAPIType = .openAICompatible,
         selectedModel: String = "",
         availableModels: [String] = [],
         isEnabled: Bool = true,
         accentColorHex: String = "#6366F1",
         iconPreset: String? = "openai",
+        openCodeProviderID: String? = nil,
         customIconFilename: String? = nil,
         usageSource: CustomEndpointUsageSource = .manual,
         usagePreset: CustomEndpointUsagePreset? = nil,
@@ -134,11 +145,13 @@ public struct CustomEndpoint: Identifiable, Codable, Equatable, Sendable {
         self.name = name
         self.baseURL = baseURL
         self.headerKey = headerKey
+        self.apiType = apiType
         self.selectedModel = selectedModel
         self.availableModels = availableModels
         self.isEnabled = isEnabled
         self.accentColorHex = accentColorHex
         self.iconPreset = iconPreset
+        self.openCodeProviderID = openCodeProviderID
         self.customIconFilename = customIconFilename
         self.usageSource = usageSource
         self.usagePreset = usagePreset
@@ -261,11 +274,13 @@ public struct CustomEndpoint: Identifiable, Codable, Equatable, Sendable {
         case name
         case baseURL
         case headerKey
+        case apiType
         case selectedModel
         case availableModels
         case isEnabled
         case accentColorHex
         case iconPreset
+        case openCodeProviderID
         case customIconFilename
         case usageSource
         case usagePreset
@@ -296,12 +311,14 @@ public struct CustomEndpoint: Identifiable, Codable, Equatable, Sendable {
         self.id = try container.decode(String.self, forKey: .id)
         self.name = try container.decode(String.self, forKey: .name)
         self.baseURL = try container.decode(String.self, forKey: .baseURL)
+        self.apiType = try container.decodeIfPresent(CustomEndpointAPIType.self, forKey: .apiType) ?? .openAICompatible
         self.headerKey = try container.decodeIfPresent(String.self, forKey: .headerKey) ?? "Authorization"
         self.selectedModel = try container.decodeIfPresent(String.self, forKey: .selectedModel) ?? ""
         self.availableModels = try container.decodeIfPresent([String].self, forKey: .availableModels) ?? []
         self.isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
         self.accentColorHex = try container.decodeIfPresent(String.self, forKey: .accentColorHex) ?? "#6366F1"
         self.iconPreset = try container.decodeIfPresent(String.self, forKey: .iconPreset)
+        self.openCodeProviderID = try container.decodeIfPresent(String.self, forKey: .openCodeProviderID)
         self.customIconFilename = try container.decodeIfPresent(String.self, forKey: .customIconFilename)
         self.usageSource = try container.decodeIfPresent(CustomEndpointUsageSource.self, forKey: .usageSource) ?? .manual
         self.usagePreset = try container.decodeIfPresent(CustomEndpointUsagePreset.self, forKey: .usagePreset)
@@ -341,12 +358,14 @@ public struct CustomEndpoint: Identifiable, Codable, Equatable, Sendable {
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
         try container.encode(baseURL, forKey: .baseURL)
+        try container.encode(apiType, forKey: .apiType)
         try container.encode(headerKey, forKey: .headerKey)
         try container.encode(selectedModel, forKey: .selectedModel)
         try container.encode(availableModels, forKey: .availableModels)
         try container.encode(isEnabled, forKey: .isEnabled)
         try container.encode(accentColorHex, forKey: .accentColorHex)
         try container.encodeIfPresent(iconPreset, forKey: .iconPreset)
+        try container.encodeIfPresent(openCodeProviderID, forKey: .openCodeProviderID)
         try container.encodeIfPresent(customIconFilename, forKey: .customIconFilename)
         if usageSource != .manual {
             try container.encode(usageSource, forKey: .usageSource)
@@ -462,7 +481,7 @@ public struct CustomEndpointPreset: Identifiable, Sendable {
             baseURL: "http://localhost:8080/v1",
             headerKey: "Authorization",
             defaultModel: "",
-            iconPreset: "lmstudio",
+            iconPreset: "llamacpp",
             accentColorHex: "#8B5CF6"
         ),
         CustomEndpointPreset(

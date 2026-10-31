@@ -19,17 +19,17 @@ final class MatraAppDataTests: XCTestCase {
     }
 
     func testOpenFolderPreparationIsScopedAndIdempotent() throws {
-        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let temporary = MatraTestFiles.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: temporary) }
         let first = try MatraStorage.prepareSupportRoot(in: temporary)
         let second = try MatraStorage.prepareSupportRoot(in: temporary)
         XCTAssertEqual(first, second)
-        XCTAssertEqual(first.lastPathComponent, "Matra")
-        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: temporary.path), ["Matra"])
+        XCTAssertEqual(first.lastPathComponent, MatraStorage.isPreviewIdentity ? "Matra Preview" : "Matra")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: temporary.path), [first.lastPathComponent])
     }
 
     func testOpenFolderPreparationPropagatesFileSystemErrors() throws {
-        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let temporary = MatraTestFiles.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: temporary) }
         try Data("not a directory".utf8).write(to: temporary)
         XCTAssertThrowsError(try MatraStorage.prepareSupportRoot(in: temporary))

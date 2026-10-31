@@ -484,7 +484,7 @@ final class CodexActivityTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_788_000_000)
 
     private func rollout(_ records: [String]) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
+        let url = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("MatraCodexRollout-\(UUID().uuidString).jsonl")
         try records.joined(separator: "\n").data(using: .utf8)!.write(to: url)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
@@ -521,7 +521,7 @@ final class CodexActivityTests: XCTestCase {
     private static let windowBytes = 256 * 1024
 
     private func rollout(data: Data) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
+        let url = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("MatraCodexRollout-\(UUID().uuidString).jsonl")
         try data.write(to: url)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
@@ -669,7 +669,7 @@ final class CodexDesktopActivityTests: XCTestCase {
     private let store = URL(fileURLWithPath: "/tmp/codex-desktop-test.db")
 
     private func makeCatalogue(rows: [(Double, String)]) throws -> URL {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        let url = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("codex-dev-\(UUID().uuidString).db")
         var db: OpaquePointer?
         XCTAssertEqual(sqlite3_open(url.path, &db), SQLITE_OK)
@@ -749,7 +749,7 @@ final class CodexStoreCacheTests: XCTestCase {
     private var dir: URL!
 
     override func setUpWithError() throws {
-        dir = FileManager.default.temporaryDirectory
+        dir = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("MatraStoreCache-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     }
@@ -1014,7 +1014,7 @@ final class CodexConversationTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_790_000_000)
 
     override func setUpWithError() throws {
-        dir = FileManager.default.temporaryDirectory
+        dir = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("CodexConversationTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     }

@@ -2,23 +2,40 @@ import AppKit
 import SwiftUI
 
 /// The ring around a provider glyph: a grey track with a coloured arc that
-/// starts at 12 o'clock and sweeps clockwise by the fraction used.
+/// starts at 12 o'clock and sweeps clockwise by the fraction used — or by
+/// what is left, when the notch is set that way.
 ///
-/// When that provider is doing something right now, a second, much thinner arc
-/// appears *inside* the ring, in the gap between the glyph and the track. It is
-/// deliberately a different radius, a different weight and a neutral colour, so
-/// it reads as a separate fact rather than as the usage number moving.
+/// When that provider is doing something right now, a second indicator appears
+/// *inside* the ring, in the gap between the glyph and the track. While it is
+/// working, the "Working indicator" setting (`BusyIndicatorStyle`) picks how:
+/// a thin white arc that spins there (the default), or a filled disc in the
+/// provider's brand colour breathing under the glyph (`BusyWave`). Waiting
+/// (amber) and just finished (green) are always a thin pulsing ring at that
+/// radius. Every one of them sits at a different radius and weight than the
+/// usage arc, so it reads as a separate fact rather than as the usage number
+/// moving.
 struct ProviderRing: View {
     /// Nil when the provider reports what is left but never says out of what —
     /// there is no arc to draw, and inventing one would be a lie in a shape.
     let usedFraction: Double?
     let glyph: ProviderGlyph
     var customIconFilename: String? = nil
+    /// Whether the arcs sweep by what is left rather than what is spent.
+    /// Only the sweep flips: the bands still judge by what is spent, so a
+    /// nearly empty ring still reads red — that is what almost-out means.
+    var showsRemaining: Bool = false
     var isStale: Bool = false
     /// Blocked right now. Shown as spent whatever the arc says, because that is
     /// what it means for you — a ring reading 16% while the account is paused
     /// is technically true and practically a lie.
     var isBlocked: Bool = false
+    /// The week is spent, shutting the headline with it. Always arrives with
+    /// `isBlocked`, which still dims the glyph. Whether the rings shut for it
+    /// is `showsShutRings`, not this.
+    var weeklyExhausted: Bool = false
+    /// Whether a spent window shuts the rings. Mirrors the Appearance
+    /// setting; off, every ring keeps its own window's colour.
+    var shutRingsWhenSpent: Bool = true
     var activity: ActivitySummary?
     /// A fetch this cell asked for, in flight.
     var isRefreshing: Bool = false
@@ -40,6 +57,7 @@ struct ProviderRing: View {
     @Environment(\.usageCriticalLimit) private var criticalLimit
     @Environment(\.colorTransitionStyle) private var colorTransitionStyle
     @Environment(\.weeklyRingDashed) private var weeklyRingDashed
+    @Environment(\.busyIndicatorStyle) private var busyIndicatorStyle
     @State private var spin: Double = 0
 
     static func centerFill(for style: NotchSurfaceStyle, reduceTransparency: Bool,
@@ -54,7 +72,13 @@ struct ProviderRing: View {
         if let bandOverride { return bandOverride }
         return UsageBand.band(for: usedFraction ?? 0, watchLimit: watchLimit, criticalLimit: criticalLimit)
     }
-    private var sweep: CGFloat { CGFloat(min(max(usedFraction ?? 0, 0), 1)) }
+    /// The fraction the headline arc draws. Nil stays nil — the
+    /// `usedFraction != nil` gate below keeps meaning "there is a
+    /// denominator", in either mode.
+    private var displayFraction: Double? {
+        usedFraction.map { Percent.metered($0, showingRemaining: showsRemaining) }
+    }
+    private var sweep: CGFloat { CGFloat(min(max(displayFraction ?? 0, 0), 1)) }
     private var localSweep: CGFloat { Self.localSweep(for: localContextFraction) }
     /// The floor is a drawing decision only — the number under the ring and in
     /// the card stays true.
@@ -62,9 +86,34 @@ struct ProviderRing: View {
         guard let contextFraction else { return 1 }
         return max(NotchLayout.localArcMinimumSweep, CGFloat(min(max(contextFraction, 0), 1)))
     }
-    /// Share quota presentation with hover-card bars. Blocked and explicit
-    /// override states remain discrete even when a continuous ramp is selected.
+    private var primaryColor: Color {
+        isStale ? Palette.textSecondary : MatraQuotaBand.stroke(for: usedFraction,
+            style: colorTransitionStyle, override: band, watchLimit: watchLimit, criticalLimit: criticalLimit)
+    }
+
+    /// The ring's actual stroke colour: a continuous ramp when that style is chosen, falling
+    /// back to the discrete `band.color(accent:)` in hard-step mode and everywhere `band` itself
+    /// special-cases — blocked (no fraction is meaningful once a limit is spent) and an explicit
+    /// override from the caller (a deliberate discrete choice, not a reading to interpolate).
+    /// Both rings shut when either window is spent — the week's block, or a
+    /// headline fraction at the limit with no block to say it. A spent 5-hour
+    /// beside a healthy week shuts like the reverse: right now nothing on
+    /// either arc is usable, however green one of them reads alone.
+    var showsShutRings: Bool {
+        shutRingsWhenSpent && (weeklyExhausted || (usedFraction ?? 0) >= 1)
+    }
+
+    /// The shutdown colour: dark grey where the meters read what is left —
+    /// grey says "this tells you nothing usable" — and the red 100% earns
+    /// where they read what is spent, even where the arc's own window is
+    /// healthy.
+    private var shutRingColor: Color {
+        if showsRemaining { return Palette.textSecondary }
+        return MatraQuotaBand.red.color
+    }
+
     private var primaryRingColor: Color {
+        if showsShutRings { return shutRingColor }
         if isBlocked { return MatraQuotaBand.red.color }
         return MatraQuotaBand.stroke(for: usedFraction, style: colorTransitionStyle,
                                      override: bandOverride, watchLimit: watchLimit, criticalLimit: criticalLimit)
@@ -73,16 +122,20 @@ struct ProviderRing: View {
     private var weeklyBand: UsageBand {
         isBlocked ? .exhausted : UsageBand.band(for: weeklyFraction ?? 0, watchLimit: watchLimit, criticalLimit: criticalLimit)
     }
-    private var weeklySweep: CGFloat { CGFloat(min(max(weeklyFraction ?? 0, 0), 1)) }
+    private var displayWeeklyFraction: Double? {
+        weeklyFraction.map { Percent.metered($0, showingRemaining: showsRemaining) }
+    }
+    private var weeklySweep: CGFloat { CGFloat(min(max(displayWeeklyFraction ?? 0, 0), 1)) }
     /// Same fallback rule as `primaryRingColor`, minus `bandOverride` — the weekly ring has none.
     private var weeklyRingColor: Color {
-        isBlocked ? MatraQuotaBand.red.color
+        if showsShutRings { return shutRingColor }
+        return isBlocked ? MatraQuotaBand.red.color
             : MatraQuotaBand.stroke(for: weeklyFraction, style: colorTransitionStyle,
                                      watchLimit: watchLimit, criticalLimit: criticalLimit)
     }
 
     /// Inside, the weekly ring and the working indicator want the same band —
-    /// 1.03pt apart, one of them spinning. Rather than shave both until neither
+    /// 1.03pt apart, one of them moving. Rather than shave both until neither
     /// is legible, the transient one wins: while a provider is working that is
     /// the more urgent fact, and the week is still a hover away. Outside there
     /// is no contest, so nothing is given up there.
@@ -90,10 +143,28 @@ struct ProviderRing: View {
         weeklyRing == .inside && activity != nil && activity?.state != .idle
     }
 
+    @ViewBuilder private var busyWave: some View {
+        if busyIndicatorStyle == .breath, let activity, activity.state == .working {
+            BusyWave(color: glyph.brandColor,
+                     outerRadius: NotchLayout.activityDiameter / 2 + NotchLayout.activityStroke / 2,
+                     animates: !reduceMotion,
+                     queued: activity.queued > 0)
+                .frame(width: NotchLayout.ringDiameter, height: NotchLayout.ringDiameter)
+        } else {
+            EmptyView()
+        }
+    }
+
     var body: some View {
         ZStack {
             // Inherit the parent glass, without an opaque disc on top.
             Circle().fill(Self.centerFill(for: surfaceStyle, reduceTransparency: reduceTransparency))
+            // Under the group that dims a stale reading, and so under the
+            // glyph too: whether an agent is working is known first-hand and
+            // never stale, the same reason the spinning arc sits outside that
+            // group.
+            busyWave
+
             // Dimming applies to the usage reading only. Whether Claude is
             // working right now is known first-hand and stays at full strength
             // even when the percentage behind it has gone stale.
@@ -219,12 +290,16 @@ struct ProviderRing: View {
 }
 
 /// The inner indicator: a short arc that spins while work is happening, and a
-/// full pulsing ring when something is blocked waiting on you.
+/// full pulsing ring when something is blocked waiting on you or has just
+/// finished. With the breathing disc chosen as the working indicator, working
+/// draws nothing here: `ProviderRing` draws `BusyWave` under the glyph instead,
+/// and two moving things for one fact would only compete.
 private struct ActivityArc: View {
     let summary: ActivitySummary
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.matraReduceTransparency) private var reduceTransparency
+    @Environment(\.busyIndicatorStyle) private var busyIndicatorStyle
     @State private var pulsing = false
 
     /// How much of the circle the moving arc covers.
@@ -237,7 +312,8 @@ private struct ActivityArc: View {
     var body: some View {
         Group {
             switch summary.state {
-            case .working: spinner
+            case .working:
+                if busyIndicatorStyle == .arc { spinner } else { EmptyView() }
             case .waiting, .success: pulse
             case .idle:    EmptyView()
             }
@@ -297,12 +373,28 @@ struct ProviderCell: View {
     /// away in the card.
     var showsReading: Bool = true
 
+    /// Whether the cell reads what is left rather than what is spent: the
+    /// figure under the ring and the arcs' sweep. The bands still judge by
+    /// what is spent — colour answers how bad, sweep answers how much.
+    var showsRemaining: Bool = false
+    /// Whether a spent window shuts the rings: both arcs say shut rather
+    /// than their own window's colour. Mirrors the Appearance setting.
+    var shutRingsWhenSpent: Bool = true
+
     private var reading: ProviderReading {
         ProviderReading(snapshot: snapshot, weeklyRing: weeklyRing,
-                        showsWeeklyReading: showsWeeklyReading)
+                        showsWeeklyReading: showsWeeklyReading,
+                        showsRemaining: showsRemaining)
     }
 
     private var readingText: String { reading.text }
+
+    /// The week is spent, shutting the headline with it even where it shows
+    /// room. The ring reads this off the block the store attached — a pause
+    /// the provider reported itself is not this.
+    var isWeeklyExhausted: Bool {
+        snapshot.block?.isWeeklyExhaustion == true
+    }
 
     var body: some View {
         VStack(spacing: NotchLayout.ringLabelGap) {
@@ -310,8 +402,11 @@ struct ProviderCell: View {
                 usedFraction: snapshot.localModel == nil && snapshot.hasReading ? snapshot.ringFraction : nil,
                 glyph: snapshot.glyph,
                 customIconFilename: snapshot.customIconFilename,
+                showsRemaining: showsRemaining,
                 isStale: snapshot.status.isStale || !snapshot.hasReading,
                 isBlocked: snapshot.block != nil,
+                weeklyExhausted: isWeeklyExhausted,
+                shutRingsWhenSpent: shutRingsWhenSpent,
                 activity: activity,
                 isRefreshing: isRefreshing,
                 localPerformance: snapshot.localPerformance,
@@ -479,6 +574,8 @@ struct ProviderReading: View {
     var weeklyRing: WeeklyRing = .off
     /// Whether the reading adds the weekly ring's percentage, as "30%/70%".
     var showsWeeklyReading: Bool = false
+    /// Whether the reading says what is left rather than what is spent.
+    var showsRemaining: Bool = false
     /// Drawn on its own across the Mac's notch rather than under the ring: the
     /// larger size, and no more room along the bar than `width`.
     var across: CGFloat? = nil
@@ -488,8 +585,28 @@ struct ProviderReading: View {
     /// A dash, not "0%": nothing read is not the same as nothing used.
     var text: String {
         guard snapshot.hasReading else { return "—" }
-        guard let weekly = weeklyReading else { return snapshot.headlineText }
-        return "\(snapshot.headlineText)/\(Percent.text(for: weekly))%"
+        guard let weekly = weeklyReading else { return snapshot.headlineText(showingRemaining: showsRemaining) }
+        // The second number flips with the first: in remaining mode both ends
+        // read what is left, each from the tooltip's own left half.
+        let second = showsRemaining ? Percent.halves(for: weekly).left : Percent.text(for: weekly)
+        return "\(snapshot.headlineText(showingRemaining: showsRemaining))/\(second)%"
+    }
+
+    /// Grey only when a window is actually spent — the headline or the
+    /// weekly — and only where the figure reads what is left. Grey means
+    /// "nothing usable": a stale number is merely old, a dash is merely
+    /// missing, and in used mode a spent window is 100% like anything else
+    /// spent — red, not grey — so all of those stay white.
+    var isDimmed: Bool {
+        guard showsRemaining else { return false }
+        return (snapshot.headline?.usedFraction ?? 0) >= 1
+            || (snapshot.weeklyFraction ?? 0) >= 1
+    }
+
+    /// Secondary while dimmed or while a local speed is still unmeasured.
+    private var foreground: Color {
+        isDimmed || (snapshot.showsLocalPerformance && snapshot.localPerformance == nil)
+            ? Palette.textSecondary : Palette.textPrimary
     }
 
     /// What the weekly ring draws, when it and its reading are on. The pair
@@ -521,8 +638,7 @@ struct ProviderReading: View {
             Text(text)
                 .font(isPair ? Typography.percentPairAcross : Typography.percentAcross)
                 .monospacedDigit()
-                .foregroundStyle(snapshot.showsLocalPerformance && snapshot.localPerformance == nil
-                                 ? Palette.textSecondary : Palette.textPrimary)
+                .foregroundStyle(foreground)
                 .lineLimit(1)
                 // Never into the side's own curved end: smaller before that.
                 .minimumScaleFactor(0.4)
@@ -537,8 +653,7 @@ struct ProviderReading: View {
     private var underTheRing: some View {
         Text(text)
             .font(snapshot.hasReading && weeklyReading != nil ? Typography.percentPair : Typography.percent)
-            .foregroundStyle(snapshot.showsLocalPerformance && snapshot.localPerformance == nil
-                             ? Palette.textSecondary : Palette.textPrimary)
+            .foregroundStyle(foreground)
             // Keep local speeds inside the ring's column so longer units
             // cannot consume the notch's existing side margins.
             .lineLimit(1)

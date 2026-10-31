@@ -250,7 +250,7 @@ final class CursorCredentialsTests: XCTestCase {
     }
 
     private func writeAgentConfig(authId: String?, userId: Int, email: String) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
+        let url = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("cursor-cli-\(UUID().uuidString).json")
         var authInfo: [String: Any] = ["email": email, "userId": userId]
         if let authId { authInfo["authId"] = authId }
@@ -260,7 +260,7 @@ final class CursorCredentialsTests: XCTestCase {
     }
 
     private func writeEditorStore(account: String, token: String) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
+        let url = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("cursor-\(UUID().uuidString).vscdb")
         var db: OpaquePointer?
         XCTAssertEqual(sqlite3_open(url.path, &db), SQLITE_OK)

@@ -230,13 +230,13 @@ struct ClaudeDesktopUsageCache: Sendable {
             Log.usage.debug("claude desktop cache: entry body was not a usage response")
             return nil
         }
-        let windows = response.limitWindows()
+        let capturedAt = parsed.date ?? file.modified ?? now
+        let windows = response.limitWindows(readAt: capturedAt)
         // A response that parses but names no window is not a reading. Letting
         // it through would hand the caller an empty snapshot, which draws a ring
         // with a hole in it rather than falling through to a source that works.
         guard !windows.isEmpty else { return nil }
 
-        let capturedAt = parsed.date ?? file.modified ?? now
         return Reading(
             windows: windows,
             capturedAt: capturedAt,

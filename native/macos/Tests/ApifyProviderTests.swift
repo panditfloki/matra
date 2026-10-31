@@ -15,7 +15,7 @@ final class ApifyProviderTests: XCTestCase {
     private let fileLogin = #"{"token":"apify_api_fixture","id":"abc123","username":"fixture","email":"fixture@example.invalid","plan":{"id":"SCALE"},"secretsBackend":"file"}"#
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent("apify-tests-\(UUID())")
+        directory = MatraTestFiles.temporaryDirectory.appendingPathComponent("apify-tests-\(UUID())")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         authURL = directory.appendingPathComponent("auth.json")
         try fileLogin.write(to: authURL, atomically: true, encoding: .utf8)

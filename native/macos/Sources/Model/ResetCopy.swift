@@ -1,6 +1,7 @@
 import Foundation
 
 enum ResetTimeFormat: String, CaseIterable, Identifiable {
+    // Keep the saved value used by existing installations for Reset date.
     case automatic
     case remaining
 
@@ -16,15 +17,15 @@ enum ResetTimeFormat: String, CaseIterable, Identifiable {
     var explanation: String {
         switch self {
         case .automatic:
-            return L10n.t("Minutes under an hour; otherwise the reset date and time.")
+            return L10n.t("The reset date and time, in your local time zone.")
         case .remaining:
             return L10n.t("Time until usage resets, such as 3 Days 3h or 3h 20m.")
         }
     }
 }
 
-/// "Resets in 51 min" under an hour, "Resets Thu 12:00 AM" within the week,
-/// "Resets Sep 28" beyond it.
+/// Reset date always names a calendar date and clock time. Time remaining
+/// counts down in days, hours and minutes from the same provider reset instant.
 enum ResetCopy {
     static func text(for resetsAt: Date, now: Date = Date(), calendar: Calendar = .current,
                      format: ResetTimeFormat = .automatic, locale: Locale = L10n.locale) -> String {
@@ -46,37 +47,19 @@ enum ResetCopy {
             return L10n.t("Resets in \(minutes) min", locale: locale)
         }
 
-        // Rounding, not truncation, so 50m40s reads as 51 rather than 50. A
-        // value that rounds up to 60 falls through to the absolute form, so
-        // "Resets in 60 min" never appears.
-        let minutes = Int((seconds / 60).rounded())
-        if minutes < 60 {
-            return L10n.t("Resets in \(max(1, minutes)) min", locale: locale)
-        }
-
         let formatter = formatter(for: calendar)
         formatter.locale = locale
-
-        // A weekday only identifies a day inside the coming week. Codex's
-        // monthly window resets 26 days out, and "Resets Mon 3:55 PM" read as
-        // *this* Monday — six days away rather than nearly four weeks, which is
-        // what made the app disagree with Codex's own "Resets Sep 28".
-        if daysApart(from: now, to: resetsAt, calendar: calendar) >= 7 {
-            // Day and month only, matching how the vendors write it. A time
-            // that far out is noise: nobody plans around 3:55 PM in four weeks.
-            formatter.setLocalizedDateFormatFromTemplate("MMM d")
-            return L10n.t("Resets \(formatter.string(from: resetsAt))", locale: locale)
-        }
-
-        // `j`, not `h`: a literal hour symbol in a template pins the clock to
-        // twelve hours whatever the region, so everywhere that writes 00:00
-        // rather than 12:00 AM — most of Europe, Asia and Latin America — read
-        // "Resets mer. 12:00 AM" here while every other clock on the Mac said
-        // 00:00. `j` asks the locale, which also carries the "24-Hour Time"
-        // switch in System Settings. Regions that write AM/PM keep it, so
-        // English is still "Thu 12:00 AM".
-        formatter.setLocalizedDateFormatFromTemplate("E j:mm")
-        return L10n.t("Resets \(formatter.string(from: resetsAt))", locale: locale)
+        // A weekday does not tell the owner which date the allowance resets.
+        // Include the year when crossing New Year so January is unambiguous.
+        let crossesYear = calendar.component(.year, from: now)
+            != calendar.component(.year, from: resetsAt)
+        formatter.setLocalizedDateFormatFromTemplate(crossesYear ? "y MMM d" : "MMM d")
+        let date = formatter.string(from: resetsAt)
+        // `j` follows the locale's 12/24-hour clock and the calendar's zone.
+        formatter.setLocalizedDateFormatFromTemplate("j:mm")
+        let time = formatter.string(from: resetsAt)
+        let timestamp = "\(date), \(time)"
+        return L10n.t("Resets \(timestamp)", locale: locale)
     }
 
     /// The time left before a reset, as short as the menu bar needs it: "2h 05m",

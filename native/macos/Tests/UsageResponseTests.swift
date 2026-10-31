@@ -495,6 +495,45 @@ final class RefreshScheduleTests: XCTestCase {
             isBusy: false, sinceLastAttempt: 60, idleInterval: idle, resetDue: false
         ))
     }
+
+    /// The tick is now four times a minute, so "busy" can no longer mean "fetch
+    /// on every tick" — that would be four fetches a minute at a provider that
+    /// answers a 429. Busy means the busy interval, and nothing shorter.
+    @MainActor
+    func testBusyPollsAtTheBusyIntervalRatherThanEveryTick() {
+        let busy: TimeInterval = 30
+        XCTAssertFalse(UsageStore.shouldRefresh(isBusy: true, sinceLastAttempt: 15,
+                                                idleInterval: idle, busyInterval: busy))
+        XCTAssertTrue(UsageStore.shouldRefresh(isBusy: true, sinceLastAttempt: 30,
+                                               idleInterval: idle, busyInterval: busy))
+        // And a reset still overrules the wait, busy or not.
+        XCTAssertTrue(UsageStore.shouldRefresh(isBusy: true, sinceLastAttempt: 1,
+                                               idleInterval: idle, busyInterval: busy,
+                                               resetDue: true))
+    }
+
+    /// Attention is not a budget: four rings hovered in four seconds is four
+    /// looks and one fetch.
+    @MainActor
+    func testALookIsSpacedFromTheLastFetch() {
+        XCTAssertFalse(UsageStore.shouldRefreshOnEvent(sinceLastRefresh: 3, spacing: 15))
+        XCTAssertTrue(UsageStore.shouldRefreshOnEvent(sinceLastRefresh: 15, spacing: 15))
+        XCTAssertTrue(UsageStore.shouldRefreshOnEvent(sinceLastRefresh: .greatestFiniteMagnitude,
+                                                      spacing: 15))
+    }
+
+    /// The shipped numbers, held to the shape they claim rather than to
+    /// whatever they happen to be: a tick fine enough to express the busy
+    /// interval, a busy interval well inside the idle one, and a look spaced by
+    /// no more than the busy interval — a look that had to wait longer than the
+    /// schedule already does would be worse than not asking.
+    @MainActor
+    func testTheShippedScheduleHangsTogether() {
+        let store = UsageStore(providers: [])
+        XCTAssertLessThanOrEqual(store.refreshIntervalForTesting, store.busyRefreshIntervalForTesting)
+        XCTAssertLessThan(store.busyRefreshIntervalForTesting, store.idleRefreshIntervalForTesting)
+        XCTAssertLessThanOrEqual(store.onLookIntervalForTesting, store.busyRefreshIntervalForTesting)
+    }
 }
 
 /// Which readings count as "a window just turned over". The schedule above is
@@ -788,7 +827,7 @@ final class ExpiredCredentialTests: XCTestCase {
 /// notch works after a restart.
 final class SQLiteStoreTests: XCTestCase {
     private func makeDatabase() throws -> URL {
-        let url = FileManager.default.temporaryDirectory
+        let url = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("store-\(UUID().uuidString).sqlite")
         var db: OpaquePointer?
         XCTAssertEqual(sqlite3_open(url.path, &db), SQLITE_OK)

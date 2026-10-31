@@ -26,7 +26,7 @@ extension View {
 /// crossing-and-notification machinery it switches is Notifications' to
 /// explain.
 private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
-    case accounts, phone, deepseek, ollama, lmstudio, customEndpoints, appearance, notifications, general
+    case accounts, phone, deepseek, ollama, lmstudio, omlx, customEndpoints, appearance, notifications, costs, general
 
     /// The sections the sidebar lists; Phone only once pairing is offered.
     static var visible: [SettingsSection] {
@@ -36,7 +36,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     /// Providers with a pane of their own. They are accounts too, so the
     /// sidebar nests them under Accounts rather than listing them beside
     /// Appearance and General, where they read as app-wide settings.
-    static let providerPanes: [SettingsSection] = [.deepseek, .ollama, .lmstudio, .customEndpoints]
+    static let providerPanes: [SettingsSection] = [.deepseek, .ollama, .lmstudio, .omlx, .customEndpoints]
 
     /// The sidebar's own rows: everything visible that is not nested.
     static var topLevel: [SettingsSection] {
@@ -56,6 +56,8 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .appearance:    return "Display"
         case .notifications: return L10n.settings("Notifications")
         case .general:       return "App & data"
+        case .omlx:          return "oMLX"
+        case .costs:         return L10n.t("Costs")
         }
     }
 
@@ -66,7 +68,8 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .deepseek: return .deepseek
         case .ollama:   return .ollama
         case .lmstudio: return .lmstudio
-        default:        return nil
+        case .omlx:     return .omlx
+        default:       return nil
         }
     }
 
@@ -82,6 +85,8 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .appearance:    return L10n.settings("How the notch looks and where it sits.")
         case .notifications: return L10n.settingsBranded("What Matra tells you, and when.")
         case .general:       return L10n.settings("Startup, updates and everything else.")
+        case .omlx:          return L10n.t("Models loaded in oMLX on this Mac.")
+        case .costs:         return L10n.t("What each project spent of each login's allowance.")
         }
     }
 
@@ -92,9 +97,11 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .deepseek:      return "chart.line.uptrend.xyaxis"
         case .ollama:        return "desktopcomputer"
         case .lmstudio:      return "cpu"
+        case .omlx:          return "cpu"
         case .customEndpoints: return "network"
         case .appearance:    return "paintbrush.fill"
         case .notifications: return "bell.badge.fill"
+        case .costs:         return "banknote.fill"
         case .general:       return "gearshape.fill"
         }
     }
@@ -109,9 +116,11 @@ private enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .deepseek:      return .orange
         case .ollama:        return .teal
         case .lmstudio:      return .purple
+        case .omlx:          return .purple
         case .customEndpoints: return .indigo
         case .appearance:    return .indigo
         case .notifications: return .red
+        case .costs:         return .mint
         case .general:       return .gray
         }
     }
@@ -456,6 +465,7 @@ struct SettingsView: View {
     @ObservedObject var updater: Updater
     var ollamaRelay: OllamaActivityRelay? = nil
     var lmstudioMetrics: LMStudioMetrics? = nil
+    var omlxMetrics: OMLXMetrics? = nil
     var usageStore: UsageStore? = nil
     var previewResetAlert: (() -> Void)? = nil
     var previewSessionLimitAlert: (() -> Void)? = nil
@@ -710,6 +720,7 @@ struct SettingsView: View {
         switch section {
         case .accounts:      accountsPane
         case .phone:         phonePane
+        case .costs:         CostSettingsPane()
         case .deepseek:      DeepSeekPricingSettingsView(preferences: preferences)
         case .ollama:
             if let usageStore {
@@ -729,6 +740,15 @@ struct SettingsView: View {
                 }
                 .formStyle(.grouped)
             }
+        case .omlx:
+            if let usageStore {
+                Form {
+                    Section("Connection") {
+                        OMLXSettingsRow(preferences: preferences, store: usageStore, metrics: omlxMetrics)
+                    }
+                }
+                .formStyle(.grouped)
+            }
         case .customEndpoints:
             CustomEndpointsSettingsView(preferences: preferences)
         case .appearance:    appearancePane
@@ -744,6 +764,14 @@ struct SettingsView: View {
             // so dragging it was arranging something that is not on screen.
             Section(L10n.settings("Connected")) {
                 if needsSetup { setupNote }
+                Picker(L10n.t("Order rings"), selection: $preferences.ringOrder) {
+                    ForEach(RingOrder.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text(preferences.ringOrder.explanation)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
                 ForEach(connected) { account in
                     AccountRow(provider: account, preferences: preferences,
                                signOut: signOut, signIn: signIn,
@@ -762,7 +790,7 @@ struct SettingsView: View {
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
                 } else if !connected.isEmpty {
-                    Text(L10n.settings("The notch draws these in this order. Drag one by its handle to move it."))
+                    Text(listOrderFooter)
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -834,6 +862,16 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
+                Picker(L10n.settings("Working indicator"), selection: $preferences.busyIndicatorStyle) {
+                    ForEach(BusyIndicatorStyle.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+
+                Text(preferences.busyIndicatorStyle.explanation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 Toggle(L10n.settings("Show usage pace"), isOn: $preferences.showUsagePace)
                 Text(L10n.settings("Compares each timed allowance with the time left until reset, showing quota in deficit or held in reserve."))
                     .font(.caption)
@@ -843,7 +881,7 @@ struct SettingsView: View {
                 Toggle(L10n.settings("Show Spark and code review"), isOn: $preferences.showCodexExtraLimits)
                     .onChange(of: preferences.showCodexExtraLimits) { _ in
                         for account in providers() where CodexProfile.isCodex(providerID: account.id) {
-                            usageStore?.refresh(providerID: account.id)
+                            usageStore?.refresh(providerID: account.id, freshness: .fromSource)
                         }
                     }
                 Text(L10n.settings("The ring still follows the main Codex window. Spark and code review stay in the hover card."))
@@ -866,6 +904,27 @@ struct SettingsView: View {
                 Text(sizeIsDecidedByTheHardware
                      ? L10n.settings("Merged into your Mac's own notch the bar is exactly as deep as the cutout, so a ring and a percentage under it have to share that depth — showing it draws the rings smaller. Turn it off for the largest rings the cutout has room for.")
                      : L10n.settings("The figure under each ring. Turn it off for rings alone; the number is still a hover away in the card."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Toggle(L10n.t("Show remaining instead of used"),
+                       isOn: $preferences.showsRemainingInNotch)
+                Text(L10n.t("The notch and the menu bar read what is left — the figures, the rings' sweep, and the card's bars and percentages. Colours still judge by what is spent, so a nearly empty ring still reads red."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Toggle(L10n.t("Shut rings when a window is spent"),
+                       isOn: $preferences.shutRingsWhenSpent)
+                Text(L10n.t("When the 5-hour or the weekly window is spent, both rings say shut even where the other window still has room — dark grey where the notch reads what is left, red where it reads what is spent."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Toggle(L10n.t("Hide accounts with nothing left to spend"),
+                       isOn: $preferences.hideDepletedAccounts)
+                Text(L10n.t("When the 5-hour or the weekly window is at 0% remaining, the account leaves the notch and the menu bar until a window resets — the menu behind the menu bar item still lists it. Stale readings stay: an old number is not proof the account is empty."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1036,6 +1095,14 @@ struct SettingsView: View {
                 }
             }
 
+            // Its own group, next to the notch's, because it is the other
+            // surface Matra puts readings on. Under "App" these rows read
+            // as chrome for the app itself — a sub-question of which icon to
+            // show — rather than as the second place the limits appear.
+            Section(L10n.settings("Menu bar")) {
+                menuBarRows
+            }
+
             Section(L10n.settings("Usage Limits")) {
                 VStack(alignment: .leading, spacing: 4) {
                     Picker(L10n.settings("Colour transition"), selection: $preferences.colorTransitionStyle) {
@@ -1122,14 +1189,6 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                // Only while there is a menu bar item for it to change. With
-                // the app in the Dock or nowhere, a switch here would do
-                // nothing anyone could see; the choice is kept for when the
-                // item comes back.
-                if preferences.appPresence == .menuBar {
-                    menuBarLimitRows
-                }
-
                 Picker(L10n.settings("Language"), selection: $preferences.language) {
                     ForEach(AppLanguage.allCases) { Text($0.title).tag($0) }
                 }
@@ -1142,6 +1201,22 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    /// Keep the same switch visible in both states, next to the readings it
+    /// controls. App presence remains the single persisted source of truth.
+    @ViewBuilder
+    private var menuBarRows: some View {
+        Toggle(L10n.t("Show in menu bar"), isOn: $preferences.showsMenuBarIcon)
+            .accessibilityIdentifier("show-menu-bar-icon")
+        Text(L10n.t("Turn off to hide the menu bar icon and show Mātrā in the Dock. Your menu bar readings are kept."))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+        if preferences.showsMenuBarIcon {
+            menuBarLimitRows
+        }
     }
 
     /// Limits in the menu bar: the switch, and under it one row for each
@@ -1161,6 +1236,45 @@ struct SettingsView: View {
             Toggle(L10n.settings("Show weekly limit in menu bar"),
                    isOn: $preferences.showsWeeklyLimitInMenuBar)
             Text(L10n.settings("Adds a compact weekly-usage ring around each chosen provider that publishes it."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // Before the two that are about what the item looks like: this
+            // one is about what it is for.
+            Picker(L10n.t("A click on the item"), selection: $preferences.menuBarClickAction) {
+                ForEach(MenuBarClickAction.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            Text(preferences.menuBarClickAction.explanation)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // Above the provider rows, because it decides what each of them
+            // costs in width — and width is what anyone ticking a fourth
+            // provider is actually spending.
+            Picker(L10n.t("Each reading shows"), selection: $preferences.menuBarReading) {
+                ForEach(MenuBarReading.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            Text(preferences.menuBarReading.explanation)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // The notch's own question, asked again here because the answers
+            // are not the same ones: the bar has no ring for an arc to turn
+            // inside, and movement a few pixels from the clock is read
+            // differently from movement on the screen edge.
+            Picker(L10n.t("Working indicator"), selection: $preferences.menuBarActivityStyle) {
+                ForEach(MenuBarActivityStyle.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+
+            Text(preferences.menuBarActivityStyle.explanation)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1190,11 +1304,13 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // Said only once it applies: past two the item keeps each share
-            // and drops the countdowns, and past four it stops, because macOS
-            // hides a status item that does not fit rather than squeezing it.
-            if menuBarChoices.filter({ preferences.isInMenuBar($0.id) }).count > StatusItemSummary.fullEntryLimit {
-                Text(L10n.settings("Past two, each shows its share alone and the countdowns move to the tooltip. Past four, the rest are in the menu."))
+            // The one ceiling the picker above cannot move, said only once it
+            // is reached. What the four on show print is that picker's
+            // business; a fifth reading has nowhere to go but the menu,
+            // because macOS hides a status item that does not fit rather than
+            // squeezing it.
+            if menuBarChoices.filter({ preferences.isInMenuBar($0.id) }).count > StatusItemSummary.entryLimit {
+                Text(L10n.settings("Past four, the rest are in the menu: macOS hides a menu bar item that does not fit rather than squeezing it."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1419,12 +1535,23 @@ struct SettingsView: View {
         return !usageAccounts.isEmpty && usageAccounts.allSatisfy { $0.account == nil }
     }
 
+    /// What the list footer says about ordering: the picker above names the
+    /// sort, so this only says what dragging still does under it.
+    private var listOrderFooter: String {
+        switch preferences.ringOrder {
+        case .manual:
+            return L10n.t("The notch draws these in this order. Drag one by its handle to move it.")
+        case .remaining, .deficit:
+            return L10n.t("Auto-order is on: dragging still sets the order ties break in.")
+        }
+    }
+
     /// Names the tools rather than saying "tools already signed in on this
     /// Mac". Someone who uses Claude in a browser reads that sentence, installs
     /// this, sees four blank rings and concludes it is broken — and the
     /// distinction that catches them out is Claude *Code*, not the Claude app.
     static var setupCopy: String {
-        L10n.settingsBranded("Matra reads usage from tools already signed in on this Mac — it never asks for your password. Install and sign in to any of Claude Code (the terminal tool, not the Claude app), Cursor (the editor or cursor-agent), Codex, Antigravity, GLM, Grok, OpenCode, Command Code, GitHub Copilot, Kimi Code, Kiro, Amp, Apify, the Kilo CLI or a Gemini API key (via Gemini CLI, OpenCode or Hermes), and its ring appears in the notch.")
+        L10n.settingsBranded("Matra reads usage from tools already signed in on this Mac — it never asks for your password. Install and sign in to any of Claude Code (the terminal tool, not the Claude app), Cursor (the editor or cursor-agent), Codex, Antigravity, GLM, Grok CLI, Grok Bot, Higgsfield, OpenCode, Command Code, GitHub Copilot, Kimi Code, Kiro, Amp, Apify, the Kilo CLI or a Gemini API key (via Gemini CLI, OpenCode or Hermes), and its ring appears in the notch.")
     }
 
     /// Said before it happens rather than after. A system dialogue asking to
@@ -2000,6 +2127,7 @@ private struct AccountRow: View {
             // MiniMax is signed into in Matra, or by a Coding Plan key
             // pasted here. The region is which console that key belongs to.
             // Stored in the keychain on Save, the same way Ollama's is.
+
             if provider.id == "minimax" {
                 minimaxEntry
             }
@@ -2009,6 +2137,9 @@ private struct AccountRow: View {
             // Save, the same way Ollama's is.
             if provider.id == "apify" {
                 apifyTokenEntry
+            }
+            if provider.id == "higgsfield" {
+                higgsfieldKeyEntry
             }
         }
     }
@@ -2082,6 +2213,41 @@ private struct AccountRow: View {
                 }
             }
             Text(L10n.settings("Paste a token from Apify Console › Settings › API & Integrations. Not needed after apify login, or with APIFY_TOKEN exported. Stored in your login keychain."))
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, 2)
+    }
+
+    /// The API key input for Higgsfield. Stored in the keychain on Save, then a
+    /// refresh is triggered so the ring picks up the new credential without a relaunch.
+    @State private var higgsfieldKey = ""
+    @State private var higgsfieldKeySaved = false
+
+    private var higgsfieldKeyEntry: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.t("Higgsfield API key"))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                SecureField(L10n.t("Paste your key"), text: $higgsfieldKey)
+                    .textContentType(.password)
+                    .textFieldStyle(.roundedBorder)
+                    .labelsHidden()
+                    .frame(maxWidth: 260)
+                Button(L10n.t("Save")) {
+                    guard !higgsfieldKey.isEmpty else { return }
+                    HiggsfieldCredentials.store(higgsfieldKey)
+                    higgsfieldKey = ""
+                    higgsfieldKeySaved = true
+                    _ = signIn(provider.id)
+                }
+                .disabled(higgsfieldKey.isEmpty)
+                if higgsfieldKeySaved {
+                    Text(L10n.t("Saved"))
+                        .foregroundStyle(.green)
+                }
+            }
+            Text(L10n.t("Paste an API key or token from Higgsfield Console. Not needed after hf auth login, or with HIGGSFIELD_API_KEY exported. Stored in your login keychain."))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }

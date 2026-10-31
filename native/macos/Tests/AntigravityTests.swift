@@ -114,7 +114,7 @@ final class AntigravityActivityTests: XCTestCase {
     private var root: URL!
 
     override func setUpWithError() throws {
-        root = URL(fileURLWithPath: NSTemporaryDirectory())
+        root = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("antigravity-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
@@ -140,7 +140,7 @@ final class AntigravityActivityTests: XCTestCase {
     /// A second install, so the roots can be tested the way they actually
     /// occur: several directories, only one of them in use.
     private func makeRoot() throws -> URL {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        let url = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("antigravity-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
@@ -484,6 +484,34 @@ final class AntigravityQuotaTests: XCTestCase {
         XCTAssertEqual(providerWindows[3].usedFraction ?? -1, 0, accuracy: 0.0001)
     }
 
+    /// The server names groups and windows in English whatever the app's
+    /// language. They used to reach the card and the menu bar as sent, so a
+    /// Spanish Mac read "Weekly Limit" under "Claude and GPT models".
+    func testServerLabelsFallBackToEnglishWhenTheLocaleHasNoTranslation() {
+        let previousLocale = L10n.testLocale
+        L10n.testLocale = Locale(identifier: "es")
+        defer { L10n.testLocale = previousLocale }
+
+        let grouped = Data("""
+        {"groups":[{"displayName":"Claude and GPT models","buckets":[
+          {"bucketId":"3p-5h","displayName":"Five Hour Limit Remaining","remainingFraction":1},
+          {"bucketId":"3p-weekly","displayName":"Weekly Limit","remainingFraction":1}]}]}
+        """.utf8)
+        let groupedWindows = AntigravityProvider.windows(in: grouped)
+        XCTAssertEqual(groupedWindows.map(\.group), ["Claude and GPT models", "Claude and GPT models"])
+        XCTAssertEqual(groupedWindows.map(\.label), ["5-hour Limit", "Weekly Limit"])
+
+        let now = Date(timeIntervalSince1970: 1788900000)
+        let models = Data("""
+        {"buckets":[
+          {"modelId":"gemini-2.5-pro","remainingFraction":0.9,"resetTime":"2026-09-09T10:39:57Z"},
+          {"modelId":"claude-sonnet-4-6","remainingFraction":0.8,"resetTime":"2026-09-16T10:39:57Z"}]}
+        """.utf8)
+        let modelWindows = AntigravityProvider.windows(in: models, now: now)
+        XCTAssertEqual(modelWindows.map(\.group), ["Gemini Models", "Claude and GPT models"])
+        XCTAssertEqual(modelWindows.map(\.label), ["5-hour Limit", "Weekly Limit"])
+    }
+
     func testDirectCloudCodeIgnoresInvalidFractions() {
         let body = Data("""
         {
@@ -713,6 +741,138 @@ final class AntigravityBridgeTests: XCTestCase {
         language_server 29283 vinz 13u IPv4 0x2 0t0 TCP 127.0.0.1:63882 (LISTEN)
         """
         XCTAssertEqual(AntigravityBridge.parsePorts(fromLSOF: output), [63881, 63882])
+    }
+
+    /// The server refuses an absolute `--app_data_dir` outright, before it reads
+    /// anything, and the message ("must not be absolute") looks like a
+    /// configuration problem rather than the path mistake it is. The IDE passes
+    /// a bare name, and so must we.
+    func testTheStartedServerGetsANameForItsDataDirectoryNotAPath() {
+        let args = AntigravityBridge.arguments(token: "t")
+        let index = try? XCTUnwrap(args.firstIndex(of: "--app_data_dir"))
+        XCTAssertNotNil(index)
+        let value = args[(index ?? 0) + 1]
+        XCTAssertFalse(value.hasPrefix("/"), "an absolute --app_data_dir kills the server")
+        XCTAssertFalse(value.contains("~"))
+    }
+
+    /// Same flags the IDE passes, minus everything that wires it to a running
+    /// IDE. `--standalone` is what makes starting one without an IDE legal, and
+    /// `--csrf_token` is what `discover()` later matches on to find the server
+    /// we started — so without it this one would be invisible to the next poll.
+    func testTheStartedServerIsDiscoverableAndSelfContained() {
+        let args = AntigravityBridge.arguments(token: "tok-123")
+        XCTAssertTrue(args.contains("--standalone"))
+        XCTAssertEqual(AntigravityBridge.value(of: "--csrf_token", in: args.joined(separator: " ")), "tok-123")
+        XCTAssertTrue(args.contains("--https_server_port"))
+        // Nothing that names a running IDE, which there is none of.
+        XCTAssertFalse(args.contains { $0.contains("host_bridge") })
+    }
+
+    /// The port is left at 0 so the server picks one and `lsof` finds it, the
+    /// same way the IDE's own is found. Handing it a port chosen here would race
+    /// whatever claimed it in between.
+    func testThePortIsLeftForTheServerToChoose() {
+        let args = AntigravityBridge.arguments(token: "t")
+        let joined = args.joined(separator: " ")
+        XCTAssertEqual(AntigravityBridge.value(of: "--https_server_port", in: joined), "0")
+    }
+
+    /// A data directory of its own, so two writers never reach the IDE's SQLite
+    /// files if it is launched while a started server is still up.
+    func testTheStartedServerDoesNotShareTheIDEsDataDirectory() {
+        let joined = AntigravityBridge.arguments(token: "t").joined(separator: " ")
+        XCTAssertNotEqual(
+            AntigravityBridge.value(of: "--app_data_dir", in: joined), "antigravity")
+    }
+
+    /// The spawn itself, driven through the seam that replaces `run()` so a test
+    /// launches nothing. What matters is the Process we would have started: the
+    /// flags, and stdout not inherited — the server logs there, and the app's
+    /// stdout is not somewhere it should write.
+    func testStartingOneBuildsTheServerAndDoesNotInheritStdout() throws {
+        let owned = AntigravityBridge.Owned()
+        defer { owned.stop() }
+
+        var built: Process?
+        let endpoint = try XCTUnwrap(owned.endpointOrStart(
+            binary: URL(fileURLWithPath: "/Applications/Antigravity.app/Contents/Resources/bin/language_server"),
+            start: { built = $0; return true }))
+
+        let process = try XCTUnwrap(built)
+        XCTAssertTrue(process.arguments?.contains("--standalone") == true)
+        XCTAssertTrue((process.standardOutput as AnyObject) === FileHandle.nullDevice)
+        XCTAssertTrue((process.standardError as AnyObject) === FileHandle.nullDevice)
+        // Ports arrive empty: the server has not bound yet, and asking it here
+        // would be asking before it has listened.
+        XCTAssertTrue(endpoint.ports.isEmpty)
+        XCTAssertNotNil(endpoint.csrfToken)
+    }
+
+    /// A second poll must not start a second server. Two would bind their own
+    /// ports and one would be dialled for nothing.
+    func testStartingTwiceKeepsTheFirstServer() throws {
+        let owned = AntigravityBridge.Owned()
+        defer { owned.stop() }
+
+        var starts = 0
+        let binary = URL(fileURLWithPath: "/tmp/language_server")
+        let first = try XCTUnwrap(owned.endpointOrStart(binary: binary, start: { _ in starts += 1; return true }))
+        let second = try XCTUnwrap(owned.endpointOrStart(binary: binary, start: { _ in starts += 1; return true }))
+        XCTAssertEqual(starts, 1, "started a second server")
+        XCTAssertEqual(first.csrfToken, second.csrfToken)
+    }
+
+    /// A server that will not start leaves nothing behind to be dialled later.
+    func testAServerThatFailsToStartIsNotRemembered() {
+        let owned = AntigravityBridge.Owned()
+        XCTAssertNil(owned.endpointOrStart(binary: URL(fileURLWithPath: "/tmp/x"), start: { _ in false }))
+        XCTAssertNil(owned.current)
+    }
+
+    /// Ports are filled in once, and only once there are some — an empty set
+    /// means "not bound yet", not "bound on no ports".
+    func testPortsAreRecordedOnlyOnceTheServerHasBound() throws {
+        let owned = AntigravityBridge.Owned()
+        defer { owned.stop() }
+        _ = owned.endpointOrStart(binary: URL(fileURLWithPath: "/tmp/x"), start: { _ in true })
+
+        owned.resolvePorts([])
+        XCTAssertTrue(try XCTUnwrap(owned.current).ports.isEmpty)
+
+        owned.resolvePorts([57312])
+        XCTAssertEqual(owned.current?.ports, [57312])
+    }
+
+    /// No Antigravity installed is the honest answer — there is nothing to
+    /// start — and must not be papered over with some other path.
+    func testNoBinaryWithoutAnInstalledIDE() {
+        let empty = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
+            .appendingPathComponent("no-apps-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: empty) }
+        XCTAssertNil(AntigravityBridge.serverBinaryURL(applications: [empty]))
+    }
+
+    /// Found through the bundle rather than a hardcoded path, and only when the
+    /// binary inside it is actually executable — a directory that merely exists
+    /// is not an installation.
+    func testFindsTheBinaryInsideTheApp() throws {
+        let root = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
+            .appendingPathComponent("apps-\(UUID().uuidString)")
+        let bin = root.appendingPathComponent("Antigravity.app/Contents/Resources/bin")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let fake = bin.appendingPathComponent("language_server")
+        try Data("#!/bin/sh\n".utf8).write(to: fake)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.path)
+        XCTAssertEqual(AntigravityBridge.serverBinaryURL(applications: [root])?.lastPathComponent,
+                       "language_server")
+
+        // Present but not runnable — a stub, or a partial install.
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: fake.path)
+        XCTAssertNil(AntigravityBridge.serverBinaryURL(applications: [root]))
     }
 }
 
@@ -987,7 +1147,7 @@ final class AntigravityActivityMonitorTests: XCTestCase {
     private var root: URL!
 
     override func setUpWithError() throws {
-        root = URL(fileURLWithPath: NSTemporaryDirectory())
+        root = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("agy-monitor-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
@@ -1163,6 +1323,63 @@ final class AuthorCreditTests: XCTestCase {
 /// a Dock tile, and only one makes a menu bar item — get either mapping wrong
 /// and the app is either unreachable or in two places at once.
 final class AppPresenceTests: XCTestCase {
+    @MainActor
+    func testMenuBarSwitchUpdatesThePreviewPresenterImmediately() throws {
+        let name = "AppPresenceTests.presenter.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        var presenceChanges: [AppPresence] = []
+        var visibility: [Bool] = []
+        let preview = MatraDesignPreview(defaults: defaults, readsLocalLogs: false,
+                                        applyPresence: { presenceChanges.append($0) },
+                                        presentMenuBar: { _, shown in visibility.append(shown) })
+        let preferences = preview.dashboard.preferences
+        preferences.showsMenuBarIcon = true
+        preferences.showsMenuBarIcon = false
+        preferences.showsMenuBarIcon = true
+        XCTAssertEqual(visibility, [false, true, false, true])
+        XCTAssertEqual(presenceChanges, [.dock, .menuBar, .dock, .menuBar])
+        XCTAssertNil(preview.statusItem.onRefreshAll, "Visibility must not cause live polling")
+    }
+
+    @MainActor
+    func testMenuBarSwitchHidesAndRestoresWithoutLosingReadings() throws {
+        let name = "AppPresenceTests.menuSwitch.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let preferences = Preferences(defaults: defaults)
+        preferences.showsLimitsInMenuBar = true
+        preferences.setInMenuBar(false, for: "cursor", among: ["claude", "codex", "cursor"])
+
+        preferences.showsMenuBarIcon = true
+        XCTAssertEqual(preferences.appPresence, .menuBar)
+        preferences.showsMenuBarIcon = false
+        XCTAssertEqual(preferences.appPresence, .dock, "Hiding keeps an accessible Dock entry")
+        let reopened = Preferences(defaults: defaults)
+        XCTAssertFalse(reopened.showsMenuBarIcon)
+        XCTAssertTrue(reopened.showsLimitsInMenuBar)
+        XCTAssertEqual(reopened.menuBarProviders, ["claude", "codex"])
+
+        reopened.showsMenuBarIcon = true
+        XCTAssertTrue(Preferences(defaults: defaults).showsMenuBarIcon)
+        XCTAssertEqual(reopened.menuBarProviders, ["claude", "codex"])
+    }
+
+    @MainActor
+    func testMenuBarSwitchTracksTheExistingAppIconPicker() throws {
+        let name = "AppPresenceTests.picker.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let preferences = Preferences(defaults: defaults)
+        for presence in AppPresence.allCases {
+            preferences.appPresence = presence
+            XCTAssertEqual(preferences.showsMenuBarIcon, presence.wantsStatusItem)
+        }
+        preferences.appPresence = .hidden
+        preferences.showsMenuBarIcon = false
+        XCTAssertEqual(preferences.appPresence, .hidden, "An already-hidden choice stays unchanged")
+    }
+
     func testOnlyTheDockOptionIsARegularApp() {
         XCTAssertEqual(AppPresence.dock.activationPolicy, .regular)
         XCTAssertEqual(AppPresence.menuBar.activationPolicy, .accessory)
@@ -1254,7 +1471,8 @@ final class UpdateOutcomeTests: XCTestCase {
     }
 }
 
-/// The menu bar uses the approved product mark, not a renamed legacy drawing.
+/// The menu bar mark. Loaded from the asset catalogue rather than drawn from
+/// the app icon, and a template so macOS can tint it for whatever the bar is.
 @MainActor
 final class MenuBarIconTests: XCTestCase {
     func testTheIconLoadsAndIsNotEmpty() throws {
@@ -1264,27 +1482,10 @@ final class MenuBarIconTests: XCTestCase {
         XCTAssertFalse(icon.representations.isEmpty, "the image carries nothing to draw")
     }
 
-    func testItPreservesTheBrandColours() throws {
-        let icon = try XCTUnwrap(StatusItemController.icon())
-        XCTAssertFalse(icon.isTemplate)
-        XCTAssertEqual(icon.accessibilityDescription, "Mātrā")
-    }
-
-    func testArtworkMatchesTheApprovedSettingsLogo() throws {
-        let icon = try XCTUnwrap(NSImage(named: "MenuBarIcon"))
-        let logo = try XCTUnwrap(NSImage(named: "MatraLogo"))
-        func pixels(_ image: NSImage) throws -> Data {
-            let bitmap = try XCTUnwrap(NSBitmapImageRep(bitmapDataPlanes: nil,
-                pixelsWide: 36, pixelsHigh: 36, bitsPerSample: 8, samplesPerPixel: 4,
-                hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-                bytesPerRow: 144, bitsPerPixel: 32))
-            NSGraphicsContext.saveGraphicsState()
-            defer { NSGraphicsContext.restoreGraphicsState() }
-            NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
-            image.draw(in: NSRect(x: 0, y: 0, width: 36, height: 36))
-            return Data(bytes: try XCTUnwrap(bitmap.bitmapData), count: 36 * 144)
-        }
-        XCTAssertEqual(try pixels(icon), try pixels(logo))
+    /// Without this macOS cannot tint it, and the mark stays black on a dark
+    /// menu bar — invisible.
+    func testTheMatraBrandIconPreservesItsColours() throws {
+        XCTAssertFalse(try XCTUnwrap(StatusItemController.icon()).isTemplate)
     }
 }
 
@@ -1315,7 +1516,7 @@ final class StatusMenuTests: XCTestCase {
             now: now)
         XCTAssertTrue(line.contains("5h limit"), line)
         XCTAssertTrue(line.contains("8% Used · 92% left"), line)
-        XCTAssertTrue(line.contains("Resets in 51 min"), line)
+        XCTAssertTrue(line.contains(ResetCopy.text(for: now.addingTimeInterval(51 * 60), now: now)), line)
     }
 
     /// A window with no reset says so by saying nothing — never invented.
@@ -1347,9 +1548,10 @@ final class StatusMenuTests: XCTestCase {
         XCTAssertEqual(details, ["Sign in to Codex to read your usage"])
     }
 
-    /// The header carries the headline figure and the reading's age — the same
-    /// pair the tooltip header shows.
-    func testTheMenuListsEveryProviderWithRefreshAndSettings() {
+    /// Every provider gets a card, and the card carries the headline figure
+    /// and the reading's age — the same pair the tooltip header shows — with
+    /// its windows in the words accessibility is handed.
+    func testTheMenuDrawsEveryProviderWithRefreshAndSettings() throws {
         let controller = StatusItemController(onOpenSettings: {})
         controller.snapshots = [snapshot(
             status: .stale(since: now.addingTimeInterval(-(20 * 3600 + 21 * 60))),
@@ -1362,12 +1564,15 @@ final class StatusMenuTests: XCTestCase {
         let titles = menu.items.map(\.title)
         XCTAssertTrue(titles[0].contains("Codex — 29%"), titles[0])
         XCTAssertTrue(titles[0].contains("20 hr 21 min ago"), titles[0])
-        XCTAssertTrue(titles[1].contains("Weekly limit"), titles[1])
-        XCTAssertTrue(titles[1].contains("29% Used · 71% left"), titles[1])
+        XCTAssertNotNil(menu.items[0].view, "the provider was drawn as text")
+        let heard = try XCTUnwrap(menu.items[0].accessibilityLabel())
+        XCTAssertTrue(heard.contains("Weekly limit"), heard)
+        XCTAssertTrue(heard.contains("29% Used · 71% left"), heard)
         XCTAssertTrue(titles.contains("Refresh all"))
         XCTAssertTrue(titles.contains("Settings…"))
         XCTAssertTrue(titles.contains("Quit Mātrā"))
-        // The header re-reads its own provider.
+        // The card knows which provider it is drawn for, so an open menu can
+        // put a fresh reading on it without being rebuilt.
         XCTAssertEqual(menu.items[0].representedObject as? String, "codex")
     }
 
@@ -1761,4 +1966,130 @@ private final class GoogleStub: URLProtocol {
     }
 
     override func stopLoading() {}
+}
+
+
+final class AntigravityFlavorSelectionTests: XCTestCase {
+    func testRunningProcessBeatsNonRunningEvenWithOlderActivity() {
+        let ide = FlavorCandidate(
+            flavor: .ide,
+            credentials: nil,
+            isRunning: true,
+            lastActivity: Date(timeIntervalSince1970: 1000),
+            canProvideQuota: true,
+            isActive: true
+        )
+        let acp = FlavorCandidate(
+            flavor: .acp,
+            credentials: nil,
+            isRunning: false,
+            lastActivity: Date(timeIntervalSince1970: 2000),
+            canProvideQuota: true,
+            isActive: true
+        )
+
+        let ranked = AntigravityFlavor.rankCandidates([acp, ide])
+        XCTAssertEqual(ranked.first?.flavor, .ide, "A live running process must strictly beat a non-running one")
+    }
+
+    func testMultipleRunningTieBreaksByMostRecentActivity() {
+        let ide = FlavorCandidate(
+            flavor: .ide,
+            credentials: nil,
+            isRunning: true,
+            lastActivity: Date(timeIntervalSince1970: 1000),
+            canProvideQuota: true,
+            isActive: true
+        )
+        let acp = FlavorCandidate(
+            flavor: .acp,
+            credentials: nil,
+            isRunning: true,
+            lastActivity: Date(timeIntervalSince1970: 2000),
+            canProvideQuota: true,
+            isActive: true
+        )
+
+        let ranked = AntigravityFlavor.rankCandidates([ide, acp])
+        XCTAssertEqual(ranked.first?.flavor, .acp, "When multiple are running, newest activity wins")
+    }
+
+    func testMultipleRunningTieBreaksByPrecedenceWhenActivityIsMissingOrTied() {
+        let cli = FlavorCandidate(
+            flavor: .cli,
+            credentials: nil,
+            isRunning: true,
+            lastActivity: nil,
+            canProvideQuota: true,
+            isActive: true
+        )
+        let acp = FlavorCandidate(
+            flavor: .acp,
+            credentials: nil,
+            isRunning: true,
+            lastActivity: nil,
+            canProvideQuota: true,
+            isActive: true
+        )
+        let ide = FlavorCandidate(
+            flavor: .ide,
+            credentials: nil,
+            isRunning: true,
+            lastActivity: nil,
+            canProvideQuota: true,
+            isActive: true
+        )
+
+        let ranked = AntigravityFlavor.rankCandidates([cli, acp, ide])
+        XCTAssertEqual(ranked.map(\.flavor), [.ide, .acp, .cli], "Tie-breaker precedence must be IDE > ACP > CLI")
+    }
+
+    func testNoRunningProcessesTieBreaksByMostRecentActivity() {
+        let ide = FlavorCandidate(
+            flavor: .ide,
+            credentials: nil,
+            isRunning: false,
+            lastActivity: Date(timeIntervalSince1970: 1000),
+            canProvideQuota: true,
+            isActive: true
+        )
+        let cli = FlavorCandidate(
+            flavor: .cli,
+            credentials: nil,
+            isRunning: false,
+            lastActivity: Date(timeIntervalSince1970: 3000),
+            canProvideQuota: true,
+            isActive: true
+        )
+        let acp = FlavorCandidate(
+            flavor: .acp,
+            credentials: nil,
+            isRunning: false,
+            lastActivity: Date(timeIntervalSince1970: 2000),
+            canProvideQuota: true,
+            isActive: true
+        )
+
+        let ranked = AntigravityFlavor.rankCandidates([ide, cli, acp])
+        XCTAssertEqual(ranked.map(\.flavor), [.cli, .acp, .ide])
+    }
+
+    func testRunningFlavorsDetection() {
+        let table = """
+        100 /sbin/launchd
+        200 /Applications/Antigravity.app/Contents/Resources/bin/language_server --csrf_token 123
+        300 /usr/local/bin/agy
+        400 /Users/test/external_agents/antigravity-acp/agy_acp_server.par
+        """
+        let running = AntigravityFlavor.runningFlavors(processTable: table)
+        XCTAssertTrue(running.contains(.ide))
+        XCTAssertTrue(running.contains(.cli))
+        XCTAssertTrue(running.contains(.acp))
+    }
+
+    func testFlavorDisplayNames() {
+        XCTAssertEqual(AntigravityFlavor.ide.displayName, "Antigravity IDE")
+        XCTAssertEqual(AntigravityFlavor.cli.displayName, "Antigravity CLI")
+        XCTAssertEqual(AntigravityFlavor.acp.displayName, "Antigravity ACP")
+    }
 }

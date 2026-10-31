@@ -107,6 +107,18 @@ struct MatraAppDataView: View {
                 }
 
                 card {
+                    row {
+                        Text("Ask providers when opening usage")
+                        Spacer()
+                        Toggle("Ask providers when opening usage", isOn: $preferences.asksProviderOnLook)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
+                    rule
+                    help("Opening the menu or a notch card refreshes usage. Enable this to bypass provider caches where supported. Refresh spacing and rate limits still apply.")
+                }
+
+                card {
                     VStack(alignment: .leading, spacing: 8) {
                         Link("dydxfx.com", destination: MatraBrand.website)
                             .fontWeight(.semibold)

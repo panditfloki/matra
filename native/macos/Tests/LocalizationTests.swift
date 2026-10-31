@@ -72,7 +72,7 @@ final class LocalizationTests: XCTestCase {
 
     func testResetCopyUnderAnHourInSimplifiedChinese() {
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: zhHans),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: zhHans),
             "51 分钟后重置"
         )
         XCTAssertEqual(
@@ -83,7 +83,7 @@ final class LocalizationTests: XCTestCase {
 
     func testResetCopyUnderAnHourInEnglishWhenAsked() {
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: english),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: english),
             "Resets in 51 min"
         )
         XCTAssertEqual(
@@ -215,7 +215,7 @@ final class LocalizationTests: XCTestCase {
 
     func testResetCopyUnderAnHourInFrench() {
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: french),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: french),
             "Réinit. dans 51 min"
         )
         XCTAssertEqual(
@@ -282,7 +282,7 @@ final class LocalizationTests: XCTestCase {
 
     func testResetCopyUnderAnHourInGerman() {
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: german),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: german),
             "Zurücksetzung in 51 Min."
         )
         XCTAssertEqual(
@@ -360,7 +360,7 @@ final class LocalizationTests: XCTestCase {
 
     func testResetCopyUnderAnHourInBrazilianPortuguese() {
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: brazilianPortuguese),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: brazilianPortuguese),
             "Renova em 51 min"
         )
         XCTAssertEqual(
@@ -437,7 +437,7 @@ final class LocalizationTests: XCTestCase {
 
     func testResetCopyUnderAnHourInJapanese() {
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: japanese),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: japanese),
             "51 分後にリセット"
         )
         XCTAssertEqual(
@@ -497,7 +497,7 @@ final class LocalizationTests: XCTestCase {
             "только что"
         )
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: russian),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: russian),
             "Сброс через 51 мин"
         )
         XCTAssertEqual(
@@ -530,7 +530,7 @@ final class LocalizationTests: XCTestCase {
             "щойно"
         )
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: ukrainian),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: ukrainian),
             "Скидання через 51 хв"
         )
         XCTAssertEqual(
@@ -564,7 +564,7 @@ final class LocalizationTests: XCTestCase {
             "6 分鐘"
         )
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: zhHant),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: zhHant),
             "51 分鐘後重置"
         )
         XCTAssertEqual(
@@ -591,7 +591,7 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(ElapsedCopy.text(since: now.addingTimeInterval(-5), now: now, locale: ko), "방금")
         XCTAssertEqual(ElapsedCopy.text(since: now.addingTimeInterval(-6 * 60), now: now, locale: ko), "6분")
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: ko),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: ko),
             "51분 후 재설정"
         )
         XCTAssertEqual(percentWindow(0.12).summary(locale: ko), "12% 사용 · 88% 남음")
@@ -610,7 +610,7 @@ final class LocalizationTests: XCTestCase {
             "6 daqiqa"
         )
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: uzbek),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: uzbek),
             "51 daqiqadan soʻng yangilanadi"
         )
         XCTAssertEqual(
@@ -646,7 +646,7 @@ final class LocalizationTests: XCTestCase {
             "6 dk"
         )
         XCTAssertEqual(
-            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, locale: turkish),
+            ResetCopy.text(for: resetNow.addingTimeInterval(51 * 60), now: resetNow, format: .remaining, locale: turkish),
             "51 dk içinde sıfırlanır"
         )
         XCTAssertEqual(

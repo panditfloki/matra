@@ -120,7 +120,7 @@ final class ClaudeTranscriptReaderTests: XCTestCase {
     private var projects: URL!
 
     override func setUpWithError() throws {
-        projects = FileManager.default.temporaryDirectory
+        projects = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("transcripts-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
     }

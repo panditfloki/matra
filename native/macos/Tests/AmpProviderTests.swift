@@ -10,7 +10,7 @@ final class AmpProviderTests: XCTestCase {
     private let date = Date(timeIntervalSince1970: 1_800_000_000)
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent("amp-tests-\(UUID())")
+        directory = MatraTestFiles.temporaryDirectory.appendingPathComponent("amp-tests-\(UUID())")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         secretsURL = directory.appendingPathComponent("secrets.json")
         try #"{"apiKey@https://ampcode.com/":"sgamp_fixture"}"#.write(to: secretsURL, atomically: true, encoding: .utf8)

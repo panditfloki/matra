@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import Matra
 
 final class CustomEndpointTests: XCTestCase {
@@ -10,6 +11,7 @@ final class CustomEndpointTests: XCTestCase {
 
         XCTAssertEqual(endpoint.name, "Test vLLM")
         XCTAssertEqual(endpoint.baseURL, "http://localhost:8000/v1")
+        XCTAssertEqual(endpoint.apiType, .openAICompatible)
         XCTAssertEqual(endpoint.headerKey, "Authorization")
         XCTAssertEqual(endpoint.accentColorHex, "#6366F1")
         XCTAssertEqual(endpoint.iconPreset, "openai")
@@ -101,6 +103,7 @@ final class CustomEndpointTests: XCTestCase {
             name: "Together AI",
             baseURL: "https://api.together.xyz/v1",
             headerKey: "Authorization",
+            apiType: .anthropic,
             selectedModel: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
             availableModels: ["meta-llama/Llama-3.3-70B-Instruct-Turbo"],
             isEnabled: true,
@@ -127,6 +130,7 @@ final class CustomEndpointTests: XCTestCase {
         XCTAssertEqual(decoded.availableModels.count, 1)
         XCTAssertEqual(decoded.computedSpendUSD, 3.50)
         XCTAssertEqual(decoded.monthlyBudgetUSD, 15.0)
+        XCTAssertEqual(decoded.apiType, .anthropic)
         XCTAssertEqual(decoded.lastLatencyMs, 48)
         XCTAssertEqual(decoded.lastHealthStatus, .online)
     }
@@ -240,6 +244,7 @@ final class CustomEndpointTests: XCTestCase {
 
         let decodedLegacy = try JSONDecoder().decode(CustomEndpoint.self, from: legacyJSON)
         XCTAssertEqual(decodedLegacy.trackingUnit, .currency)
+        XCTAssertEqual(decodedLegacy.apiType, .openAICompatible)
         XCTAssertEqual(decodedLegacy.monthlyBudgetUSD, 20.0)
         XCTAssertEqual(decodedLegacy.currentSpendUSD, 5.0)
         XCTAssertNil(decodedLegacy.monthlyBudgetTokensM)
@@ -292,7 +297,9 @@ final class CustomEndpointTests: XCTestCase {
         ] {
             XCTAssertNil(parse(.vllm, invalid), invalid)
         }
-        XCTAssertEqual(parse(.llamaCpp, "llamacpp:prompt_tokens_total 8\nllamacpp:tokens_predicted_total 3"), .tokens(11))
+        XCTAssertEqual(parse(.llamaCpp, "llamacpp:prompt_tokens_total 8\nllamacpp:tokens_predicted_total 3"),
+                       .llamaCpp(LlamaCppMetricsReading(totalTokens: 11, generationTokensPerSecond: nil,
+                                                       activeRequests: nil, queuedRequests: nil)))
         XCTAssertEqual(parse(.openRouter, #"{"data":{"usage":90,"usage_monthly":3.5}}"#),
                        .spendUSD(3.5, period: .month))
         XCTAssertNil(parse(.openRouter, #"{"data":{"usage":90}}"#))
@@ -303,6 +310,146 @@ final class CustomEndpointTests: XCTestCase {
                        .quota(used: 0, granted: nil))
         XCTAssertNil(parse(.newAPI, #"{"data":{"object":"token_usage","total_used":false}}"#))
         XCTAssertNil(parse(.litellm, #"{"info":{"spend":true}}"#))
+        XCTAssertEqual(parse(.abacus, #"{"success":true,"result":{"computePointsLeft":934.25,"totalComputePoints":83666.66,"monthlyPtsPerUser":30000.0,"normalMonthlyCredits":20000.0,"userCount":1}}"#),
+                       .credits(left: 934.25, monthly: 20000, total: 83666.66))
+        XCTAssertNil(parse(.abacus, #"{"success":false,"error":"Invalid API key"}"#))
+        XCTAssertNil(parse(.abacus, #"{"success":true,"result":{"computePointsLeft":-1,"totalComputePoints":1,"normalMonthlyCredits":20000}}"#))
+        XCTAssertEqual(CustomEndpointPresetUsage.formatCredits(934.25), "934")
+        XCTAssertEqual(CustomEndpointPresetUsage.formatCredits(19065), "19.1K")
+        XCTAssertEqual(CustomEndpointPresetUsage.formatCredits(20000), "20K")
+    }
+
+    func testAbacusPresetURLIsPinnedToRouteLLMHost() {
+        XCTAssertEqual(CustomEndpointPresetUsage.presetURL(.abacus, baseURL: "https://routellm.abacus.ai/v1")?.absoluteString,
+                       "https://routellm.abacus.ai/api/v0/_getOrganizationComputePoints")
+        XCTAssertNil(CustomEndpointPresetUsage.presetURL(.abacus, baseURL: "https://evil.example/v1"))
+        XCTAssertNil(CustomEndpointPresetUsage.presetURL(.abacus, baseURL: "http://routellm.abacus.ai/v1"))
+    }
+
+    func testLlamaCppPerformanceMetricsUseExactNamesAndScientificSamples() throws {
+        let data = Data("""
+            # TYPE llamacpp:predicted_tokens_seconds gauge
+            llamacpp:prompt_tokens_total 1.2e+06
+            llamacpp:tokens_predicted_total 300000
+            llamacpp:predicted_tokens_seconds 42.456 1790000000000
+            llamacpp:requests_processing 1
+            llamacpp:requests_deferred 2e0
+            llamacpp:prompt_tokens_seconds 200
+            """.utf8)
+        XCTAssertEqual(CustomEndpointPresetUsage.parsePreset(.llamaCpp, data: data),
+            .llamaCpp(LlamaCppMetricsReading(totalTokens: 1_500_000, generationTokensPerSecond: 42.456,
+                                            activeRequests: 1, queuedRequests: 2)))
+    }
+
+    func testLlamaCppInvalidOrAmbiguousGaugesDoNotInventZeroOrDiscardTotals() throws {
+        let counters = "llamacpp:prompt_tokens_total 8\nllamacpp:tokens_predicted_total 3\n"
+        for invalid in ["NaN", "+Inf", "-1", "8.5 invalid-timestamp"] {
+            let text = counters + "llamacpp:predicted_tokens_seconds \(invalid)\nllamacpp:requests_processing 1.5"
+            XCTAssertEqual(CustomEndpointPresetUsage.parsePreset(.llamaCpp, data: Data(text.utf8)),
+                .llamaCpp(LlamaCppMetricsReading(totalTokens: 11, generationTokensPerSecond: nil,
+                                                activeRequests: nil, queuedRequests: nil)))
+        }
+        for ambiguous in [
+            "llamacpp:predicted_tokens_seconds 8\nllamacpp:predicted_tokens_seconds 9",
+            "llamacpp:predicted_tokens_seconds{slot=\"a\"} 8\nllamacpp:predicted_tokens_seconds{slot=\"b\"} 9",
+            "llamacpp:predicted_tokens_seconds_sum 8",
+            "llamacpp:predicted_tokens_seconds{bad} 8"
+        ] {
+            XCTAssertEqual(CustomEndpointPresetUsage.parsePreset(.llamaCpp, data: Data((counters + ambiguous).utf8)),
+                .llamaCpp(LlamaCppMetricsReading(totalTokens: 11, generationTokensPerSecond: nil,
+                                                activeRequests: nil, queuedRequests: nil)))
+        }
+    }
+
+    func testLlamaCppZeroCountersAfterRestartReplacePreviousValues() {
+        let data = Data("""
+            llamacpp:prompt_tokens_total 0
+            llamacpp:tokens_predicted_total 0
+            llamacpp:predicted_tokens_seconds 0
+            llamacpp:requests_processing 0
+            llamacpp:requests_deferred 0
+            """.utf8)
+        let reading = LlamaCppMetricsReading(totalTokens: 0, generationTokensPerSecond: 0,
+                                           activeRequests: 0, queuedRequests: 0)
+        XCTAssertEqual(CustomEndpointPresetUsage.parsePreset(.llamaCpp, data: data), .llamaCpp(reading))
+        XCTAssertEqual(reading.speedText, "0 tok/s")
+        XCTAssertEqual(reading.headlineText, "0 tok/s")
+        XCTAssertNil(CustomEndpointPresetUsage.parsePreset(.llamaCpp,
+            data: Data("llamacpp:predicted_tokens_seconds 8.5".utf8)), "gauges alone must not detect a complete usage source")
+    }
+
+    func testLlamaCppHeadlineRoundsToWholeTokens() {
+        func headline(_ rate: Double?) -> String {
+            LlamaCppMetricsReading(totalTokens: 1, generationTokensPerSecond: rate,
+                                   activeRequests: nil, queuedRequests: nil).headlineText
+        }
+        XCTAssertEqual(headline(nil), "— tok/s")
+        XCTAssertEqual(headline(0.4), "<1 tok/s")
+        XCTAssertEqual(headline(17.5), "18 tok/s")
+        XCTAssertEqual(headline(2400),
+            "\(2400.0.formatted(.number.notation(.compactName).precision(.significantDigits(1...2)))) t/s")
+    }
+
+    @MainActor
+    func testLlamaCppSnapshotShowsSpeedAndRequestCountsWithTokenTotalsInTooltip() async throws {
+        let endpoint = CustomEndpoint(name: "llama.cpp", baseURL: "http://127.0.0.1:8080/v1",
+                                      iconPreset: "llamacpp", usageSource: .jsonEndpoint, usagePreset: .llamaCpp)
+        let network = presetNetwork { request in
+            XCTAssertEqual(request.url?.path, "/metrics")
+            return (200, Data("""
+                llamacpp:prompt_tokens_total 12000
+                llamacpp:tokens_predicted_total 3000
+                llamacpp:predicted_tokens_seconds 42.456
+                llamacpp:requests_processing 1
+                llamacpp:requests_deferred 2
+                """.utf8))
+        }
+        let provider = CustomEndpointProvider(endpoint: endpoint, network: network, endpointLoader: { _ in endpoint })
+        let snapshot = try await provider.fetchSnapshot()
+        XCTAssertEqual(snapshot.headlineID, "llamacpp-speed")
+        XCTAssertEqual(snapshot.headlineText, "42 tok/s")
+        XCTAssertEqual(snapshot.windows[0].detail, "\(42.5.formatted()) tok/s", "the tooltip row keeps the tenth")
+        XCTAssertEqual(snapshot.windows.map(\.label), [L10n.t("Average generation speed"), L10n.t("Active requests"),
+            L10n.t("Queued requests"), L10n.t("Tokens Since Server Start")])
+        XCTAssertEqual(snapshot.windows[1].detail, "1")
+        XCTAssertEqual(snapshot.windows[2].detail, "2")
+        XCTAssertEqual(snapshot.windows[3].usedText, "15k")
+        XCTAssertEqual(snapshot.compactRowCount, 4, "tooltip height must reserve all four rows")
+        XCTAssertNil(snapshot.ringFraction, "speed must not invent quota/context occupancy")
+        XCTAssertNil(snapshot.weeklyID)
+
+        let model = NotchViewModel()
+        model.edge = .right
+        model.surfaceStyle = .solid
+        model.showsNotchReadings = true
+        model.snapshots = [snapshot]
+        model.isExpanded = true
+        model.hoveredIndex = 0
+        let renderer = ImageRenderer(content: NotchRootView(model: model)
+            .frame(width: model.panelSize.width, height: model.panelSize.height)
+            .environment(\.colorScheme, .dark)
+            .environment(\.matraHeadlessGlass, true))
+        renderer.scale = 2
+        let image = try XCTUnwrap(renderer.cgImage)
+        let png = try XCTUnwrap(NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]))
+        let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
+        attachment.name = "llamacpp-performance-metrics"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testLlamaCppSnapshotKeepsMissingGaugesDistinctFromZero() async throws {
+        let endpoint = CustomEndpoint(name: "llama.cpp", baseURL: "http://127.0.0.1:8080/v1",
+                                      usageSource: .jsonEndpoint, usagePreset: .llamaCpp)
+        let network = presetNetwork { _ in
+            (200, Data("llamacpp:prompt_tokens_total 8\nllamacpp:tokens_predicted_total 3".utf8))
+        }
+        let provider = CustomEndpointProvider(endpoint: endpoint, network: network, endpointLoader: { _ in endpoint })
+        let snapshot = try await provider.fetchSnapshot()
+        XCTAssertEqual(snapshot.headlineText, "— tok/s")
+        XCTAssertEqual(snapshot.windows[1].detail, "—")
+        XCTAssertEqual(snapshot.windows[2].detail, "—")
+        XCTAssertEqual(snapshot.windows[3].usedText, "11")
     }
 
     func testPresetURLCannotLeakCredentialsOrChangeOpenRouterOrigin() {
@@ -703,6 +850,95 @@ final class CustomEndpointTests: XCTestCase {
         XCTAssertEqual(updated?.usageURL, "http://127.0.0.1:8000/new-usage")
         XCTAssertEqual(updated?.currentTokensUsedM, 0.0)
         XCTAssertEqual(updated?.usageHistory.count, 0)
+    }
+
+    @MainActor
+    func testConfiguredEndpointRemainsInNotchWhenModelProbeTemporarilyFails() async throws {
+        let endpoint = CustomEndpoint(
+            id: "endpoint-unstable",
+            name: "Custom API",
+            baseURL: "http://127.0.0.1:8000/v1"
+        )
+        let network = presetNetwork { request in
+            XCTAssertEqual(request.url?.path, "/v1/models")
+            return (503, Data())
+        }
+        let provider = CustomEndpointProvider(
+            endpoint: endpoint,
+            network: network,
+            endpointLoader: { _ in endpoint }
+        )
+        let defaults = UserDefaults(suiteName: "CustomEndpointVisibility.\(UUID().uuidString)")!
+        let store = UsageStore(
+            providers: [provider],
+            archive: UsageArchive(defaults: defaults)
+        )
+
+        await store.refresh()
+
+        let visible = try XCTUnwrap(store.snapshots.first { $0.id == endpoint.providerID })
+        XCTAssertEqual(visible.status, .error("HTTP 503"))
+        XCTAssertFalse(visible.hasReading)
+    }
+
+    func testModelDiscoveryUsesSelectedAPITypeAndAuthentication() async {
+        let cases: [(CustomEndpointAPIType, String, String, String, Data, String, String)] = [
+            (.openAICompatible, "https://api.example.test/v1", "/v1/models",
+             "Authorization", Data(#"{"data":[{"id":"gpt-4o"}]}"#.utf8), "Bearer secret", "gpt-4o"),
+            (.anthropic, "https://api.example.test", "/v1/models",
+             "x-api-key", Data(#"{"data":[{"id":"claude-sonnet-4-5"}]}"#.utf8), "secret", "claude-sonnet-4-5"),
+            (.google, "https://api.example.test", "/v1beta/models",
+             "x-goog-api-key", Data(#"{"models":[{"name":"models/gemini-2.5-pro"}]}"#.utf8), "secret", "gemini-2.5-pro")
+        ]
+        for (apiType, baseURL, path, authHeader, body, authValue, expectedModel) in cases {
+            let network = presetNetwork { request in
+                XCTAssertEqual(request.url?.path, path)
+                XCTAssertEqual(request.value(forHTTPHeaderField: authHeader), authValue)
+                if apiType == .anthropic {
+                    XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
+                }
+                return (200, body)
+            }
+
+            let result = await network.testEndpoint(
+                baseURL: baseURL,
+                apiKey: "secret",
+                apiType: apiType
+            )
+
+            XCTAssertEqual(result.health, .online)
+            XCTAssertEqual(result.models, [expectedModel])
+        }
+    }
+
+    func testJSONUsageUsesSelectedAPIAuthentication() async throws {
+        for apiType in [CustomEndpointAPIType.anthropic, .google] {
+            let network = presetNetwork { request in
+                switch apiType {
+                case .anthropic:
+                    XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), "secret")
+                    XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
+                case .google:
+                    XCTAssertEqual(request.value(forHTTPHeaderField: "x-goog-api-key"), "secret")
+                case .openAICompatible:
+                    XCTFail("This test only covers native API key formats")
+                }
+                return (200, Data(#"{"records":[{"model":"m","total_tokens":1234}]}"#.utf8))
+            }
+
+            let millions = try await network.fetchJSONUsage(
+                usageURL: "https://api.example.test/usage",
+                apiKey: "secret",
+                headerKey: "Authorization",
+                apiType: apiType,
+                recordsPath: "records",
+                modelField: "model",
+                tokenField: "total_tokens",
+                modelFilter: "m"
+            )
+
+            XCTAssertEqual(millions, 0.001234, accuracy: 0.000000001)
+        }
     }
 
     private func presetNetwork(_ handler: @escaping (URLRequest) -> (Int, Data)) -> CustomEndpointNetwork {

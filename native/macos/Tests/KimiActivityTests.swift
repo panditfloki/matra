@@ -96,7 +96,7 @@ final class KimiActivitySessionTests: XCTestCase {
     private var directory: URL!
 
     override func setUpWithError() throws {
-        directory = URL(fileURLWithPath: NSTemporaryDirectory())
+        directory = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("kimi-activity-\(UUID().uuidString)")
         try FileManager.default.createDirectory(
             at: directory.appendingPathComponent("agents/main"),

@@ -11,8 +11,8 @@ settings:
     SWIFT_VERSION: "5.0"
     SWIFT_STRICT_CONCURRENCY: minimal
     # Windows visual baseline, local Mac preview build.
-    MARKETING_VERSION: "1.8.5"
-    CURRENT_PROJECT_VERSION: "186"
+    MARKETING_VERSION: "1.9.0"
+    CURRENT_PROJECT_VERSION: "1901"
     # Local ad-hoc signing only. Public notarization is separate release work.
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Automatic
@@ -85,6 +85,8 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSLocalNetworkUsageDescription: "Mātrā answers your phone on this network so it can show your usage."
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         SUFeedURL: https://raw.githubusercontent.com/panditfloki/matra/main/updates/macos/appcast.xml
         SUPublicEDKey: ZXK9jxpRx4EksQGRdhTgFSkbIOTCauZ0EhTe959OQ6I=
         SUVerifyUpdateBeforeExtraction: true

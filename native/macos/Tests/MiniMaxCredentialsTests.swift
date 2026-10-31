@@ -241,10 +241,10 @@ final class MiniMaxCredentialsTests: XCTestCase {
     }
 
     func testKeychainServiceNamesDoNotCollideWithOllama() {
-        XCTAssertEqual(MiniMaxCredentials.apiKeyService, "com.dydxfx.matra.mac.minimax-api-key")
-        XCTAssertEqual(MiniMaxCredentials.cookieService, "com.dydxfx.matra.mac.minimax-session-cookie")
+        XCTAssertEqual(MiniMaxCredentials.apiKeyService, MatraStorage.service("minimax-api-key"))
+        XCTAssertEqual(MiniMaxCredentials.cookieService, MatraStorage.service("minimax-session-cookie"))
         XCTAssertEqual(MiniMaxCredentials.keychainAccount, "matra")
-        XCTAssertEqual(OllamaCredentials.keychainService, "com.dydxfx.matra.mac.ollama-api-key")
+        XCTAssertEqual(OllamaCredentials.keychainService, MatraStorage.service("ollama-api-key"))
         XCTAssertEqual(OllamaCredentials.keychainAccount, "matra")
         XCTAssertNotEqual(MiniMaxCredentials.apiKeyService, OllamaCredentials.keychainService,
                           "the same account is fine; the service name is what would overwrite Ollama's key")

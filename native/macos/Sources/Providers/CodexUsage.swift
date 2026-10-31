@@ -286,10 +286,33 @@ enum CodexUsage {
                 to: &windows
             )
         }
+        if let credits = creditWindow(from: data) { windows.append(credits) }
         guard !windows.isEmpty else {
             throw UsageProviderError.nothingMetered(L10n.t("Codex reported no usage windows"))
         }
         return windows
+    }
+
+    /// Credit seats can have no timed windows. A credit is not an INR charge.
+    private static func creditWindow(from data: Data) -> LimitWindow? {
+        guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let control = root["spend_control"] as? [String: Any],
+              let limit = control["individual_limit"] as? [String: Any],
+              limit["unit"] as? String == "credit" else { return nil }
+        func number(_ value: Any?) -> Double? {
+            let parsed: Double?
+            if let string = value as? String { parsed = Double(string) }
+            else if let n = value as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID() { parsed = n.doubleValue }
+            else { parsed = nil }
+            guard let parsed, parsed.isFinite, parsed >= 0, parsed < 1e15 else { return nil }
+            return parsed
+        }
+        guard let total = number(limit["limit"]), total > 0,
+              let spent = number(limit["used"]) else { return nil }
+        let fraction = number(limit["used_percent"]).map { $0 / 100 } ?? (spent / total)
+        return LimitWindow(id: "credits", label: L10n.t("Credits"), usedFraction: fraction,
+                           remaining: Int(max(0, total - spent).rounded()), used: Int(spent),
+                           resetsAt: number(limit["reset_at"]).map(Date.init(timeIntervalSince1970:)))
     }
 
     /// The account tier the usage payload names, when it names one.

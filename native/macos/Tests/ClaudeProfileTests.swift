@@ -6,7 +6,7 @@ import XCTest
 /// `~/.claude` showed one of them and was blind to the rest.
 final class ClaudeProfileTests: XCTestCase {
     private func home(_ layout: [String: [String]]) throws -> URL {
-        let root = FileManager.default.temporaryDirectory
+        let root = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("ClaudeProfileTests.\(UUID().uuidString)")
         for (directory, files) in layout {
             let url = root.appendingPathComponent(directory)
@@ -358,7 +358,7 @@ final class ClaudeProfileTests: XCTestCase {
 
     private func accountHome(address: String,
                              organization: String = "org-one") throws -> URL {
-        let home = FileManager.default.temporaryDirectory
+        let home = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("ClaudeProfileTests.\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: home.appendingPathComponent(".claude"),
                                                 withIntermediateDirectories: true)
@@ -517,7 +517,7 @@ final class ClaudeAccountNameTests: XCTestCase {
     /// Claude Code's own rule — see `ClaudeProfile.accountFileURL`.
     private func home(default defaultAddress: String? = nil,
                       work workAddress: String? = nil) throws -> URL {
-        let home = FileManager.default.temporaryDirectory
+        let home = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("ClaudeAccountNameTests.\(UUID().uuidString)",
                                     isDirectory: true)
         for directory in [".claude", ".claude-work"] {

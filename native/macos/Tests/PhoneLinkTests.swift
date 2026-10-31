@@ -133,7 +133,7 @@ final class PhoneLinkTests: XCTestCase {
     }
 
     func testRegistryPersistsMetadataButNotSecretAndRemoveClearsSecretStore() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = MatraTestFiles.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let secrets = InMemoryPhoneLinkSecretStore()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -167,7 +167,7 @@ final class PhoneLinkTests: XCTestCase {
     }
 
     func testV2RecordsAreDiscardedAndFileIsRewritten() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = MatraTestFiles.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let legacy = """
@@ -443,7 +443,7 @@ final class PhoneLinkTests: XCTestCase {
 
     @MainActor
     func testServerFailsClosedWithoutPrivateNetwork() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = MatraTestFiles.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let registry = PhoneLinkRegistry(directory: directory, secretStore: InMemoryPhoneLinkSecretStore())
         let pairing = PhoneLinkPairing()
@@ -474,7 +474,7 @@ final class PhoneLinkTests: XCTestCase {
             lastSeenAt: Date(),
             lastSeenIP: "192.168.1.1"
         )
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = MatraTestFiles.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let registry = PhoneLinkRegistry(directory: directory, secretStore: InMemoryPhoneLinkSecretStore())
         defer { try? FileManager.default.removeItem(at: directory) }
 
@@ -536,7 +536,7 @@ final class PhoneLinkTests: XCTestCase {
 
     @MainActor
     private func makeServer(snapshot: Data = Data("{}".utf8)) async throws -> ServerContext {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = MatraTestFiles.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let secrets = InMemoryPhoneLinkSecretStore()
         let registry = PhoneLinkRegistry(directory: directory, secretStore: secrets)
         let pairing = PhoneLinkPairing()

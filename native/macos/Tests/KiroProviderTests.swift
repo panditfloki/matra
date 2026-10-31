@@ -268,12 +268,12 @@ final class KiroProviderTests: XCTestCase {
     }
 
     private func missingDatabase() -> URL {
-        FileManager.default.temporaryDirectory
+        MatraTestFiles.temporaryDirectory
             .appendingPathComponent("missing-kiro-\(UUID().uuidString).sqlite")
     }
 
     private func makeDatabase() throws -> URL {
-        let url = FileManager.default.temporaryDirectory
+        let url = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("kiro-\(UUID().uuidString).sqlite")
         var db: OpaquePointer?
         XCTAssertEqual(sqlite3_open(url.path, &db), SQLITE_OK)

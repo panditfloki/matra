@@ -7,7 +7,7 @@ final class CodexOpenRolloutTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory
+        directory = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("CodexOpenRolloutTests.\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }

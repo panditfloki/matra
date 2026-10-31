@@ -123,14 +123,6 @@ fn json_file(path: &Path) -> Option<Value> {
 }
 fn key(id: &str, root: &Value, clock: u64) -> Option<String> {
     match id {
-        "opencode" => {
-            let entry = &root["opencode-go"];
-            clean(entry.as_str()).or_else(|| {
-                ["key", "apiKey", "api_key", "token", "accessToken"]
-                    .iter()
-                    .find_map(|k| clean(entry[*k].as_str()))
-            })
-        }
         "commandcode" => clean(root["apiKey"].as_str()),
         "kimi"
             if root["expires_at"]
@@ -197,17 +189,6 @@ fn credential(id: &str) -> Option<String> {
     }
     let home = dirs::home_dir()?;
     let paths = match id {
-        "opencode" => {
-            let mut paths = vec![];
-            if let Some(p) = std::env::var_os("XDG_DATA_HOME").filter(|v| !v.is_empty()) {
-                paths.push(PathBuf::from(p).join("opencode/auth.json"));
-            }
-            paths.push(home.join(".local/share/opencode/auth.json"));
-            if let Some(p) = dirs::config_dir() {
-                paths.push(p.join("opencode/auth.json"));
-            }
-            paths
-        }
         "commandcode" => vec![home.join(".commandcode/auth.json")],
         "kimi" => vec![std::env::var_os("KIMI_CODE_HOME")
             .filter(|v| !v.is_empty())
@@ -426,7 +407,61 @@ fn query(base: &str, org: Option<&str>, since: Option<&str>) -> String {
     }
     url.into()
 }
+/// OpenCode's sign-in decides its route, and each route refuses the other's credential with the same 401
+/// a planless account gets. So an OAuth 401 is checked against the console before it is called a sign-out.
+fn fetch_opencode() -> Result<Vec<LimitWindow>, Failure> {
+    use crate::providers_plus::{net, opencode_auth as auth};
+    let home = dirs::home_dir();
+    let xdg = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from);
+    let config = dirs::config_dir();
+    let credential = auth::load_first(&auth::data_dirs(xdg, home.as_deref(), config.as_deref())).ok_or_else(|| {
+        failure(
+            "needsAuth",
+            "No valid sign-in found. Follow this provider's connection instructions in Settings.",
+        )
+    })?;
+    let mut headers = vec![net::bearer(&credential.token)];
+    if let Some(org) = &credential.org {
+        headers.push(net::header("x-opencode-org-id", org.clone()));
+    }
+    let reply = net::get(credential.endpoint(), &headers, net::CLOUD_TIMEOUT)
+        .map_err(|_| failure("error", "Could not read provider usage. Check connection and retry."))?;
+    match reply.status {
+        200..=299 => {
+            let root: Value = serde_json::from_slice(&reply.body)
+                .map_err(|_| failure("error", "Provider returned invalid usage data."))?;
+            Ok(parse("opencode", &root))
+        }
+        401 => {
+            if credential.oauth {
+                let probe = format!("{}/api/user", credential.console_url());
+                let signed_in = net::get(&probe, &headers, net::CLOUD_TIMEOUT).is_ok_and(|r| r.status == 200);
+                if signed_in {
+                    return Err(failure("error", "No OpenCode Go subscription on this account."));
+                }
+            }
+            if credential.expires.is_some_and(|expires| expires <= now()) {
+                return Err(failure("needsAuth", "This sign-in has expired. Open OpenCode to renew it."));
+            }
+            Err(failure(
+                "needsAuth",
+                "Sign-in expired or this account cannot access usage. Sign in using the provider's own tool.",
+            ))
+        }
+        403 => Err(failure("error", "No OpenCode Go subscription on this key.")),
+        429 => Err(Failure {
+            status: "backoff",
+            note: "Provider rate limited this reader. Waiting before retrying.",
+            retry: reply.retry_after.unwrap_or(300).max(300),
+        }),
+        404 => Err(failure("error", "Usage endpoint unavailable for this account or plan.")),
+        _ => Err(failure("error", "Could not read provider usage. Check connection and retry.")),
+    }
+}
 fn fetch(id: &str) -> Result<Vec<LimitWindow>, Failure> {
+    if id == "opencode" {
+        return fetch_opencode();
+    }
     let token = credential(id).ok_or_else(|| {
         failure(
             "needsAuth",
@@ -478,7 +513,6 @@ fn fetch(id: &str) -> Result<Vec<LimitWindow>, Failure> {
     }
     let endpoint = match id {
         "copilot" => "https://api.github.com/copilot_internal/user",
-        "opencode" => "https://opencode.ai/zen/go/v1/usage",
         "kimi" => "https://api.kimi.com/coding/v1/usages",
         _ => return Err(failure("error", "Unknown provider.")),
     };
@@ -623,10 +657,11 @@ mod tests {
     }
     #[test]
     fn credentials_are_provider_scoped() {
-        assert!(key("opencode", &json!({"openai":{"key":"secret"}}), 0).is_none());
+        // OpenCode's own scoping is covered by providers_plus::opencode_auth's tests.
+        assert!(key("opencode", &json!({"opencode-go":{"key":"go-key"}}), 0).is_none());
         assert_eq!(
-            key("opencode", &json!({"opencode-go":{"key":"go-key"}}), 0).as_deref(),
-            Some("go-key")
+            key("commandcode", &json!({"apiKey":"k"}), 0).as_deref(),
+            Some("k")
         );
         assert!(key(
             "kimi",

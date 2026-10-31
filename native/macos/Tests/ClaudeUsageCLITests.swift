@@ -215,7 +215,7 @@ final class ClaudeUsageCLITests: XCTestCase {
         let second = try ClaudeUsageCLI.scratchDirectory(applicationSupport: support)
 
         XCTAssertEqual(first, second)
-        XCTAssertEqual(first.path, support.appendingPathComponent("Matra/usage-scratch").path)
+        XCTAssertEqual(first.path, MatraStorage.supportRoot(in: support).appendingPathComponent("usage-scratch").path)
         var isDirectory: ObjCBool = false
         XCTAssertTrue(FileManager.default.fileExists(atPath: first.path, isDirectory: &isDirectory))
         XCTAssertTrue(isDirectory.boolValue)
@@ -226,7 +226,7 @@ final class ClaudeUsageCLITests: XCTestCase {
     func testAScratchDirectoryThatCannotBeMadeThrows() throws {
         let support = try makeHome(executableAt: nil)
         // A file where the parent directory has to go.
-        FileManager.default.createFile(atPath: support.appendingPathComponent("Matra").path,
+        FileManager.default.createFile(atPath: MatraStorage.supportRoot(in: support).path,
                                        contents: Data())
 
         XCTAssertThrowsError(try ClaudeUsageCLI.scratchDirectory(applicationSupport: support))
@@ -309,7 +309,7 @@ final class ClaudeUsageCLITests: XCTestCase {
     }
 
     private func makeHome(executableAt path: String?, executable: Bool = true) throws -> URL {
-        let root = FileManager.default.temporaryDirectory
+        let root = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("ClaudeUsageCLITests.\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }

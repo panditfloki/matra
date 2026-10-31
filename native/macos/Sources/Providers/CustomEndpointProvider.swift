@@ -41,41 +41,53 @@ public actor CustomEndpointNetwork {
         case unavailable
     }
 
-    private func requestRaw(url: URL, apiKey: String, headerKey: String) async -> RawHTTPResult {
+    private func requestRaw(
+        url: URL,
+        apiKey: String,
+        headerKey: String,
+        apiType: CustomEndpointAPIType = .openAICompatible
+    ) async -> RawHTTPResult {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 6
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if !key.isEmpty {
-            let header = headerKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if header.lowercased() == "authorization" && !key.lowercased().hasPrefix("bearer ") {
-                request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-            } else {
-                request.setValue(key, forHTTPHeaderField: header.isEmpty ? "Authorization" : header)
+            switch apiType {
+            case .openAICompatible:
+                let header = headerKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                if header.lowercased() == "authorization" && !key.lowercased().hasPrefix("bearer ") {
+                    request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+                } else {
+                    request.setValue(key, forHTTPHeaderField: header.isEmpty ? "Authorization" : header)
+                }
+            case .anthropic:
+                request.setValue(key, forHTTPHeaderField: "x-api-key")
+                request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            case .google:
+                request.setValue(key, forHTTPHeaderField: "x-goog-api-key")
             }
         }
         do {
             let (data, response) = try await session.data(for: request, delegate: noRedirects)
-            guard let http = response as? HTTPURLResponse else {
-                return .unavailable
-            }
+            guard let http = response as? HTTPURLResponse else { return .unavailable }
             switch http.statusCode {
-            case 200...299:
-                return .success(data)
-            case 401, 403:
-                return .needsAuth
-            case 404:
-                return .notFound
-            default:
-                return .unavailable
+            case 200...299: return .success(data)
+            case 401, 403: return .needsAuth
+            case 404: return .notFound
+            default: return .unavailable
             }
         } catch {
             return .unavailable
         }
     }
 
-    private func presetResponse(url: URL, apiKey: String, headerKey: String) async throws -> Data {
-        let result = await requestRaw(url: url, apiKey: apiKey, headerKey: headerKey)
+    private func presetResponse(
+        url: URL,
+        apiKey: String,
+        headerKey: String,
+        apiType: CustomEndpointAPIType = .openAICompatible
+    ) async throws -> Data {
+        let result = await requestRaw(url: url, apiKey: apiKey, headerKey: headerKey, apiType: apiType)
         switch result {
         case .success(let data):
             return data
@@ -92,12 +104,13 @@ public actor CustomEndpointNetwork {
         _ preset: CustomEndpointUsagePreset,
         baseURL: String,
         apiKey: String,
-        headerKey: String
+        headerKey: String,
+        apiType: CustomEndpointAPIType = .openAICompatible
     ) async throws -> CustomEndpointPresetReading {
         guard let url = CustomEndpointPresetUsage.presetURL(preset, baseURL: baseURL) else {
             throw UsageProviderError.badResponse(status: 400)
         }
-        let data = try await presetResponse(url: url, apiKey: apiKey, headerKey: headerKey)
+        let data = try await presetResponse(url: url, apiKey: apiKey, headerKey: headerKey, apiType: apiType)
         guard let reading = CustomEndpointPresetUsage.parsePreset(preset, data: data) else {
             throw UsageProviderError.badResponse(status: 503)
         }
@@ -107,7 +120,8 @@ public actor CustomEndpointNetwork {
     func detectPreset(
         baseURL: String,
         apiKey: String,
-        headerKey: String
+        headerKey: String,
+        apiType: CustomEndpointAPIType = .openAICompatible
     ) async -> CustomEndpointDetectionResult {
         // Validate base URL first; never probe a base with userinfo, query, or fragment
         let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -126,9 +140,13 @@ public actor CustomEndpointNetwork {
             case metrics(URL)
             case newAPI(URL)
             case liteLLM(URL)
+            case abacus(URL)
         }
 
         var targets: [ProbeTarget] = []
+        if let abacusURL = CustomEndpointPresetUsage.presetURL(.abacus, baseURL: baseURL) {
+            targets.append(.abacus(abacusURL))
+        }
         if let openRouterURL = CustomEndpointPresetUsage.presetURL(.openRouter, baseURL: baseURL) {
             targets.append(.openRouter(openRouterURL))
         }
@@ -151,12 +169,12 @@ public actor CustomEndpointNetwork {
             for target in targets {
                 let targetURL: URL
                 switch target {
-                case .openRouter(let url), .metrics(let url), .newAPI(let url), .liteLLM(let url):
+                case .openRouter(let url), .metrics(let url), .newAPI(let url), .liteLLM(let url), .abacus(let url):
                     targetURL = url
                 }
                 group.addTask {
                     if Task.isCancelled { return (target, .unavailable) }
-                    let res = await self.requestRaw(url: targetURL, apiKey: apiKey, headerKey: headerKey)
+                    let res = await self.requestRaw(url: targetURL, apiKey: apiKey, headerKey: headerKey, apiType: apiType)
                     return (target, res)
                 }
             }
@@ -167,6 +185,13 @@ public actor CustomEndpointNetwork {
 
         if Task.isCancelled {
             return .unavailable
+        }
+
+        if let abacusTarget = targets.first(where: { if case .abacus = $0 { return true }; return false }),
+           let res = results[abacusTarget],
+           case .success(let data) = res,
+           CustomEndpointPresetUsage.parsePreset(.abacus, data: data) != nil {
+            return .matched(.abacus)
         }
 
         // Evaluate in priority order: OpenRouter, vLLM, llamaCpp, New-API, LiteLLM
@@ -237,19 +262,14 @@ public actor CustomEndpointNetwork {
     public func testEndpoint(
         baseURL: String,
         apiKey: String,
-        headerKey: String = "Authorization"
+        headerKey: String = "Authorization",
+        apiType: CustomEndpointAPIType = .openAICompatible
     ) async -> (health: CustomEndpointHealth, latencyMs: Int, models: [String], error: String?) {
-        guard CustomEndpoint.isValidURL(baseURL), let url = URL(string: baseURL) else {
+        guard CustomEndpoint.isValidURL(baseURL) else {
             return (.unreachable, 0, [], L10n.t("The address must start with http:// or https://"))
         }
-
-        let modelsURL: URL
-        if baseURL.hasSuffix("/models") {
-            modelsURL = url
-        } else if baseURL.hasSuffix("/") {
-            modelsURL = url.appendingPathComponent("models")
-        } else {
-            modelsURL = url.appendingPathComponent("models")
+        guard let modelsURL = Self.modelsURL(baseURL: baseURL, apiType: apiType) else {
+            return (.unreachable, 0, [], L10n.t("Could not build the model-list URL"))
         }
 
         var request = URLRequest(url: modelsURL)
@@ -258,17 +278,25 @@ public actor CustomEndpointNetwork {
 
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedKey.isEmpty {
-            let header = headerKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if header.lowercased() == "authorization" && !trimmedKey.lowercased().hasPrefix("bearer ") {
-                request.setValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
-            } else {
-                request.setValue(trimmedKey, forHTTPHeaderField: header.isEmpty ? "Authorization" : header)
+            switch apiType {
+            case .openAICompatible:
+                let header = headerKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                if header.lowercased() == "authorization" && !trimmedKey.lowercased().hasPrefix("bearer ") {
+                    request.setValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
+                } else {
+                    request.setValue(trimmedKey, forHTTPHeaderField: header.isEmpty ? "Authorization" : header)
+                }
+            case .anthropic:
+                request.setValue(trimmedKey, forHTTPHeaderField: "x-api-key")
+                request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            case .google:
+                request.setValue(trimmedKey, forHTTPHeaderField: "x-goog-api-key")
             }
         }
 
         let start = DispatchTime.now()
         do {
-            let (data, response) = try await URLSession.shared.data(for: request, delegate: noRedirects)
+            let (data, response) = try await session.data(for: request, delegate: noRedirects)
             let elapsedNano = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
             let latencyMs = max(1, Int(elapsedNano / 1_000_000))
 
@@ -280,21 +308,30 @@ public actor CustomEndpointNetwork {
                 return (.unreachable, latencyMs, [], L10n.t("The endpoint answered \(httpResponse.statusCode)"))
             }
 
-            // Parse models from {"data": [{"id": "model-name"}]} or {"models": [...]}
             var discoveredModels: [String] = []
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                if let list = json["data"] as? [[String: Any]] {
-                    discoveredModels = list.compactMap { $0["id"] as? String }.sorted()
-                } else if let list = json["models"] as? [[String: Any]] {
-                    discoveredModels = list.compactMap { ($0["name"] as? String) ?? ($0["id"] as? String) }.sorted()
+                switch apiType {
+                case .openAICompatible:
+                    if let list = json["data"] as? [[String: Any]] {
+                        discoveredModels = list.compactMap { $0["id"] as? String }.sorted()
+                    } else if let list = json["models"] as? [[String: Any]] {
+                        discoveredModels = list.compactMap { ($0["name"] as? String) ?? ($0["id"] as? String) }.sorted()
+                    }
+                case .anthropic:
+                    discoveredModels = (json["data"] as? [[String: Any]] ?? [])
+                        .compactMap { $0["id"] as? String }
+                        .sorted()
+                case .google:
+                    discoveredModels = (json["models"] as? [[String: Any]] ?? [])
+                        .compactMap { $0["name"] as? String }
+                        .map { $0.hasPrefix("models/") ? String($0.dropFirst("models/".count)) : $0 }
+                        .sorted()
                 }
             }
 
             let health: CustomEndpointHealth = latencyMs > 800 ? .slow : .online
-            // Bounded before it is stored: this list is JSON-encoded into the
-            // defaults plist and decoded again on every provider property access,
-            // so an endpoint answering with a hundred thousand ids would bloat the
-            // plist and stall the picker. No real endpoint lists more than a few.
+            // Bound what is stored in the defaults plist: a huge model list
+            // would otherwise bloat the settings record and stall the picker.
             let bounded = discoveredModels
                 .filter { !$0.isEmpty && $0.count <= Self.maxModelIDLength }
                 .prefix(Self.maxModels)
@@ -302,9 +339,8 @@ public actor CustomEndpointNetwork {
         } catch {
             let elapsedNano = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
             let latencyMs = Int(elapsedNano / 1_000_000)
-            // The code, never the endpoint's own words. A URLError's description can
-            // carry the host and path, and this string is shown in Settings and kept
-            // in the endpoint's saved health. The kind of failure is what helps.
+            // Do not persist the endpoint's response text: it can contain
+            // private server details. Preserve only the failure category.
             let reason = (error as? URLError)?.code == .timedOut
                 ? L10n.t("The endpoint did not answer in time")
                 : L10n.t("Could not reach the endpoint")
@@ -312,10 +348,33 @@ public actor CustomEndpointNetwork {
         }
     }
 
+    private static func modelsURL(baseURL: String, apiType: CustomEndpointAPIType) -> URL? {
+        guard var components = URLComponents(string: baseURL.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return nil
+        }
+        let path = components.percentEncodedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if path.hasSuffix("models") { return components.url }
+        switch apiType {
+        case .openAICompatible:
+            components.percentEncodedPath = "/" + [path, "models"].filter { !$0.isEmpty }.joined(separator: "/")
+        case .anthropic:
+            components.percentEncodedPath = path.hasSuffix("v1")
+                ? "/" + [path, "models"].joined(separator: "/")
+                : "/" + [path, "v1", "models"].filter { !$0.isEmpty }.joined(separator: "/")
+        case .google:
+            components.percentEncodedPath = path.hasSuffix("v1beta")
+                ? "/" + [path, "models"].joined(separator: "/")
+                : "/" + [path, "v1beta", "models"].filter { !$0.isEmpty }.joined(separator: "/")
+        }
+        return components.url
+    }
+
+
     public func fetchJSONUsage(
         usageURL: String,
         apiKey: String,
         headerKey: String,
+        apiType: CustomEndpointAPIType = .openAICompatible,
         recordsPath: String,
         modelField: String,
         tokenField: String,
@@ -324,7 +383,44 @@ public actor CustomEndpointNetwork {
         guard let url = URL(string: usageURL), CustomEndpoint.isValidURL(usageURL) else {
             throw UsageProviderError.badResponse(status: 400)
         }
-        let data = try await presetResponse(url: url, apiKey: apiKey, headerKey: headerKey)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 6
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !key.isEmpty {
+            switch apiType {
+            case .openAICompatible:
+                let header = headerKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                if header.lowercased() == "authorization" && !key.lowercased().hasPrefix("bearer ") {
+                    request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+                } else {
+                    request.setValue(key, forHTTPHeaderField: header.isEmpty ? "Authorization" : header)
+                }
+            case .anthropic:
+                request.setValue(key, forHTTPHeaderField: "x-api-key")
+                request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            case .google:
+                request.setValue(key, forHTTPHeaderField: "x-goog-api-key")
+            }
+        }
+        let data: Data
+        do {
+            let (body, response) = try await session.data(for: request, delegate: noRedirects)
+            guard let http = response as? HTTPURLResponse else {
+                throw UsageProviderError.badResponse(status: 503)
+            }
+            guard (200...299).contains(http.statusCode) else {
+                if http.statusCode == 401 || http.statusCode == 403 {
+                    throw UsageProviderError.needsAuth
+                }
+                throw UsageProviderError.badResponse(status: http.statusCode)
+            }
+            data = body
+        } catch let error as UsageProviderError {
+            throw error
+        } catch {
+            throw UsageProviderError.badResponse(status: 503)
+        }
         guard let tokens = Self.parseJSONUsage(
             data: data,
             recordsPath: recordsPath,
@@ -389,7 +485,7 @@ public actor CustomEndpointNetwork {
     public func scanCommonLocalPorts() async -> [CustomEndpointPreset] {
         let candidates: [(name: String, port: Int, defaultModel: String, glyph: String, color: String)] = [
             ("Local vLLM", 8000, "", "ollama", "#10B981"),
-            ("Local llama.cpp", 8080, "", "lmstudio", "#8B5CF6"),
+            ("Local llama.cpp", 8080, "", "llamacpp", "#8B5CF6"),
             ("Local LM Studio / Proxy", 1234, "", "lmstudio", "#8B5CF6"),
             ("Local Ollama", 11434, "", "ollama-local", "#14B8A6"),
             ("Local AI Server", 5000, "", "openai", "#3B82F6")
@@ -470,7 +566,9 @@ actor CustomEndpointProvider: UsageProvider {
         Self.storedEndpoint(id: endpointID)?.customIconFilename
     }
 
-    nonisolated var isVisibleWhenAbsent: Bool { false }
+    // A configured endpoint is still a user-selected account while its server
+    // is unavailable. Keep its ring present with a stale/empty state on errors.
+    nonisolated var isVisibleWhenAbsent: Bool { true }
 
     nonisolated func account() -> ProviderAccount? {
         guard let current = Self.storedEndpoint(id: endpointID) else { return nil }
@@ -535,10 +633,28 @@ actor CustomEndpointProvider: UsageProvider {
         if current.usageSource == .jsonEndpoint, let preset = current.usagePreset {
             let key = current.usageAuthentication == .apiKey ? (current.apiKey ?? "") : ""
             let reading = try await network.fetchPresetUsage(
-                preset, baseURL: current.baseURL, apiKey: key, headerKey: current.headerKey
+                preset, baseURL: current.baseURL, apiKey: key, headerKey: current.headerKey,
+                apiType: current.apiType
             )
             let window: LimitWindow
+            var additionalWindows: [LimitWindow] = []
             switch reading {
+            case .llamaCpp(let metrics):
+                window = LimitWindow(
+                    id: "llamacpp-speed", label: L10n.t("Average generation speed"),
+                    usedText: metrics.headlineText, detail: metrics.speedText, prefersUsedText: true
+                )
+                let tokens = metrics.totalTokens
+                let text = tokens > 0 && tokens < 1_000
+                    ? "\(tokens)" : CustomEndpoint.formatTokenMillions(Double(tokens) / 1_000_000)
+                additionalWindows = [
+                    LimitWindow(id: "llamacpp-active", label: L10n.t("Active requests"),
+                        detail: metrics.activeRequests.map { "\($0)" } ?? "—"),
+                    LimitWindow(id: "llamacpp-queued", label: L10n.t("Queued requests"),
+                        detail: metrics.queuedRequests.map { "\($0)" } ?? "—"),
+                    LimitWindow(id: "preset-tokens", label: L10n.t("Tokens Since Server Start"),
+                        usedText: text, detail: String(format: L10n.t("%@ tokens"), text), prefersUsedText: true)
+                ]
             case .tokens(let tokens):
                 let text = tokens > 0 && tokens < 1_000
                     ? "\(tokens)"
@@ -564,11 +680,28 @@ actor CustomEndpointProvider: UsageProvider {
                     detail: granted.flatMap { $0 > 0 ? "\(used) / \($0)" : nil } ?? text,
                     prefersUsedText: true
                 )
+            case .credits(let left, let monthly, let total):
+                // The ring tracks the monthly allowance; credits bought on top
+                // are reported beside it rather than folded into the plan.
+                let usedOfMonthly = max(0, monthly - min(left, monthly))
+                let fmt = CustomEndpointPresetUsage.formatCredits
+                let leftText = String(format: L10n.t("%@ left"), fmt(left))
+                let extra = total - monthly
+                let detail = extra >= 1
+                    ? String(format: L10n.t("%@ credits left · %@ monthly + %@ extra"),
+                             fmt(left), fmt(monthly), fmt(extra))
+                    : String(format: L10n.t("%@ of %@ monthly credits left"), fmt(left), fmt(monthly))
+                window = LimitWindow(
+                    id: "preset-credits", label: L10n.t("Credits"),
+                    usedFraction: min(max(usedOfMonthly / monthly, 0), 1),
+                    usedText: leftText, detail: detail,
+                    prefersUsedText: true
+                )
             }
             var snapshot = ProviderSnapshot(
                 id: id, displayName: current.name,
                 glyph: current.iconPreset.flatMap(ProviderGlyph.init(rawValue:)) ?? .openai,
-                fidelity: .official, status: .ok, windows: [window],
+                fidelity: .official, status: .ok, windows: [window] + additionalWindows,
                 headlineID: window.id, weeklyID: nil, block: nil, kind: .usage
             )
             snapshot.customIconFilename = current.customIconFilename
@@ -589,6 +722,7 @@ actor CustomEndpointProvider: UsageProvider {
                 usageURL: usageURL,
                 apiKey: apiKey,
                 headerKey: current.headerKey,
+                apiType: current.apiType,
                 recordsPath: recordsPath,
                 modelField: modelField,
                 tokenField: tokenField,
@@ -600,7 +734,8 @@ actor CustomEndpointProvider: UsageProvider {
         let probe = await CustomEndpointNetwork.shared.testEndpoint(
             baseURL: current.baseURL,
             apiKey: apiKey,
-            headerKey: current.headerKey
+            headerKey: current.headerKey,
+            apiType: current.apiType
         )
 
         if probe.health == .unreachable {

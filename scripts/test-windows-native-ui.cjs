@@ -91,9 +91,47 @@ async function saved(command, predicate) {
   await ready('settings');
   await saved('get_matra_accent', value => value === '36a8eb');
   await saved('get_automatic_updates', value => value === false);
+  // Real IPC for the new Windows controls, with fixture credentials only on this disposable runner.
+  evaluate('settings', `document.querySelector('#tab-appearance').click()`);
+  const parityBefore=evaluate('settings', `invoke('get_parity_settings')`);
+  evaluate('settings', `invoke('set_parity_settings',{settings:{...${JSON.stringify(parityBefore)},shows_remaining:true,ring_order:'burnDeficit',shows_limits_in_tray:true}})`);
+  await saved('get_parity_settings',s=>s.shows_remaining && s.ring_order==='burnDeficit' && s.shows_limits_in_tray);
+  const hidden=evaluate('settings', `invoke('set_ui_flags',{notchVisible:true,trayVisible:false,notchOnHover:false})`);
+  assert.equal(hidden.tray_visible,false,'The tray can actually be hidden');
+  const shown=evaluate('settings', `invoke('set_ui_flags',{notchVisible:true,trayVisible:true,notchOnHover:false})`);
+  assert.equal(shown.tray_visible,true,'The tray can be restored');
+  evaluate('settings', `invoke('set_parity_settings',{settings:${JSON.stringify(parityBefore)}})`);
+  evaluate('settings', `document.querySelector('#tab-accounts').click()`);
+  assert.equal(evaluate('settings', `!!window.MatraProviders`),true);
+  const keyResult=evaluate('settings', `(async()=>{
+    const endpoint=MatraProviders.draftFrom({name:'CI credential fixture',base_url:'https://first.example.invalid/v1',is_enabled:false});
+    const saved=await invoke('save_custom_endpoint',{endpoint,secret:'fixture-only-never-real'});
+    try {
+      const listed=await invoke('list_custom_endpoints');
+      const moved=await invoke('save_custom_endpoint',{endpoint:{...saved,base_url:'https://second.example.invalid/v1'},secret:null});
+      return {saved:saved.has_key,listed:listed.find(e=>e.id===saved.id).has_key,leaked:JSON.stringify(listed).includes('fixture-only-never-real'),moved:moved.has_key};
+    } finally {await invoke('delete_custom_endpoint',{id:saved.id});}
+  })()`);
+  assert.deepEqual(keyResult,{saved:true,listed:true,leaked:false,moved:false},'Credential Manager persists a key without exposing or forwarding it to another origin');
+  evaluate('settings','document.title','windows-190-sources.png');
+  evaluate('settings',`document.querySelector('#tab-costs').click()`);
+  const report=evaluate('settings',`invoke('get_activity_report',{range:'week',account:null,project:null,date:null})`);
+  assert.ok(Array.isArray(report.rows));
+  assert.equal(report.currency,undefined);
+  assert.equal(report.cost_basis,'api_list_price_estimate');
+  await pause(200);
+  evaluate('settings','document.title','windows-190-activity.png');
+  evaluate('settings',`invoke('open_activity')`);
+  for(let n=0;n<40;n++){
+    try {if(evaluate('activity',`!!document.querySelector('#activity-root') && document.readyState==='complete'`))break;}catch{}
+    await pause(250);
+  }
+  assert.equal(evaluate('activity',`!!window.MatraActivity && !!document.querySelector('#activity-root')`),true);
+  evaluate('activity','document.title','windows-190-activity-window.png');
+  evaluate('activity',`window.__TAURI__.window.getCurrentWindow().close()`);
   const controls=await testNativeHandles(expression=>evaluate('notch',expression));
   assert.equal(controls.cases,16,'Six/ten provider fixtures fit four native edges with and without bottom/right work insets');
-  console.log('PASS: far-end settings/grip pair, shared hover reveal, exact native hot payload, disabled grip and usable viewport', JSON.stringify(controls));
+  console.log('PASS: far-end settings/grip pair, always-visible grip, exact native hot payload, disabled grip and usable viewport', JSON.stringify(controls));
   // Exercise the new card inside the packaged renderer with synthetic data.
   // This checks rendering and hover handling, not live availability or OS hover.
   evaluate('notch', `(()=>{

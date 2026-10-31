@@ -106,7 +106,7 @@ final class KimiUsageTests: XCTestCase {
 /// epoch seconds — a file without one is not a session to trust.
 final class KimiCredentialsTests: XCTestCase {
     private func file(_ text: String) throws -> URL {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        let url = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("kimi-credentials-\(UUID().uuidString).json")
         try text.write(to: url, atomically: true, encoding: .utf8)
         return url
@@ -122,7 +122,7 @@ final class KimiCredentialsTests: XCTestCase {
 
     func testAMissingFileIsNeedsAuth() {
         XCTAssertThrowsError(try KimiCredentials.load(
-            from: URL(fileURLWithPath: NSTemporaryDirectory())
+            from: URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
                 .appendingPathComponent("kimi-no-such-file.json"))) { error in
             guard case UsageProviderError.needsAuth = error else {
                 return XCTFail("expected needsAuth, got \(error)")

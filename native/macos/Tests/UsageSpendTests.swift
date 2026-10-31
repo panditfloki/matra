@@ -72,7 +72,7 @@ final class UsageSpendTests: XCTestCase {
     }
 
     func testProjectAttributionNeverUsesSessionDateDirectory() throws {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = MatraTestFiles.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }
         let data = Data(#"{"sessions":[{"sessionId":"2025/10/02/rollout-019fe5e0-9692-73c0-9873-780bc04bcdf5","directory":"2025/10/02","totalTokens":100,"costUSD":1}]}"#.utf8)
@@ -83,7 +83,7 @@ final class UsageSpendTests: XCTestCase {
 
     func testCommandArgumentsAreNotShellEvaluated() throws {
         let bytes = try UsageSpendReader.run(binary: "/usr/bin/printf", arguments: ["%s", "$(no-command) literal"],
-            home: FileManager.default.temporaryDirectory)
+            home: MatraTestFiles.temporaryDirectory)
         XCTAssertEqual(String(data: bytes, encoding: .utf8), "$(no-command) literal")
     }
 
@@ -183,7 +183,7 @@ final class UsageSpendTests: XCTestCase {
     }
 
     func testProjectRowsCountOnlyProvenPricedModels() throws {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = MatraTestFiles.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }
         let data = Data(#"{"sessions":[{"sessionId":"2025/10/02/rollout-019fe5e0-9692-73c0-9873-780bc04bcdf5","totalTokens":100,"costUSD":1,"models":{"old":{"totalTokens":20},"new":{"totalTokens":80}}}]}"#.utf8)
@@ -340,10 +340,11 @@ final class UsageSpendTests: XCTestCase {
     }
 
     func testOnlyThePreviewIdentityGetsSeparateStorage() {
-        // The test host carries the installed identity, so storage is unchanged here.
-        XCTAssertFalse(MatraStorage.isPreviewIdentity)
-        XCTAssertEqual(MatraStorage.namespace, "com.dydxfx.matra.mac")
-        XCTAssertEqual(MatraStorage.supportRoot(in: URL(fileURLWithPath: "/x")).lastPathComponent, "Matra")
+        let preview = Bundle.main.bundleIdentifier == MatraStorage.previewBundleID
+        XCTAssertEqual(MatraStorage.isPreviewIdentity, preview)
+        XCTAssertEqual(MatraStorage.namespace, preview ? MatraStorage.previewBundleID : MatraStorage.installedBundleID)
+        XCTAssertEqual(MatraStorage.supportRoot(in: URL(fileURLWithPath: "/x")).lastPathComponent,
+                       preview ? "Matra Preview" : "Matra")
         XCTAssertNotEqual(MatraStorage.previewBundleID, MatraStorage.installedBundleID)
     }
 

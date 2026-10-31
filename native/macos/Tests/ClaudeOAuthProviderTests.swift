@@ -113,12 +113,20 @@ final class ClaudeOAuthProviderTests: XCTestCase {
             .init(status: 200, body: ClaudeResetFixture.futureUsage),
             .init(status: 200, body: Data(spent.utf8))
         ])
-        let provider = makeProvider(source: CredentialSource(readable: true))
+        let provider = makeProvider(source: CredentialSource(readable: true), liveMinEndpointInterval: 0)
         let available = try await provider.fetchSnapshot()
         XCTAssertEqual(available.resetCredits?.availableCount, 1)
         XCTAssertTrue(available.hasAvailableResetCredits)
-        let used = try await provider.fetchSnapshot()
+        let used = try await provider.fetchSnapshot(freshness: .fromSource)
         XCTAssertFalse(used.hasAvailableResetCredits)
+    }
+
+    func testManualRefreshStillHonorsTheEndpointRateFloor() async throws {
+        StubEndpoint.reset(Array(repeating: .init(status: 200, body: Self.usagePayload), count: 2))
+        let provider = makeProvider(source: CredentialSource(readable: true))
+        _ = try await provider.fetchSnapshot(freshness: .fromSource)
+        _ = try await provider.fetchSnapshot(freshness: .fromSource)
+        XCTAssertEqual(StubEndpoint.requestCount, 1)
     }
 
     func testDesktopResetCreditsReachTheSnapshotWithoutReadingCredentials() async throws {
@@ -188,7 +196,8 @@ final class ClaudeOAuthProviderTests: XCTestCase {
                               profile: ClaudeProfile = .default(),
                               desktopCache: ClaudeDesktopUsageCache? = nil,
                               desktopFreshness: TimeInterval = 30 * 60,
-                              desktopRescanInterval: TimeInterval = 5 * 60) -> ClaudeOAuthProvider {
+                              desktopRescanInterval: TimeInterval = 5 * 60,
+                              liveMinEndpointInterval: TimeInterval = 2 * 60) -> ClaudeOAuthProvider {
         // A private defaults suite per test: the archive persists the 429 back-off
         // deadline, and a leaked one would silently skip fetches in the next test.
         let name = "ClaudeOAuthProviderTests.\(UUID().uuidString)"
@@ -213,7 +222,8 @@ final class ClaudeOAuthProviderTests: XCTestCase {
                                    cliRefreshInterval: cliRefreshInterval,
                                    desktopCache: desktopCache,
                                    desktopFreshness: desktopFreshness,
-                                   desktopRescanInterval: desktopRescanInterval)
+                                   desktopRescanInterval: desktopRescanInterval,
+                                   liveMinEndpointInterval: liveMinEndpointInterval)
     }
 
     /// #178: a signed-in account whose answer names no limit gets a message,
@@ -311,7 +321,7 @@ final class ClaudeOAuthProviderTests: XCTestCase {
         _ = try await provider.fetchSnapshot()
 
         XCTAssertEqual(spawns.value, 1, "a signed-out CLI was spawned repeatedly")
-        XCTAssertEqual(StubEndpoint.requestCount, 3, "fallback to endpoint did not occur on each tick")
+        XCTAssertEqual(StubEndpoint.requestCount, 1, "idle ticks should reuse the live reading")
     }
 
     /// A transient CLI failure (e.g. unparseable output or unexpected error) falls back
@@ -444,7 +454,7 @@ final class ClaudeOAuthProviderTests: XCTestCase {
     func testAProfileWithNoRecordedOrganizationIsNotMatched() async throws {
         StubEndpoint.reset([.init(status: 200, body: Self.usagePayload)])
         let source = CredentialSource(readable: true)
-        let home = FileManager.default.temporaryDirectory
+        let home = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("matra-nohome-\(UUID().uuidString)", isDirectory: true)
         let provider = makeProvider(source: source, profile: .default(home: home),
                                     desktopCache: desktopCache(age: 0))
@@ -460,7 +470,7 @@ final class ClaudeOAuthProviderTests: XCTestCase {
     func testNoDesktopCacheLeavesTheOldBehaviourIntact() async throws {
         StubEndpoint.reset([.init(status: 200, body: Self.usagePayload)])
         let source = CredentialSource(readable: true)
-        let absent = FileManager.default.temporaryDirectory
+        let absent = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("matra-absent-\(UUID().uuidString)", isDirectory: true)
         let provider = makeProvider(source: source, profile: desktopProfile(),
                                     desktopCache: ClaudeDesktopUsageCache(directory: absent))
@@ -519,7 +529,7 @@ final class ClaudeOAuthProviderTests: XCTestCase {
     private func desktopProfile(
         organization: String = ClaudeDesktopUsageCacheTests.organization
     ) -> ClaudeProfile {
-        let home = FileManager.default.temporaryDirectory
+        let home = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("matra-home-\(UUID().uuidString)", isDirectory: true)
         let config = home.appendingPathComponent(".claude")
         try? FileManager.default.createDirectory(at: config, withIntermediateDirectories: true)
@@ -538,7 +548,7 @@ final class ClaudeOAuthProviderTests: XCTestCase {
 
     /// An empty throwaway directory shaped like `Cache_Data`.
     private func makeCacheDirectory() -> URL {
-        let directory = FileManager.default.temporaryDirectory
+        let directory = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("matra-cache-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }

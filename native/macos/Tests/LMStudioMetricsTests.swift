@@ -39,7 +39,7 @@ final class LMStudioMetricsTests: XCTestCase {
     private var cancellables = Set<AnyCancellable>()
 
     override func setUpWithError() throws {
-        logs = FileManager.default.temporaryDirectory.appendingPathComponent("LMStudioMetricsTests.\(UUID().uuidString)")
+        logs = MatraTestFiles.temporaryDirectory.appendingPathComponent("LMStudioMetricsTests.\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: logs.appendingPathComponent("2026-09"), withIntermediateDirectories: true)
     }
 

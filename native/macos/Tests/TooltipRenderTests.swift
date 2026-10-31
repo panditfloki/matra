@@ -9,6 +9,51 @@ import SwiftUI
 /// `TOOLTIP_RENDER_PATH` and the frame is written there.
 @MainActor
 final class TooltipRenderTests: XCTestCase {
+    /// The owner's two reset modes must fit beside the actual session labels
+    /// at the existing card width. Render both without using account data.
+    func testBothResetModesFitAndRenderTheSideCard() throws {
+        let now = Date(timeIntervalSince1970: 1_791_111_300)
+        let windows = [
+            LimitWindow(id: "session", label: "Current session", usedFraction: 0.12,
+                        resetsAt: now.addingTimeInterval(3 * 3600), duration: 5 * 3600),
+            LimitWindow(id: "weekly", label: "All models", usedFraction: 0.25,
+                        resetsAt: now.addingTimeInterval(5 * 86400 + 3 * 3600), duration: 7 * 86400),
+            LimitWindow(id: "fable", label: "Fable", usedFraction: 0.04,
+                        resetsAt: now.addingTimeInterval(5 * 86400 + 3 * 3600), duration: 7 * 86400)
+        ]
+        let snapshot = ProviderSnapshot(
+            id: "claude", displayName: "Claude", glyph: .claude, fidelity: .official,
+            status: .ok, windows: windows, headlineID: "session", plan: "Max"
+        )
+        let font = NSFont.systemFont(ofSize: Design.fontSize(capPixels: 18))
+        for format in ResetTimeFormat.allCases {
+            for window in windows {
+                let text = ResetCopy.text(for: try XCTUnwrap(window.resetsAt), now: now,
+                                          format: format, locale: Locale(identifier: "en_IN"))
+                let rowWidth = ((window.label + text) as NSString).size(withAttributes: [.font: font]).width
+                    + Design.px(20)
+                XCTAssertLessThanOrEqual(rowWidth, NotchLayout.cardTextWidth,
+                                         "\(format): \(window.label) cannot fit beside \(text)")
+            }
+            let view = TooltipCard(snapshot: snapshot, now: now, direction: .trailing,
+                                   resetTimeFormat: format)
+                .padding(20)
+                .background(Color.black)
+                .environment(\.colorScheme, .dark)
+                .environment(\.notchSurfaceStyle, .solid)
+                .environment(\.matraHeadlessGlass, true)
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 3
+            let image = try XCTUnwrap(renderer.cgImage)
+            let png = try XCTUnwrap(NSBitmapImageRep(cgImage: image)
+                .representation(using: .png, properties: [:]))
+            let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
+            attachment.name = format == .automatic ? "reset-date-and-time" : "reset-time-remaining"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
     func testAmpDetailsRenderBesideTheHoveredRing() throws {
         let reading = try AmpUsage.parse(AmpFixture.tier)
         let model = NotchViewModel()

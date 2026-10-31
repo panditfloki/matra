@@ -6,7 +6,7 @@ final class PiResponseMonitorTests: XCTestCase {
     private var session: URL!
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory
+        directory = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("PiResponseMonitorTests.\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         session = directory.appendingPathComponent("session.jsonl")

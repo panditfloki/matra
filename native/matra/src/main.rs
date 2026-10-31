@@ -2,6 +2,9 @@
 
 mod autostart;
 mod config;
+mod parity;
+mod providers_plus;
+mod costs;
 mod quota_colors;
 mod doctor;
 mod focus;
@@ -41,7 +44,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// and its tail on the left. `fitZoom` in ui/notch.html divides by the same width.
 pub const NOTCH_W: f64 = 460.0;
 /// Hand-bumped build tag, written to run.log at startup so a log can always be matched to the exe that wrote it.
-pub const BUILD: &str = "r36-bottom-controls";
+pub const BUILD: &str = "1.9.0-beta.1-parity";
 /// The notch window's long side: the upright window's height, and both sides of the flat one.
 ///
 /// Five cells make a 447 px pill; its fillets add 38.7 px at each end and the settings orb reaches
@@ -672,6 +675,7 @@ fn get_claude_auth() -> claude_auth::AuthState { claude_auth::state() }
 /// Asks one provider to read again, and says whether a reading is on its way. Claude's rate-limit
 /// wait stands, as on the Mac: asking early spends a request and can double the wait.
 pub(crate) fn refresh_provider(app: &AppHandle, provider: &str) -> bool {
+    if providers_plus::is_parity_id(provider) { return providers_plus::request_refresh(provider); }
     match provider {
         "claude" => {
             if app.state::<AppState>().usage.lock().unwrap().backoff_until > now_ms() {
@@ -691,8 +695,8 @@ pub(crate) fn refresh_provider(app: &AppHandle, provider: &str) -> bool {
 }
 
 pub(crate) fn refresh_all(app: &AppHandle) {
-    for provider in TRAY_PROVIDER_IDS {
-        refresh_provider(app, provider);
+    for provider in provider_ids() {
+        refresh_provider(app, &provider);
     }
     let a = app.clone();
     std::thread::spawn(move || reload_glyphs(&a));
@@ -1209,7 +1213,7 @@ fn tightest<'a>(
 /// The window a provider's ring shows, declared per provider as the macOS providers declare
 /// `headlineID`: a window dropping out of a reply shows a dash instead of promoting another one
 /// into its place. `headlineOf` in ui/notch.html is the same rule, so the ring and the tray agree.
-fn ring_window<'a>(
+pub(crate) fn ring_window<'a>(
     provider: &str,
     windows: &'a [usage::LimitWindow],
     antigravity_limit: &str,
@@ -1228,6 +1232,9 @@ fn ring_window<'a>(
         "copilot" => by_id("premium_interactions").or_else(||windows.first()),
         "opencode" | "kimi" => by_id("rolling"),
         "commandcode" => by_id("monthly"),
+        "grokbot" => by_id("weekly"),
+        "higgsfield" => by_id("credits"),
+        id if providers_plus::is_parity_id(id) => tightest(windows.iter()),
         _ => antigravity_lane(windows, antigravity_limit, antigravity_model),
     }
 }
@@ -1277,6 +1284,7 @@ fn lane_is(w: &usage::LimitWindow, limit: &str) -> bool {
 
 /// Ids match the ones the page uses, so the tray, the settings window and the notch all agree.
 pub(crate) fn snapshot_of(app: &AppHandle, id: &str) -> usage::UsageSnapshot {
+    if providers_plus::is_parity_id(id) { return providers_plus::snapshot(id); }
     let st = app.state::<AppState>();
     match id {
         "codex" => st.codex.lock().unwrap().clone(),
@@ -1332,10 +1340,10 @@ struct TrayOption {
 
 #[tauri::command]
 fn get_tray_options(app: AppHandle) -> Vec<TrayOption> {
-    TRAY_PROVIDER_IDS
+    provider_ids()
         .iter()
         .map(|id| TrayOption {
-            id: (*id).to_string(),
+            id: id.clone(),
             label: provider_label(id).to_string(),
             status: snapshot_of(&app, id).status,
             used: ring_pct(&app, id),
@@ -1485,6 +1493,7 @@ pub fn apply_visibility(app: &AppHandle) {
     if let Some(t) = app.tray_by_id("main") {
         let _ = t.set_visible(tray_on);
     }
+    tray::refresh_menu(app);
 }
 
 // ---------------- settings that used to live in the tray menu ----------------
@@ -1647,6 +1656,14 @@ pub fn now_ms() -> u64 {
 
 pub fn provider_label(id: &str) -> &'static str {
     match id {
+        "grokbot" => "Grok Bot",
+        "higgsfield" => "Higgsfield",
+        "deepseek" => "DeepSeek",
+        "ollama" => "Ollama",
+        "lmstudio" => "LM Studio",
+        "omlx" => "oMLX",
+        "llamacpp" => "llama.cpp",
+        id if id.starts_with("custom:") => "Custom endpoint",
         "codex" => "Codex",
         "cursor" => "Cursor",
         "grok" => "Grok",
@@ -1663,6 +1680,12 @@ pub fn provider_label(id: &str) -> &'static str {
 /// Every provider the tray menu can offer, in the order the notch shows them.
 pub const TRAY_PROVIDER_IDS: [&str; 10] = ["claude", "codex", "glm", "cursor", "grok", "gemini", "copilot", "opencode", "commandcode", "kimi"];
 
+pub(crate) fn provider_ids() -> Vec<String> {
+    let mut ids: Vec<String> = TRAY_PROVIDER_IDS.iter().map(|id| (*id).to_string()).collect();
+    for id in providers_plus::enabled_ids() { if !ids.contains(&id) { ids.push(id); } }
+    ids
+}
+
 /// Keeps the tray menu current. macOS rebuilds its menu as it opens; Tauri has no such hook, so it
 /// is rebuilt whenever a reading changes, and once a minute besides — otherwise "Resets in 12 min"
 /// sits there being wrong while nothing else happens.
@@ -1672,7 +1695,7 @@ fn start_menu_updater(app: AppHandle) {
         let mut ticked = std::time::Instant::now();
         loop {
             std::thread::sleep(std::time::Duration::from_secs(2));
-            let values: Vec<Option<i64>> = TRAY_PROVIDER_IDS
+            let values: Vec<Option<i64>> = provider_ids()
                 .iter()
                 .map(|id| ring_fraction(&app, id).map(|f| (f * 1000.0).round() as i64))
                 .collect();
@@ -1854,6 +1877,34 @@ fn main() {
             activity: Mutex::new(Vec::new()),
         })
         .invoke_handler(tauri::generate_handler![
+            parity::get_parity_settings,
+            parity::set_parity_settings,
+            parity::refresh_on_look,
+            parity::open_activity,
+            providers_plus::get_parity_usage,
+            providers_plus::get_provider_registry,
+            providers_plus::set_parity_provider,
+            providers_plus::set_parity_endpoint,
+            providers_plus::set_provider_secret,
+            providers_plus::clear_provider_secret,
+            providers_plus::refresh_parity_provider,
+            providers_plus::list_custom_endpoints,
+            providers_plus::get_custom_presets,
+            providers_plus::save_custom_endpoint,
+            providers_plus::delete_custom_endpoint,
+            providers_plus::test_custom_endpoint,
+            providers_plus::detect_custom_usage,
+            providers_plus::scan_local_endpoints,
+            providers_plus::import_custom_usage_mapping,
+            providers_plus::get_opencode_bridge_status,
+            providers_plus::install_opencode_bridge,
+            providers_plus::remove_opencode_bridge,
+            costs::get_cost_settings,
+            costs::set_cost_settings,
+            costs::get_activity_report,
+            costs::get_cost_plans,
+            costs::refresh_cost_prices,
+
             get_matra_theme,
             set_matra_theme,
             get_matra_accent,
@@ -1946,6 +1997,7 @@ fn main() {
                 let _ = w.show();
             }
             tray::setup(&handle)?;
+            tray::start_activity_badges(handle.clone());
             notchmenu::setup(&handle);
             start_menu_updater(handle.clone());
             updater::check_on_launch(&handle);
@@ -1960,6 +2012,7 @@ fn main() {
             antigravity::start(handle.clone());
             glm::start(handle.clone());
             extra_providers::start(handle.clone());
+            providers_plus::start(handle.clone());
             activity::start(handle.clone());
             // Collecting glyphs may read icon resources out of a few executables; do it off the main thread and push when done
             let gh = handle.clone();

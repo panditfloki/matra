@@ -158,6 +158,7 @@ extension ProviderGlyph {
     /// The owner-approved brand fill for this mark (Settings > Brand colours).
     var brandFill: ProviderBrandFill {
         switch self {
+        case .grokbot, .omlx, .llamaCpp, .qoder, .higgsfield: return .monochrome
         case .claude:      return .solid(0xD97757)
         case .third:       return .solid(0x20808D)
         case .deepseek:    return .solid(0x4D6BFE)

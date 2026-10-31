@@ -141,8 +141,10 @@ struct ProviderSummary: Identifiable, Equatable {
     ///
     /// Apify's CLI files its token in the login keychain too, so a Deny is
     /// possible there — and "Allow access…" is the only way back from one.
+    ///
     var usesKeychain: Bool {
-        ClaudeProfile.isClaude(providerID: id) || id == AntigravityProfile.defaultID || id == "cursor"
+        ClaudeProfile.isClaude(providerID: id)
+            || id == AntigravityProfile.defaultID || id == "cursor"
             || id == "apify"
     }
 

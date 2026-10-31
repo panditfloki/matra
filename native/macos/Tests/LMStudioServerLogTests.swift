@@ -314,7 +314,7 @@ final class LMStudioLogTailTests: XCTestCase {
     private var directory: URL!
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent("LMStudioLogTailTests.\(UUID().uuidString)")
+        directory = MatraTestFiles.temporaryDirectory.appendingPathComponent("LMStudioLogTailTests.\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory.appendingPathComponent("2026-08"), withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: directory.appendingPathComponent("2026-09"), withIntermediateDirectories: true)
     }

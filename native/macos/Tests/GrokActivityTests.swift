@@ -78,7 +78,7 @@ final class GrokHeadlessSessionTests: XCTestCase {
     private var root: URL!
 
     override func setUpWithError() throws {
-        root = FileManager.default.temporaryDirectory
+        root = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("GrokHeadlessSessionTests.\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }

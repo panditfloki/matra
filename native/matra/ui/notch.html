@@ -247,6 +247,7 @@
   @media (prefers-reduced-motion: reduce){.handle > *{transition:none}}
 </style>
 <link rel="stylesheet" href="matra-theme.css">
+<link rel="stylesheet" href="matra-parity.css">
 <script defer src="matra-theme.js"></script>
 </head>
 <body data-edge="right">
@@ -279,6 +280,8 @@
 </div>
 <script src="matra-motion.js"></script>
 <script src="matra-quota.js"></script>
+<script src="matra-parity.js"></script>
+<script src="matra-parity-card.js"></script>
 <script>
 const invoke = window.__TAURI__.core.invoke;
 const listen = window.__TAURI__.event.listen;
@@ -317,6 +320,8 @@ let cursorSnap={status:'absent',windows:[],fetched_at:0,note:''};
 let grokSnap={status:'absent',windows:[],fetched_at:0,note:''};
 let glmSnap={status:'absent',windows:[],fetched_at:0,note:''};
 let extraSnaps={};
+let paritySnaps={}; // the optional sources: grokbot, higgsfield, deepseek, local runtimes and custom:<id>
+let parity=MatraParity.normalize(null);
 const EXTRA_NAMES={copilot:'GitHub Copilot',opencode:'OpenCode',commandcode:'Command Code',kimi:'Kimi'};
 let agSnap={status:'absent',windows:[],fetched_at:0,note:''};
 let glyphs={}; // id → {kind:'mark'|'appicon', url}
@@ -930,7 +935,7 @@ function workState(id){
 function glyphHtml(p,small){
   const g=glyphs[p.base||p.id];
   if(g&&g.kind==='svg'&&g.svg) return `<span class="mark">${g.svg}</span>`;
-  if(g&&g.url) return `<img class="${g.kind}" src="${g.url}" alt="${p.name}"${small?' style="width:16px;height:16px;border-radius:4px"':''}>`;
+  if(g&&g.url) return `<img class="${g.kind}" src="${g.url}" alt="${esc(p.name)}"${small?' style="width:16px;height:16px;border-radius:4px"':''}>`;
   return small?'':p.glyph; // fallback letter
 }
 // Provider table (order = top to bottom in the pill). `glyph` is the fallback letter used when no mark is available
@@ -963,7 +968,17 @@ function claudeCells(){
       .map(w=>Object.assign({},w,{id:String(w.id).split('@')[0]}))})
   }));
 }
-function providers(){
+/* An id or a letter that reaches markup comes from a saved endpoint, so it is checked rather than trusted. */
+function parityCells(){
+  const out=[];
+  for(const [id,snap] of Object.entries(paritySnaps||{})){
+    if(!snap||snap.status==='absent'||!/^[\w:.@-]+$/.test(id)) continue;
+    const name=snap.display_name||id;
+    out.push({id,base:id,name,glyph:(String(name).replace(/[^\p{L}\p{N}]/gu,'').slice(0,2)||'?'),snap:Object.assign({},snap,{windows:Array.isArray(snap.windows)?snap.windows:[]})});
+  }
+  return out;
+}
+function allProviders(){
   const list=claudeCells();
   if(codexSnap.status!=='absent') list.push({id:'codex',base:'codex',name:'Codex',glyph:'Cx',snap:codexSnap});
   if(glmSnap.status!=='absent') list.push({id:'glm',base:'glm',name:'z.ai',glyph:'Z.ai',snap:glmSnap});
@@ -973,13 +988,29 @@ function providers(){
   for(const [id,name] of Object.entries(EXTRA_NAMES)){
     const snap=extraSnaps[id];if(snap&&snap.status!=='absent')list.push({id,base:id,name,glyph:{copilot:'Cp',opencode:'Oc',commandcode:'Cc',kimi:'K'}[id],snap});
   }
+  list.push(...parityCells());
   if(Array.isArray(notchSlots)&&notchSlots.length){
-    const picked=list.filter(p=>!!slotFor(p.base));
+    // The slot list's own order is the manual order. Accounts of one provider stay together, in the
+    // order they arrived, because a slot names the provider.
+    const slotted=notchSlots.flatMap(s=>list.filter(p=>s&&p.base===s.provider));
     // Never leave the notch with nothing in it: an empty result means the choice no longer matches
     // any available provider, so fall back to showing everything rather than an empty pill.
-    if(picked.length) return picked;
+    if(slotted.length) return slotted;
   }
   return list;
+}
+const ringAccess={
+  headline:p=>headlineOf(p.snap,p.base),
+  weekly:p=>weeklyOf(p.snap,p.base),
+  fresh:p=>p.snap.status==='ok'&&!staleOf(p.snap)
+};
+let lastOrder=[];
+function ringsHeld(){ return pointerIn||carrying||dragging||menuOpen||Object.keys(refreshing).length>0; }
+function providers(){
+  const ranked=MatraParity.present(allProviders(),parity,ringAccess);
+  const held=MatraParity.holdOrder(ranked,lastOrder,ringsHeld());
+  lastOrder=held.map(p=>p.id);
+  return held;
 }
 // Antigravity's "Notch reads" and "Model data", as in the Mac app; chosen in settings
 let agPrefs={limit:'automatic',model:'gemini'};
@@ -1007,6 +1038,7 @@ function headlineOf(snap,id){
   if(id==='copilot') return byId('premium_interactions')||ws[0];
   if(id==='opencode'||id==='kimi') return byId('rolling');
   if(id==='commandcode') return byId('monthly');
+  if(id!=='gemini') return tightestOf(ws.filter(w=>w.used<1))||tightestOf(ws)||ws[0]; // Antigravity's own choices below do not apply
   const fam=ws.filter(w=>laneFamily(w)===agPrefs.model), lanes=fam.length?fam:ws;
   if(agPrefs.limit!=='automatic'){ const w=tightestOf(lanes.filter(w=>laneIs(w,agPrefs.limit))); if(w) return w; }
   return tightestOf(lanes.filter(w=>w.used<1))||tightestOf(lanes)||lanes[0];
@@ -1025,6 +1057,7 @@ function weeklyOf(snap,id){
   if(id==='glm') return byId('weekly');
   if(id==='copilot') return null;
   if(['opencode','commandcode','kimi'].includes(id)) return byId('weekly');
+  if(id!=='gemini') return byId('weekly')||byId('seven_day');
   const fam=ws.filter(w=>laneFamily(w)===agPrefs.model), lanes=fam.length?fam:ws;
   return tightestOf(lanes.filter(w=>laneIs(w,'weekly')));
 }
@@ -1106,24 +1139,29 @@ function renderRing(){
     const available=!['needsAuth','none'].includes(p.snap.status)&&metered(h);
     let inner=`<circle cx="28" cy="28" r="33" fill="var(--matra-ring)"/><circle class="quota-track" cx="28" cy="28" r="25" fill="none" stroke="${TRACK}" stroke-width="5.1" ${available?'':'stroke-dasharray="3 4"'}/>`;
     wrap.classList.toggle('pressed',!!refreshing[p.id]);
-    reading.innerHTML=available?svgArc(25,Math.min(h.used,1),tone(h.used),5.1,'class="quota-current"'):'';
+    const wk=weeklyOf(p.snap,p.base);
+    // Sweep and figure may read what is left. The colour always judges by what is spent, and a spent
+    // window can shut both rings even where the other still has room.
+    const left=parity.shows_remaining, shut=available&&MatraParity.isShut(parity,h,metered(wk)?wk:null);
+    const ringColor=f=>shut?MatraParity.shutColor(parity):tone(f);
+    const sweep=f=>Math.min(MatraParity.shown(f,left),1);
+    reading.innerHTML=available?svgArc(25,sweep(h.used),ringColor(h.used),5.1,'class="quota-current"'):'';
     const delta=motionTracker.reading(p.id,h&&h.id,available?h.used:NaN,available&&p.snap.status==='ok'&&!staleOf(p.snap));
     if(delta){
       const arc=reading.querySelector('.quota-current');
       if(arc&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
         const c=2*Math.PI*25;
-        arc.animate([{strokeDasharray:`${c*Math.min(delta.from,1)} ${c}`},{strokeDasharray:`${c*Math.min(delta.to,1)} ${c}`}],{duration:650,easing:'ease-out'});
+        arc.animate([{strokeDasharray:`${c*sweep(delta.from)} ${c}`},{strokeDasharray:`${c*sweep(delta.to)} ${c}`}],{duration:650,easing:'ease-out'});
       }
       ringFeedback(p.id,`${p.name} usage updated to ${pctText(h.used)}%.`);
     }
     if(weeklyRing!=='off'){ // the week, thinner and at its own radius, in its own colour: a session at 12% beside a week at 91% is the case this exists for
-      const wk=weeklyOf(p.snap,p.base);
       // Inside, it shares the gap with the working indicator, so it stands down while that is showing
       const taken=weeklyRing==='inside'&&workState(p.base)!=='idle';
       if(metered(wk)&&!['needsAuth','none'].includes(p.snap.status)&&(!h||wk.id!==h.id)&&!taken){
         const r=weeklyRing==='inside'?16:31;
         inner+=`<circle cx="28" cy="28" r="${r}" fill="none" stroke="${TRACK}" stroke-width="3.2"/>`
-          +svgArc(r,Math.min(wk.used,1),tone(wk.used),3.2,'class="quota-weekly"');
+          +svgArc(r,sweep(wk.used),ringColor(wk.used),3.2,'class="quota-weekly"');
       }
     }
     svg.innerHTML=inner;
@@ -1135,8 +1173,8 @@ function renderRing(){
       else activity.innerHTML='';
     }
     if(p.snap.status==='needsAuth'||p.snap.status==='none') pct.textContent='—';
-    else if(h && h.count!=null) pct.textContent='~'+h.count;
-    else if(available) pct.textContent=(h.derived?'~':'')+pctText(h.used)+'%';
+    else if(h && h.count!=null) pct.textContent=(p.snap.kind?'':'~')+h.count; // a source that reports its own count is exact
+    else if(available) pct.textContent=(h.derived?'~':'')+pctText(MatraParity.shown(h.used,parity.shows_remaining))+'%';
     else pct.textContent=p.snap.windows.length?'—':'…'; // its declared window is missing: a dash, not a wait
     glyph.classList.toggle('dim', !!(h && h.used>=1));
     wrap.classList.toggle('stale', staleOf(p.snap));
@@ -1337,13 +1375,16 @@ function renderCard(){
         if(group) html+=`<div class="g-head">${esc(textCopy(group))}</div><div class="g-box">`;
       }
       if(w.count!=null){
+        // Only Antigravity's counts are requests today. A source that reports its own kind names the
+        // count in its label: models loaded, a balance, tokens.
+        const counted=snap.kind?esc(String(w.count)):w.count>0?`~${w.count} ${textCopy(w.count===1?'request today':'requests today')}`:textCopy('no requests today');
         html+=`<div class="win"><div class="w-row"><span class="w-label">${esc(textCopy(w.label))}</span></div>
-          <div class="w-used">${w.count>0?`~${w.count} ${textCopy(w.count===1?'request today':'requests today')}`:textCopy('no requests today')}</div></div>`;
+          <div class="w-used">${counted}</div></div>`;
         continue;
       }
       html+=`<div class="win">
         <div class="w-row"><span class="w-label">${esc(textCopy(w.label))}</span><span class="w-reset">${resetCopy(w.resets_at)}</span></div>
-        <div class="w-track"><div class="w-fill" style="width:${(Math.min(w.used,1)*100).toFixed(0)}%;background:${tone(w.used)}"></div></div>
+        <div class="w-track"><div class="w-fill" style="width:${(Math.min(MatraParity.shown(w.used,parity.shows_remaining),1)*100).toFixed(0)}%;background:${tone(w.used)}"></div></div>
         <div class="w-used">${esc(usedCopy(w))}</div>
       </div>`;
     }
@@ -1355,6 +1396,7 @@ function renderCard(){
     codexDetails=CodexDetails.html(snap.codex_details,Date.now(),ui().locale);
     html+=codexDetails.html;
   }
+  if(snap.kind) html+=MatraParityCard.html(snap,p.base,esc);
   if(offersClaudeSignIn(p)) html+=claudeAuthHtml(claudeAuth,claudeActionMessage);
   if(p.base==='claude'){ // live sessions (a full list with jump-to-session is a follow-up)
     const act=stateSnap.sessions.filter(s=>s.state!=='idle');
@@ -1466,18 +1508,18 @@ function reportHot(){
   if(folded){ callq('set_hot',{rects:[wakeRect()],expanded:false}).catch(()=>{}); return; }
   const open=card.classList.contains('show');
   const rects=open?[rectOf(pill),rectOf(tail),rectOf(card)]:[rectOf(pill)];
-  if(placeHandles()&&dockActive){
+  if(placeHandles()){
     const addHandle=el=>{
       const a=rectOf(pill),b=rectOf(el);
       rects.push(b);
-      // Explicit 2px bridge, only as wide as the revealed circle.
+      // Explicit bridge, only as wide as the circle, so the pointer can reach it from the capsule.
       if(edgeIsVertical())rects.push([b[0],Math.min(a[1]+a[3],b[1]+b[3]),b[2],Math.max(0,Math.max(a[1],b[1])-Math.min(a[1]+a[3],b[1]+b[3]))]);
       else rects.push([Math.min(a[0]+a[2],b[0]+b[2]),b[1],Math.max(0,Math.max(a[0],b[0])-Math.min(a[0]+a[2],b[0]+b[2])),b[3]]);
     };
-    if(hovered||carrying){
-      addHandle(orb);
-      if(showMove)addHandle(moveHandle);
-    }
+    // The grip stays clickable whenever the notch is expanded. Its bridge crosses the settings slot,
+    // which is how the pointer reveals settings on the way.
+    if(moveAt) addHandle(moveHandle);
+    if(dockActive&&(hovered||carrying)) addHandle(orb);
   }
   callq('set_hot',{rects,expanded:open}).catch(()=>{});
 }
@@ -1540,6 +1582,7 @@ function cellAt(x,y){
 function pointerInHot(x,y){
   const p=pill.getBoundingClientRect();
   if(inRect(x,y,p,4))return true;
+  if(near(moveAt,x,y))return true;
   if(!card.classList.contains('show'))return false;
   const c=card.getBoundingClientRect();
   if(inRect(x,y,c,4))return true;
@@ -1681,12 +1724,18 @@ function placeHandles(){
   return true;
 }
 function near(at,x,y){ return !!at&&Math.hypot(x-at.x,y-at.y)<=at.reach; }
-function onHandle(x,y){ return !dockActive||folded?null:near(orbAt,x,y)?'orb':near(moveAt,x,y)?'move':null; }
-// Reveal the pair from the lower border. Include both gaps so the pointer can
+// The grip answers whenever the notch is expanded. Settings still waits for the pointer to reach the dock.
+function onHandle(x,y){
+  if(folded) return null;
+  if(near(moveAt,x,y)) return 'move';
+  return dockActive&&near(orbAt,x,y)?'orb':null;
+}
+// Reveal settings from the lower border. Include both gaps so the pointer can
 // travel from the capsule to settings and then to the grip without losing them.
 function handleIntent(x,y){
-  if(!dockActive||folded)return null;
+  if(folded)return null;
   const direct=onHandle(x,y);if(direct)return direct;
+  if(!dockActive)return null;
   const p=pill.getBoundingClientRect(),z=parseFloat(document.documentElement.style.zoom)||1,b=10*z;
   const v=edgeIsVertical();
   if(v&&x>=p.left&&x<=p.right){
@@ -1730,12 +1779,14 @@ function pressIn(el){
 function pillShapes(){
   const cells=Math.max(1,pill.querySelectorAll('.cell').length);
   const ring=(pill.querySelector('.ringwrap')||{}).offsetHeight||44;
-  const label=(pill.querySelector('.pct')||{}).offsetHeight||20;
-  const ends=28, between=10, underRing=6;
+  // With readings off the cell is the ring alone, so the zones must not reserve a label's height.
+  const readings=parity.shows_notch_readings;
+  const label=readings?((pill.querySelector('.pct')||{}).offsetHeight||20):0;
+  const ends=28, between=10, underRing=readings?6:0;
   return { depth:62, length:ends+cells*(ring+underRing+label)+(cells-1)*between };
 }
 moveHandle.addEventListener('mousedown',e=>{
-  if(e.button!==0||hovered!=='move'||onHandle(e.clientX,e.clientY)!=='move') return;
+  if(!MatraParity.gripPress({button:e.button,folded,showMove,onGrip:onHandle(e.clientX,e.clientY)==='move'})) return;
   e.stopPropagation();
   carrying=true;
   moveHandle.classList.add('armed','hover');
@@ -1766,7 +1817,17 @@ function scheduleFold(){
   if(foldAllowed()) foldTimer=setTimeout(()=>{ if(foldAllowed()) setFolded(true); },FOLD_GRACE);
 }
 function applyUiFlags(f){ onHover=!!(f&&f.notch_on_hover); scheduleFold(); }
-listen('notch_pointer',e=>{ pointerIn=e.payload===true; if(pointerIn){unfold();setDockActive(true);}else{scheduleFold();scheduleDockHide();} }).catch(()=>{});
+/* Looking at the meter is the moment a fresh reading matters. Rust applies its own freshness floor;
+   this only stops the page from asking on every pass of the pointer. */
+const LOOK_EVERY=30000;
+let lastLook=0;
+function refreshOnLook(){
+  const now=Date.now();
+  if(now-lastLook<LOOK_EVERY) return;
+  lastLook=now;
+  invoke('refresh_on_look').catch(()=>{});
+}
+listen('notch_pointer',e=>{ pointerIn=e.payload===true; if(pointerIn){unfold();setDockActive(true);refreshOnLook();}else{scheduleFold();scheduleDockHide();} }).catch(()=>{});
 listen('ui_flags',e=>applyUiFlags(e.payload)).catch(()=>{});
 invoke('get_ui_flags').then(applyUiFlags).catch(()=>{});
 listen('move_handle',e=>{ showMove=e.payload!==false; reportHot(); }).catch(()=>{});
@@ -1799,6 +1860,25 @@ function receiveExtra(v){
 }
 listen('extra_usage',e=>receiveExtra(e.payload)).catch(()=>{});
 invoke('get_extra_usage').then(receiveExtra).catch(()=>{});
+function receiveParity(v){
+  paritySnaps=v&&typeof v==='object'?v:{};
+  for(const id of Object.keys(paritySnaps))settle(id);
+  renderRing();if(card.classList.contains('show'))renderCard();
+}
+listen('parity_usage',e=>receiveParity(e.payload)).catch(()=>{});
+invoke('get_parity_usage').then(receiveParity).catch(()=>{});
+function applyParity(value){
+  parity=MatraParity.normalize(value);
+  document.body.classList.toggle('no-readings',!parity.shows_notch_readings);
+  renderRing();if(card.classList.contains('show'))renderCard();
+}
+// Registered before loading, so a change made in Settings meanwhile cannot be overwritten by the older answer.
+let parityRevision=0;
+listen('parity_settings',e=>{parityRevision++;applyParity(e.payload);}).catch(()=>{});
+{
+  const before=parityRevision;
+  invoke('get_parity_settings').then(value=>{if(before===parityRevision)applyParity(value);}).catch(()=>{});
+}
 invoke('get_notch_slots').then(v=>{if(Array.isArray(v)){notchSlots=v;renderRing();}}).catch(()=>{});
 listen('notch_slots',e=>{
   notchSlots=Array.isArray(e.payload)?e.payload:null;

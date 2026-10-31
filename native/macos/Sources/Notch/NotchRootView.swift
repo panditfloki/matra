@@ -33,9 +33,8 @@ struct NotchRootView: View {
                         .animation(motion(NotchMotion.reading), value: model.readingAcrossTextWidth)
                 }
 
-                // The grip that moves the notch, beside the settings button:
-                // out with it, and held out while the pointer is on it. Under
-                // the button, which it comes out of and goes back into.
+                // The grip stays visible below settings while the notch is
+                // expanded; hovering only changes its emphasis.
                 MoveGrip(separation: gripOut ? 1 : 0,
                          hover: model.isHoveringMove ? 1 : 0,
                          edge: model.edge,
@@ -202,6 +201,7 @@ struct NotchRootView: View {
             reduceTransparency: reduceTransparency
         ))
         .environment(\.weeklyRingDashed, model.weeklyRingDashed)
+        .environment(\.busyIndicatorStyle, model.busyIndicatorStyle)
         .environment(\.usageWatchLimit, model.watchLimit)
         .environment(\.usageCriticalLimit, model.criticalLimit)
         .environment(\.colorTransitionStyle, model.colorTransitionStyle)
@@ -453,7 +453,9 @@ struct NotchRootView: View {
                 isRefreshing: model.isRefreshing(snapshot),
                 weeklyRing: model.weeklyRing,
                 showsWeeklyReading: model.weeklyReading,
-                showsReading: model.showsCellReading
+                showsReading: model.showsCellReading,
+                showsRemaining: model.showsRemainingInNotch,
+                shutRingsWhenSpent: model.shutRingsWhenSpent
             )
                 // Pinned to what the cell claims along the stack, or the drawn
                 // rings stop lining up with the centres `ringCenter` hands to
@@ -552,14 +554,7 @@ struct NotchRootView: View {
         return CGSize(width: d.x * reach, height: d.y * reach)
     }
 
-    /// Whether the grip is out of the settings button: with it, and while the
-    /// pointer is on the grip.
-    private var gripOut: Bool {
-        // Out through a carry too, out of sight, so it is already out beside
-        // the button when the carry hands back to it.
-        model.isExpanded && (model.isHoveringSettings || model.isHoveringMove
-                             || model.carry?.fromHover == true)
-    }
+    private var gripOut: Bool { model.showsMoveGrip }
 
     /// Which way the grip is from the settings button, on screen.
     private var gripDirection: CGPoint {

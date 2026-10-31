@@ -105,7 +105,7 @@ final class ClaudeSessionStateSourceTests: XCTestCase {
     private var projects: URL!
 
     override func setUpWithError() throws {
-        projects = FileManager.default.temporaryDirectory
+        projects = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("sessions-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: projects, withIntermediateDirectories: true)
     }
@@ -266,7 +266,7 @@ final class ClaudeOwnSessionFilterTests: XCTestCase {
     private var directory: URL!
 
     override func setUpWithError() throws {
-        directory = FileManager.default.temporaryDirectory
+        directory = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("own-session-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
@@ -345,7 +345,7 @@ final class ClaudeSessionOwnershipTests: XCTestCase {
     private let workAccount = "acc-work"
 
     override func setUpWithError() throws {
-        root = FileManager.default.temporaryDirectory
+        root = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("ClaudeSessionOwnershipTests.\(UUID().uuidString)",
                                     isDirectory: true)
         desktop = root.appendingPathComponent("claude-code-sessions")

@@ -336,7 +336,7 @@ final class CursorActivityTests: XCTestCase {
     /// Mirrors `SQLiteStoreTests.makeDatabase`: closing checkpoints the WAL, so
     /// the file reads back the way it would after the editor has quit.
     private func makeStore(_ rows: [(String, archived: Int, subagent: Int)]) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
+        let url = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("cursor-\(UUID().uuidString).sqlite")
         var db: OpaquePointer?
         XCTAssertEqual(sqlite3_open(url.path, &db), SQLITE_OK)

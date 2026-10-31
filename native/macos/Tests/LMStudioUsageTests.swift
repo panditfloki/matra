@@ -127,7 +127,7 @@ final class LMStudioEndpointTests: XCTestCase {
     }
 
     func testTheConfiguredPortIsReadFromLMStudiosOwnSettings() throws {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent("LMStudioEndpointTests.\(UUID().uuidString)")
+        let home = MatraTestFiles.temporaryDirectory.appendingPathComponent("LMStudioEndpointTests.\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: home) }
         XCTAssertNil(LMStudioEndpoint.configuredAddress(home: home), "no LM Studio, no address")
         let internals = home.appendingPathComponent(".lmstudio/.internal")

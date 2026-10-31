@@ -115,12 +115,18 @@
   #toast.show{opacity:1}
 </style>
 <link rel="stylesheet" href="matra-theme.css">
+<link rel="stylesheet" href="matra-parity.css">
 <link rel="icon" href="matra-logo.png">
 <script src="matra-copy.js"></script>
 <script src="matra-update-view.js"></script>
 <script src="matra-quota.js"></script>
+<script src="matra-parity.js"></script>
+<script src="matra-parity-i18n.js"></script>
 <script defer src="matra-quota-settings.js"></script>
 <script defer src="matra-theme.js"></script>
+<script defer src="matra-parity-settings.js"></script>
+<script defer src="matra-activity.js"></script>
+<script defer src="matra-providers.js"></script>
 </head>
 <body>
 <div id="app">
@@ -128,6 +134,8 @@
     <div class="band matra-brand" data-tauri-drag-region aria-label="Mātrā by DYDXFX"><img src="matra-logo.png" alt="" width="36" height="36"><span><strong>Mātrā</strong><small>by dy/dx · fx</small></span></div>
     <button class="row" id="tab-accounts" role="tab" aria-controls="pane-accounts" aria-selected="false" tabindex="-1"><span class="badge b-blue"><svg viewBox="0 0 12 12"><circle cx="6" cy="4" r="2.4"/><path d="M1.5 11.2c.4-2.5 2.3-3.9 4.5-3.9s4.1 1.4 4.5 3.9z"/></svg></span><span>Accounts</span></button>
     <button class="row" id="tab-appearance" role="tab" aria-controls="pane-appearance" aria-selected="false" tabindex="-1"><span class="badge b-indigo"><svg viewBox="0 0 12 12"><path d="M10 .9a.8.8 0 0 1 1.1 1.1L6.4 6.7 5.3 5.6zM4.6 6.3l1.1 1.1c.2 1.9-1.9 3.6-4.7 3.1.9-.4 1.2-1 1.3-1.8.1-1.3 1.1-2.3 2.3-2.4z"/></svg></span><span>Appearance</span></button>
+    <button class="row" id="tab-alerts" role="tab" aria-controls="pane-alerts" aria-selected="false" tabindex="-1"><span class="badge b-red"><svg viewBox="0 0 12 12"><path d="M6 1a3.4 3.4 0 0 0-3.4 3.4c0 2.6-1 3.6-1.4 4.1h9.6c-.4-.5-1.4-1.5-1.4-4.1A3.4 3.4 0 0 0 6 1zM4.7 9.6a1.4 1.4 0 0 0 2.6 0z"/></svg></span><span>Notifications</span></button>
+    <button class="row" id="tab-costs" role="tab" aria-controls="pane-costs" aria-selected="false" tabindex="-1"><span class="badge b-mint"><svg viewBox="0 0 12 12"><path d="M1 3h10v6.5H1zM6 4.6a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4z" fill-rule="evenodd"/></svg></span><span>Costs</span></button>
     <button class="row" id="tab-general" role="tab" aria-controls="pane-general" aria-selected="false" tabindex="-1"><span class="badge b-gray"><svg viewBox="0 0 12 12"><path fill-rule="evenodd" d="M5.1.6h1.8l.3 1.5 1.1.5 1.3-.8 1.3 1.3-.8 1.3.5 1.1 1.5.3v1.8l-1.5.3-.5 1.1.8 1.3-1.3 1.3-1.3-.8-1.1.5-.3 1.5H5.1l-.3-1.5-1.1-.5-1.3.8-1.3-1.3.8-1.3-.5-1.1L.6 6.9V5.1l1.5-.3.5-1.1-.8-1.3 1.3-1.3 1.3.8 1.1-.5zM6 4.1a1.9 1.9 0 1 0 0 3.8 1.9 1.9 0 0 0 0-3.8z"/></svg></span><span>General</span></button>
     <div class="grow" data-tauri-drag-region></div>
     <button class="row" id="quit"><span class="badge b-red"><svg viewBox="0 0 12 12"><path d="M6 1.2v4.3" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M3.4 3.1a3.9 3.9 0 1 0 5.2 0" stroke="#fff" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></span><span>Quit Matra</span></button>
@@ -143,12 +151,17 @@
 
       <section class="pane" id="pane-accounts" role="tabpanel" aria-labelledby="tab-accounts" hidden>
         <p class="matra-intro">Independent sources. One measured view.</p>
+        <div class="group">
+          <div class="item"><span>Order rings</span><span class="seg" id="seg-ring-order"><button data-v="manual">Manual</button><button data-v="remaining">Remaining</button><button data-v="burnDeficit">Burn deficit</button></span></div>
+          <div class="item cap" id="cap-ring-order" data-dynamic></div>
+        </div>
         <div class="sec">Connected</div>
         <div class="group" id="acc-on" data-dynamic></div>
         <div id="acc-off-wrap" hidden>
           <div class="sec">Not connected</div>
           <div class="group" id="acc-off" data-dynamic></div>
         </div>
+        <div id="parity-sources" data-dynamic></div>
       </section>
 
       <section class="pane" id="pane-appearance" role="tabpanel" aria-labelledby="tab-appearance" hidden>
@@ -182,6 +195,15 @@
           <div class="item cap" id="cap-size" data-dynamic></div>
           <div class="item"><span>Weekly ring</span><span class="seg" id="seg-weekly"><button data-v="off">Off</button><button data-v="inside">Inside</button><button data-v="outside">Outside</button></span></div>
           <div class="item cap" id="cap-weekly" data-dynamic></div>
+          <div class="item"><span>Percentage under each ring</span><button class="switch" id="sw-readings" role="switch" aria-checked="true" aria-label="Percentage under each ring"></button></div>
+          <div class="item cap">The figure under each ring. Turn it off for rings alone; the number is still a hover away in the card.</div>
+          <div class="item"><span>Show remaining instead of used</span><button class="switch" id="sw-show-remaining" role="switch" aria-checked="false" aria-label="Show remaining instead of used"></button></div>
+          <div class="item cap">The meter and the tray read what is left: the figures, the rings' sweep and the card's bars. Colours still judge by what is spent, so a nearly empty ring still reads red.</div>
+          <div class="item"><span>Shut rings when a window is spent</span><button class="switch" id="sw-shut-rings" role="switch" aria-checked="false" aria-label="Shut rings when a window is spent"></button></div>
+          <div class="item cap">When the 5-hour or the weekly window is spent, both rings say shut even where the other window still has room: dark grey where the meter reads what is left, red where it reads what is spent.</div>
+          <div class="item"><span>Hide accounts with nothing left to spend</span><button class="switch" id="sw-hide-depleted" role="switch" aria-checked="false" aria-label="Hide accounts with nothing left to spend"></button></div>
+          <div class="item cap">When the 5-hour or the weekly window is at 0% remaining, the account leaves the meter until a window resets. Stale readings stay: an old number is not proof the account is empty. If every account is empty, they all stay.</div>
+          <div class="item cap" id="parity-status" role="status" aria-live="polite" data-dynamic></div>
           <div class="item"><span>Edge</span><span class="seg" id="seg-edge"><button data-v="left">Left</button><button data-v="right">Right</button><button data-v="top">Top</button><button data-v="bottom">Bottom</button></span></div>
           <div class="item cap" id="cap-edge" data-dynamic></div>
           <div class="item"><span>Show move handle</span><button class="switch" id="sw-move" role="switch" aria-checked="false" aria-label="Show move handle"></button></div>
@@ -201,11 +223,19 @@
           <div class="item"><button class="btn" id="quota-reset">Reset to defaults</button></div>
           <div class="item cap" id="quota-status" role="status" aria-live="polite" data-dynamic>These thresholds control usage colours, not notification delivery. App accent never changes this scale.</div>
         </div>
-        <div class="sec">App</div>
+        <div class="sec">System tray</div>
         <div class="group">
-          <div class="item"><span>App icon</span><span class="seg" id="seg-tray"><button data-v="tray">System tray</button><button data-v="none">Neither</button></span></div>
+          <div class="item"><span>Show in system tray</span><button class="switch" id="sw-tray" role="switch" aria-checked="true" aria-label="Show in system tray"></button></div>
           <div class="item cap" id="cap-tray" data-dynamic></div>
           <div class="item cap" id="flags-fix" data-dynamic hidden></div>
+          <div class="item"><span>Show limits in the tray</span><button class="switch" id="sw-tray-limits" role="switch" aria-checked="false" aria-label="Show limits in the tray"></button></div>
+          <div class="matra-chips" id="tray-providers" data-dynamic hidden></div>
+          <div class="item"><label for="menu-reading">Tray reading</label><select id="menu-reading"><option value="both">Usage and reset</option><option value="usage">Usage only</option><option value="reset">Reset only</option></select></div>
+          <div class="item"><label for="menu-click">Clicking the tray icon</label><select id="menu-click"><option value="menu">Menu</option><option value="refresh">Refresh all</option><option value="activity">Activity</option></select></div>
+          <div class="item"><label for="menu-activity">Working indicator</label><select id="menu-activity"><option value="pulse">Pulse</option><option value="wave">Wave</option><option value="none">None</option></select></div>
+        </div>
+        <div class="sec">App</div>
+        <div class="group">
           <div class="item"><span>Language</span>
             <select id="lang" aria-label="Language">
               <option value="auto">Follow system</option>
@@ -221,6 +251,25 @@
           </div>
           <div class="item cap">Sets the language used by Matra. “Follow system” uses the language Windows itself is set to.</div>
         </div>
+      </section>
+
+      <section class="pane" id="pane-alerts" role="tabpanel" aria-labelledby="tab-alerts" hidden>
+        <p class="matra-intro">Choose which changes deserve your attention.</p>
+        <div class="group">
+          <div class="item cap">Windows notifications are not available in this build. Mātrā shows changes on the meter itself, as described here.</div>
+        </div>
+        <div class="sec">Session activity</div>
+        <div class="group">
+          <div class="item cap">When a session starts working or finishes, its ring marks it. A meter set to On hover opens for a moment so you can see it.</div>
+        </div>
+        <div class="sec">Usage warnings</div>
+        <div class="group">
+          <div class="item"><span class="hint">Ring and bar colours change at your Watch and Critical thresholds, and turn red at 90% used.</span><button class="btn" id="btn-thresholds">Thresholds</button></div>
+        </div>
+      </section>
+
+      <section class="pane" id="pane-costs" role="tabpanel" aria-labelledby="tab-costs" hidden>
+        <div id="activity-root" data-dynamic></div>
       </section>
 
       <section class="pane" id="pane-general" role="tabpanel" aria-labelledby="tab-general" hidden>
@@ -879,8 +928,14 @@ const STATUS_TEXT = {
   ko:{ ok:'', stale:'마지막 측정값이 오래되었습니다', needsAuth:'로그인되지 않음', absent:'설치되지 않음', none:'보고할 내용 없음', error:'연결할 수 없음' },
   uk:{ ok:'', stale:'останній показник застарів', needsAuth:'не виконано вхід', absent:'не встановлено', none:'немає даних', error:'недоступний' }
 };
+/* Strings added for parity take the Mac catalog's translations where it has them, and English otherwise.
+   The existing Windows tables win on any key they share. */
+for(const [lang, table] of Object.entries(window.MatraParityI18n || {})){
+  if(STATIC_TEXT[lang]) STATIC_TEXT[lang] = Object.assign({}, table, STATIC_TEXT[lang]);
+}
 let uiLang = 'en';
 function ui(key, fallback){ const table = STATIC_TEXT[uiLang]; return window.matraCopy(key, (table && table[key]) || fallback, uiLang); }
+window.matraUi = (key, fallback) => ui(key, fallback === undefined ? key : fallback);
 /* Text the scripts draw is skipped here: renderers set it through ui() themselves. */
 function applyStaticUi(){
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -969,8 +1024,8 @@ function loadLook(){
 dark.addEventListener('change', applyAccent);
 
 /* ---- the sidebar -------------------------------------------------------- */
-const TABS = ['accounts', 'appearance', 'general'];
-const TITLES = { accounts:'Accounts', appearance:'Appearance', general:'General' };
+const TABS = ['accounts', 'appearance', 'alerts', 'costs', 'general'];
+const TITLES = { accounts:'Accounts', appearance:'Appearance', alerts:'Notifications', costs:'Costs', general:'General' };
 const TAB_KEY = 'matra.settings.pane';
 let curTab = TABS[0];
 function showTab(id, moveFocus){
@@ -988,11 +1043,21 @@ function showTab(id, moveFocus){
   document.getElementById('body').scrollTop = 0;
   try { localStorage.setItem(TAB_KEY, id); } catch(e) { /* not remembered, that is all */ }
   if(moveFocus) document.getElementById('tab-' + id).focus();
+  document.dispatchEvent(new CustomEvent('matra-pane', { detail:id }));
 }
+/* A route in the address wins, so the tray's Activity action can open settings.html#costs. */
 function savedTab(){
+  const routed = location.hash.slice(1);
+  if(TABS.indexOf(routed) >= 0) return routed;
   try { const v = localStorage.getItem(TAB_KEY); return TABS.indexOf(v) >= 0 ? v : TABS[0]; }
   catch(e) { return TABS[0]; }
 }
+window.addEventListener('hashchange', () => { const routed = location.hash.slice(1); if(TABS.indexOf(routed) >= 0) showTab(routed); });
+try { window.__TAURI__.event.listen('settings_route', e => { if(TABS.indexOf(e.payload) >= 0) showTab(e.payload); }); } catch(e) { /* the address still routes */ }
+document.getElementById('btn-thresholds').addEventListener('click', () => {
+  showTab('appearance');
+  document.getElementById('quota-watch').scrollIntoView({ block:'center' });
+});
 document.getElementById('side').addEventListener('click', e => {
   const b = e.target.closest('[role="tab"]');
   if(b) showTab(b.id.slice(4));
@@ -1033,8 +1098,10 @@ invoke('get_extra_usage').then(receiveExtraSettings).catch(()=>{});
 try{window.__TAURI__.event.listen('extra_usage',e=>receiveExtraSettings(e.payload));}catch{}
 let options = [];      // [{id,label,status,used}] from get_tray_options
 let glyphs = {};       // id -> {kind:'svg'|'png'|'appicon', svg, url}
+let parityOptions = []; // optional sources switched on, from the providers module
 function providerList(){
-  return options.length ? options : ORDER.map(id => ({ id, label:FALLBACK_LABEL[id], status:'' }));
+  const base = options.length ? options : ORDER.map(id => ({ id, label:FALLBACK_LABEL[id], status:'' }));
+  return base.concat(parityOptions.filter(p => !base.some(b => b.id === p.id)));
 }
 function statusText(p){
   const words = STATUS_TEXT[uiLang] || STATUS_TEXT.en;
@@ -1048,7 +1115,7 @@ function glyphHtml(p){
 }
 function refreshOptions(){
   call('get_tray_options', undefined, null).then(opts => {
-    if(Array.isArray(opts) && opts.length){ options = opts.filter(o => o && typeof o.id === 'string'); renderAccounts(); }
+    if(Array.isArray(opts) && opts.length){ options = opts.filter(o => o && typeof o.id === 'string'); renderAccounts(); publishSources(); }
   });
 }
 
@@ -1098,6 +1165,13 @@ let agPrefs = { limit:'automatic', model:'gemini' };
 const HOOKS_WHY = 'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends Matra a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.';
 const ONE_STAYS = 'One provider always stays ticked, so the pill is never empty.';
 const NO_RING = 'These have no ring to place. Switch one on and it joins the end of the list above.';
+let ringOrderMode = 'manual';
+window.matraParityChanged = saved => {
+  if(saved.ring_order === ringOrderMode) return;
+  ringOrderMode = saved.ring_order;
+  renderAccounts();
+};
+function publishSources(){ if(window.matraParitySources) window.matraParitySources(providerList()); }
 
 function notchOn(){
   const ids = providerList().map(p => p.id);
@@ -1110,18 +1184,26 @@ function agSelect(key, choices, value){
     + choices.map(([v, t]) => '<option value="' + v + '"' + (v === value ? ' selected' : '') + '>' + esc(ui(t, t)) + '</option>').join('')
     + '</select>';
 }
-function accountBlock(p, isOn, locked){
+/* Moving is only offered where it means something: on, in Manual order, with a neighbour to pass. */
+function moveTools(p, at, count){
+  if(ringOrderMode !== 'manual' || at < 0 || count < 2) return '';
+  const name = esc(p.label || p.id);
+  return '<span class="row-move"><button data-move="' + esc(p.id) + '" data-step="-1" aria-label="' + esc(ui('Move up', 'Move up')) + ' ' + name + '"' + (at === 0 ? ' disabled' : '') + '>&#9650;</button>'
+    + '<button data-move="' + esc(p.id) + '" data-step="1" aria-label="' + esc(ui('Move down', 'Move down')) + ' ' + name + '"' + (at === count - 1 ? ' disabled' : '') + '>&#9660;</button></span>';
+}
+function accountBlock(p, isOn, locked, at, count){
+  const tools = isOn ? moveTools(p, at, count) : '';
   if(EXTRA_HELP[p.id]){
     const snap=extraUsage[p.id]||{}; const enabled=extraOn(p.id);
-    return '<div class="acct'+(enabled?'':' off')+'"><div class="acct-line"><span class="acct-name">'+glyphHtml(p)+'<span>'+esc(p.label||p.id)+'</span></span>'
-      +'<button class="switch'+(enabled?' on':'')+'" data-extra="'+p.id+'" role="switch" aria-checked="'+enabled+'" aria-label="Enable '+esc(p.label||p.id)+'"'+(extraBusy.has(p.id)?' disabled':'')+'></button></div>'
+    return '<div class="acct'+(enabled?'':' off')+'"><div class="acct-line"><span class="acct-name">'+glyphHtml(p)+'<span>'+esc(p.label||p.id)+'</span></span><span class="acct-tools">'+tools
+      +'<button class="switch'+(enabled?' on':'')+'" data-extra="'+p.id+'" role="switch" aria-checked="'+enabled+'" aria-label="Enable '+esc(p.label||p.id)+'"'+(extraBusy.has(p.id)?' disabled':'')+'></button></span></div>'
       +'<div class="acct-detail">'+esc(EXTRA_HELP[p.id])+'</div><div class="acct-detail">'+esc(enabled?(snap.note||statusText({status:snap.status})):'Off. No credentials read and no usage requests sent.')+'</div></div>';
   }
   const st = statusText(p);
   let h = '<div class="acct' + (isOn ? '' : ' off') + '">'
-    + '<div class="acct-line"><span class="acct-name">' + glyphHtml(p) + '<span>' + esc(p.label || p.id) + '</span></span>'
+    + '<div class="acct-line"><span class="acct-name">' + glyphHtml(p) + '<span>' + esc(p.label || p.id) + '</span></span><span class="acct-tools">' + tools
     + '<button class="switch' + (isOn ? ' on' : '') + (locked ? ' locked' : '') + '" role="switch" aria-checked="' + isOn + '"'
-    + ' data-np="' + esc(p.id) + '" aria-label="' + esc(p.label || p.id) + '"></button></div>';
+    + ' data-np="' + esc(p.id) + '" aria-label="' + esc(p.label || p.id) + '"></button></span></div>';
   if(st) h += '<div class="acct-detail">' + esc(st) + '</div>';
   if(p.id === 'gemini' && isOn){
     h += '<div class="acct-sub"><span>' + esc(ui('Notch reads', 'Notch reads')) + '</span>' + agSelect('limit', AG_LIMITS, agPrefs.limit) + '</div>'
@@ -1138,9 +1220,10 @@ function accountBlock(p, isOn, locked){
 function renderAccounts(){
   const list = providerList();
   const onIds = notchOn().map(sl => sl.provider);
-  const connected = list.filter(p => EXTRA_HELP[p.id]?extraOn(p.id):onIds.indexOf(p.id) >= 0);
+  // The list reads in ring order, so what is on screen is the order the meter draws in Manual.
+  const connected = window.MatraParity.arrange(list.filter(p => EXTRA_HELP[p.id]?extraOn(p.id):onIds.indexOf(p.id) >= 0), onIds, p => p.id);
   const off = list.filter(p => EXTRA_HELP[p.id]?!extraOn(p.id):onIds.indexOf(p.id) < 0);
-  document.getElementById('acc-on').innerHTML = connected.map(p => accountBlock(p, true, connected.length === 1)).join('')
+  document.getElementById('acc-on').innerHTML = connected.map((p, i) => accountBlock(p, true, connected.length === 1, i, connected.length)).join('')
     + '<div class="item cap">' + esc(ui(ONE_STAYS, ONE_STAYS)) + '</div>';
   document.getElementById('acc-off-wrap').hidden = !off.length;
   document.getElementById('acc-off').innerHTML = off.map(p => accountBlock(p, false, false)).join('')
@@ -1148,7 +1231,9 @@ function renderAccounts(){
 }
 function saveNotch(next){
   const ids = providerList().map(p => p.id);
-  const store = next.length === ids.length ? [] : next;
+  // Every provider in its default place is stored as the empty list, so a later provider turns up by
+  // itself. A chosen order has to be written out, or there would be nothing to remember it by.
+  const store = window.MatraParity.storeSlots(next.map(sl => sl.provider), ids).map(provider => ({ provider }));
   const prev = notchSlots;
   notchSlots = store;
   renderAccounts();
@@ -1165,13 +1250,18 @@ function toggleNotch(id){
     if(on.length <= 1){ toast(ui('At least one provider stays on the notch', 'At least one provider stays on the notch')); return; }
     on.splice(at, 1);
   } else {
-    on.push({ provider:id });
+    on.push({ provider:id }); // joins the end, as on the Mac: never a surprise, and one move to fix
   }
-  on.sort((a, b) => ids.indexOf(a.provider) - ids.indexOf(b.provider));
   saveNotch(on);
+}
+function moveRing(id, step){
+  const on = notchOn().map(sl => sl.provider);
+  saveNotch(window.MatraParity.moved(on, id, step).map(provider => ({ provider })));
 }
 const accountsPane = document.getElementById('pane-accounts');
 accountsPane.addEventListener('click', e => {
+  const mv = e.target.closest('[data-move]');
+  if(mv){ moveRing(mv.dataset.move, Number(mv.dataset.step)); return; }
   const np = e.target.closest('[data-np]');
   if(np){ toggleNotch(np.dataset.np); return; }
   if(e.target.closest('[data-remote="hooks"]')) hooks.toggle();
@@ -1222,7 +1312,12 @@ function drawSeg(id, value, disabled){
 }
 function renderFlags(){
   drawSeg('seg-show', showMode());
-  drawSeg('seg-tray', flags.tray ? 'tray' : 'none', flags.notch ? [] : ['none']);
+  // Two-way, and read back from Rust after every attempt. Locked on only while the meter is hidden,
+  // since the tray is then the one way left to reach Mātrā.
+  const tray = document.getElementById('sw-tray');
+  tray.classList.toggle('on', flags.tray);
+  tray.setAttribute('aria-checked', flags.tray ? 'true' : 'false');
+  tray.disabled = flagsBusy || !flags.notch;
   const showWhy = { show:SHOW_WHY, hover:HOVER_WHY, hide:HIDE_WHY }[showMode()];
   document.getElementById('cap-show').textContent = ui(showWhy, showWhy);
   const trayWhy = !flags.notch ? HELD_ON : flags.tray ? TRAY_WHY : NO_TRAY_WHY;
@@ -1257,11 +1352,8 @@ document.getElementById('seg-show').addEventListener('click', e => {
   const notch = b.dataset.v !== 'hide';
   saveFlags(notch, flags.tray, notch ? b.dataset.v === 'hover' : flags.hover);
 });
-document.getElementById('seg-tray').addEventListener('click', e => {
-  const b = e.target.closest('button');
-  if(!b || b.disabled) return;
-  const tray = b.dataset.v === 'tray';
-  if(tray !== flags.tray) saveFlags(flags.notch, tray, flags.hover);
+document.getElementById('sw-tray').addEventListener('click', () => {
+  if(!flagsBusy && flags.notch) saveFlags(flags.notch, !flags.tray, flags.hover);
 });
 // Keep open in the notch's own menu changes the same setting while this window may be open
 try { window.__TAURI__.event.listen('ui_flags', e => { if(!flagsBusy && e.payload){ flags = readFlags(e.payload); renderFlags(); } }); } catch(e) { /* read again next time it opens */ }
@@ -1509,6 +1601,7 @@ function renderAll(){
   drawSwitch(document.getElementById('sw-autostart'), autostart);
   drawSwitch(document.getElementById('sw-move'), moveHandle);
   document.getElementById('title').textContent = ui(TITLES[curTab], TITLES[curTab]);
+  document.dispatchEvent(new CustomEvent('matra-ui-language'));
 }
 function boot(){
   showTab(savedTab());
@@ -1538,6 +1631,50 @@ function boot(){
   moveHandle.refresh();
   hooks.refresh();
 }
+/* The Costs and optional-source modules load after this script, so they are mounted once parsing ends.
+   Each reads real commands on demand. A missing module or command is stated, never filled in. */
+let activityView = null, sourcesView = null;
+function mountModules(){
+  const bridge = { invoke, ui:window.matraUi };
+  const costs = document.getElementById('activity-root');
+  if(window.MatraActivity) activityView = window.MatraActivity.mount(costs, bridge);
+  else costs.innerHTML = '<div class="group"><div class="item cap">' + esc(ui('Activity is unavailable in this build.', 'Activity is unavailable in this build.')) + '</div></div>';
+  const sources = document.getElementById('parity-sources');
+  if(window.MatraProviders){
+    const listen = window.__TAURI__ && window.__TAURI__.event ? window.__TAURI__.event.listen : null;
+    sourcesView = window.MatraProviders.mount(sources, Object.assign({ listen, onChange:receiveSources }, bridge));
+    sourcesView.load();
+  } else {
+    sources.innerHTML = '<div class="sec">' + esc(ui('Other sources', 'Other sources')) + '</div><div class="group"><div class="item cap">' + esc(ui('Other sources are unavailable in this build.', 'Other sources are unavailable in this build.')) + '</div></div>';
+  }
+  if(curTab === 'costs' && activityView) activityView.show();
+}
+/* A source switched on takes a place on the meter. An empty slot list already means every provider, so
+   only an explicit list has to be told. A source switched off gives its place back. */
+function receiveSources(state){
+  const fixed = (state.registry || []).filter(s => s.enabled).map(s => ({ id:s.id, label:s.name, status:'' }));
+  const custom = (state.endpoints || []).filter(e => e.is_enabled).map(e => ({ id:'custom:' + e.id, label:e.name, status:'' }));
+  const next = fixed.concat(custom);
+  const wasOn = parityOptions.map(p => p.id), isOn = next.map(p => p.id);
+  parityOptions = next;
+  if(sourcesView && sourcesView.synced && notchSlots.length){
+    const added = isOn.filter(id => wasOn.indexOf(id) < 0), removed = wasOn.filter(id => isOn.indexOf(id) < 0);
+    if(added.length || removed.length){
+      const keep = notchSlots.map(sl => sl.provider).filter(id => removed.indexOf(id) < 0).concat(added.filter(id => !notchSlots.some(sl => sl.provider === id)));
+      notchSlots = keep.map(provider => ({ provider }));
+      invoke('set_notch_slots', { slots:notchSlots }).catch(e => strip('set_notch_slots failed: ' + errText(e)));
+    }
+  }
+  if(sourcesView) sourcesView.synced = true;
+  renderAccounts();
+  publishSources();
+}
+document.addEventListener('matra-pane', e => { if(e.detail === 'costs' && activityView) activityView.show(); });
+document.addEventListener('matra-ui-language', () => {
+  if(activityView) activityView.render();
+  if(sourcesView) sourcesView.render();
+});
+document.addEventListener('DOMContentLoaded', () => { mountModules(); publishSources(); });
 /* Readings and the accent can change while the window is behind something else; coming back to it is
    when the old values are wrong, so that is when they are read again. */
 window.addEventListener('focus', () => {

@@ -6,6 +6,7 @@ public enum CustomEndpointUsagePreset: String, Codable, CaseIterable, Sendable {
     case newAPI
     case vllm
     case llamaCpp
+    case abacus
 }
 
 enum CustomEndpointSpendPeriod: Equatable {
@@ -15,8 +16,38 @@ enum CustomEndpointSpendPeriod: Equatable {
 
 enum CustomEndpointPresetReading: Equatable {
     case tokens(Int)
+    case llamaCpp(LlamaCppMetricsReading)
     case spendUSD(Double, period: CustomEndpointSpendPeriod)
     case quota(used: Int, granted: Int?)
+    /// Abacus.AI subscription credits: what is left, the plan's monthly
+    /// allowance, and everything available this cycle (allowance plus any
+    /// credits bought on top).
+    case credits(left: Double, monthly: Double, total: Double)
+}
+
+/// Server-wide measurements, not per-agent or per-response timings.
+struct LlamaCppMetricsReading: Equatable {
+    let totalTokens: Int
+    let generationTokensPerSecond: Double?
+    let activeRequests: Int?
+    let queuedRequests: Int?
+
+    var speedText: String {
+        guard let rate = generationTokensPerSecond else { return "— tok/s" }
+        if rate > 0 && rate < 0.1 { return "<0.1 tok/s" }
+        return "\(rate.formatted(.number.notation(.compactName).precision(.fractionLength(0...1)))) tok/s"
+    }
+
+    /// Under the ring: whole tokens, the same shape as `LocalModelPerformance.headlineText`,
+    /// so the label scales less than the one-decimal `speedText` the tooltip row keeps.
+    var headlineText: String {
+        guard let rate = generationTokensPerSecond else { return "— tok/s" }
+        if rate > 0 && rate < 1 { return "<1 tok/s" }
+        let rounded = rate.rounded()
+        guard rounded >= 1000 else { return "\(Int(rounded)) tok/s" }
+        let value = rounded.formatted(.number.notation(.compactName).precision(.significantDigits(1...2)))
+        return "\(value) t/s"
+    }
 }
 
 enum CustomEndpointFileImportError: LocalizedError, Equatable {
@@ -168,6 +199,14 @@ enum CustomEndpointPresetUsage {
                 return nil
             }
             components.percentEncodedPath = "/api/v1/key"
+        } else if preset == .abacus {
+            // Only Abacus's own RouteLLM host carries the credits endpoint; never
+            // send an Abacus-shaped request to anything else.
+            guard scheme == "https", host.lowercased() == "routellm.abacus.ai",
+                  components.port == nil else {
+                return nil
+            }
+            components.percentEncodedPath = "/api/v0/_getOrganizationComputePoints"
         } else {
             var path = components.percentEncodedPath
             while path.hasSuffix("/") { path.removeLast() }
@@ -181,7 +220,7 @@ enum CustomEndpointPresetUsage {
             case .litellm: suffix = "/key/info"
             case .newAPI: suffix = "/api/usage/token"
             case .vllm, .llamaCpp: suffix = "/metrics"
-            case .openRouter: return nil
+            case .openRouter, .abacus: return nil
             }
             components.percentEncodedPath = path + suffix
         }
@@ -207,8 +246,45 @@ enum CustomEndpointPresetUsage {
         case .vllm:
             return parseCounters(data, prompt: "vllm:prompt_tokens_total", completion: "vllm:generation_tokens_total")
         case .llamaCpp:
-            return parseCounters(data, prompt: "llamacpp:prompt_tokens_total", completion: "llamacpp:tokens_predicted_total")
+            guard let counters = parseCounters(data, prompt: "llamacpp:prompt_tokens_total",
+                                               completion: "llamacpp:tokens_predicted_total"),
+                  case .tokens(let total) = counters else { return nil }
+            return .llamaCpp(LlamaCppMetricsReading(totalTokens: total,
+                generationTokensPerSecond: gauge(data, name: "llamacpp:predicted_tokens_seconds"),
+                activeRequests: gauge(data, name: "llamacpp:requests_processing").flatMap { Int(exactly: $0) },
+                queuedRequests: gauge(data, name: "llamacpp:requests_deferred").flatMap { Int(exactly: $0) }))
+        case .abacus:
+            guard let value = try? JSONDecoder().decode(AbacusCreditsResponse.self, from: data),
+                  value.success else { return nil }
+            let r = value.result
+            let users = max(1.0, r.userCount ?? 1)
+            let monthly = r.normalMonthlyCredits * users
+            guard r.computePointsLeft.isFinite, r.computePointsLeft >= 0,
+                  monthly.isFinite, monthly > 0,
+                  r.totalComputePoints.isFinite, r.totalComputePoints >= 0 else { return nil }
+            return .credits(left: r.computePointsLeft, monthly: monthly,
+                            total: max(r.totalComputePoints, monthly))
         }
+    }
+
+    private struct AbacusCreditsResponse: Decodable {
+        struct Result: Decodable {
+            let computePointsLeft: Double
+            let totalComputePoints: Double
+            let normalMonthlyCredits: Double
+            let userCount: Double?
+        }
+        let success: Bool
+        let result: Result
+    }
+
+    /// 934 -> "934", 19_065 -> "19.1K", 20_000 -> "20K".
+    static func formatCredits(_ value: Double) -> String {
+        let v = max(0, value)
+        if v < 1_000 { return String(format: "%.0f", v.rounded()) }
+        let k = (v / 100).rounded() / 10
+        return k.truncatingRemainder(dividingBy: 1) == 0
+            ? String(format: "%.0fK", k) : String(format: "%.1fK", k)
     }
 
     private struct LiteLLMResponse: Decodable {
@@ -250,18 +326,42 @@ enum CustomEndpointPresetUsage {
     }
 
     private static func parseCounters(_ data: Data, prompt: String, completion: String) -> CustomEndpointPresetReading? {
-        guard let text = String(data: data, encoding: .utf8) else { return nil }
+        guard let samples = metricSamples(data, names: [prompt, completion]) else { return nil }
         var totals: [String: Int] = [:]
+        for (name, values) in samples {
+            for sample in values {
+                guard let value = integerSample(sample) else { return nil }
+                let (sum, overflow) = totals[name, default: 0].addingReportingOverflow(value)
+                guard !overflow else { return nil }
+                totals[name] = sum
+            }
+        }
+        guard let first = totals[prompt], let second = totals[completion] else { return nil }
+        let (sum, overflow) = first.addingReportingOverflow(second)
+        return overflow ? nil : .tokens(sum)
+    }
+
+    private static func gauge(_ data: Data, name: String) -> Double? {
+        // An average cannot be summed across labelled series. Ambiguous or
+        // invalid gauges are unavailable, while valid token totals survive.
+        guard let samples = metricSamples(data, names: [name])?[name], samples.count == 1,
+              let value = Double(samples[0]), value.isFinite, value >= 0 else { return nil }
+        return value
+    }
+
+    private static func metricSamples(_ data: Data, names: Set<String>) -> [String: [Substring]]? {
+        guard let text = String(data: data, encoding: .utf8) else { return nil }
+        var samples: [String: [Substring]] = [:]
         var series: [String: Set<[Label]>] = [:]
         for rawLine in text.split(whereSeparator: \.isNewline) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if line.isEmpty || line.hasPrefix("#") { continue }
             guard let boundary = line.firstIndex(where: { $0 == "{" || $0.isWhitespace }) else {
-                if line == prompt || line == completion { return nil }
+                if names.contains(line) { return nil }
                 continue
             }
             let name = String(line[..<boundary])
-            guard name == prompt || name == completion else { continue }
+            guard names.contains(name) else { continue }
             var remainder = line[boundary...]
             var labels: [Label] = []
             if remainder.first == "{" {
@@ -275,16 +375,11 @@ enum CustomEndpointPresetUsage {
             guard remainder.first?.isWhitespace == true else { return nil }
             let fields = remainder.split(whereSeparator: \.isWhitespace)
             guard fields.count == 1 || fields.count == 2,
-                  let value = integerSample(fields[0]),
                   fields.count == 1 || (Double(fields[1]).map { $0.isFinite } == true),
                   series[name, default: []].insert(labels).inserted else { return nil }
-            let (sum, overflow) = totals[name, default: 0].addingReportingOverflow(value)
-            guard !overflow else { return nil }
-            totals[name] = sum
+            samples[name, default: []].append(fields[0])
         }
-        guard let first = totals[prompt], let second = totals[completion] else { return nil }
-        let (sum, overflow) = first.addingReportingOverflow(second)
-        return overflow ? nil : .tokens(sum)
+        return samples
     }
 
     private static func integerSample(_ sample: Substring) -> Int? {

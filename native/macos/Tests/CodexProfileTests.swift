@@ -4,7 +4,7 @@ import XCTest
 
 final class CodexProfileTests: XCTestCase {
     private func home(_ layout: [String: [String]] = [:]) throws -> URL {
-        let root = FileManager.default.temporaryDirectory
+        let root = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("CodexProfileTests.\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         for (directory, files) in layout {

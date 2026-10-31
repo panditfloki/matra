@@ -5,7 +5,7 @@ import XCTest
 /// `kilo` entry may ever be claimed, and only its access token or API key.
 final class KiloCredentialsTests: XCTestCase {
     private func file(_ text: String) throws -> URL {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        let url = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("kilo-auth-\(UUID().uuidString).json")
         try text.data(using: .utf8)!.write(to: url)
         return url

@@ -267,7 +267,7 @@ final class KiroLimitsTests: XCTestCase {
     /// Closing checkpoints the WAL, so the file reads back the way it would
     /// after kiro-cli has quit.
     private func makeDatabase(tokenJSON: String, profileJSON: String) throws -> URL {
-        let url = FileManager.default.temporaryDirectory
+        let url = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("kiro-\(UUID().uuidString).sqlite3")
         var db: OpaquePointer?
         XCTAssertEqual(sqlite3_open(url.path, &db), SQLITE_OK)

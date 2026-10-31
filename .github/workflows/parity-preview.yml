@@ -1,0 +1,86 @@
+name: Windows Preview 1.9
+
+on:
+  push:
+    branches: [preview/matra-1.9.0]
+  workflow_dispatch:
+
+jobs:
+  package:
+    permissions:
+      contents: read
+    runs-on: windows-latest
+    timeout-minutes: 50
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          cache-on-failure: true
+      - name: Test UI scripts and preference contracts
+        run: |
+          $scripts = @('scripts/check-ui-scripts.mjs', 'scripts/test-claude-auth-ui.cjs', 'scripts/test-ko-i18n.cjs', 'scripts/test-matra-copy.cjs', 'scripts/test-matra-interactions.cjs', 'scripts/test-matra-appearance.cjs', 'scripts/test-matra-quota.cjs', 'scripts/test-parity-ui.cjs', 'test-codex-headline.cjs', 'test-codex-details.cjs', 'scripts/test-installer-contract.cjs')
+          foreach ($script in $scripts) {
+            node $script
+            if ($LASTEXITCODE -ne 0) { throw "UI regression failed: $script" }
+          }
+      - name: Test native Windows code
+        env:
+          MATRA_TEST_WORKSPACE: ${{ github.workspace }}/native/target/parity-tests
+        run: cargo test --release --locked
+      - name: Build the hook
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --release --locked -p matra-hook --target-dir target/hook
+      - name: Build the installer
+        working-directory: native/matra
+        run: npx --yes @tauri-apps/cli@2.11.4 build --config tauri.bundle.conf.json -- --locked
+      - name: Give the installer a stable name
+        run: |
+          node scripts/test-installer-contract.cjs target/release/nsis/x64/installer.nsi
+          if ($LASTEXITCODE -ne 0) { throw 'Generated installer contract failed.' }
+          $setup = @(Get-ChildItem target/release/bundle/nsis/*-setup.exe)
+          if ($setup.Count -ne 1) { throw "Expected one installer, found $($setup.Count)." }
+          Copy-Item $setup[0].FullName Matra-Setup.exe
+      - name: Download verified public upgrade baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Retry transport failures only; checksum validation below is mandatory.
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            gh release download v1.8.5 --repo panditfloki/matra --pattern Matra-Setup.exe --pattern SHA256SUMS.txt --dir target/baseline --clobber
+            if ($LASTEXITCODE -eq 0) { break }
+            if ($attempt -lt 3) { Start-Sleep -Seconds (2 * $attempt) }
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Could not download the public upgrade baseline.' }
+          $expected = ((Get-Content target/baseline/SHA256SUMS.txt | Where-Object { $_ -match 'Matra-Setup.exe$' }) -split '\s+')[0]
+          if ($expected -notmatch '^[0-9a-fA-F]{64}$') { throw 'Invalid baseline checksum file.' }
+          if ((Get-FileHash target/baseline/Matra-Setup.exe -Algorithm SHA256).Hash -ne $expected) { throw 'Baseline checksum mismatch.' }
+      - name: Fresh install, real WebView2, upgrade and uninstall
+        run: ../scripts/test-windows-installer.ps1 -Installer (Resolve-Path Matra-Setup.exe) -PreviousInstaller (Resolve-Path target/baseline/Matra-Setup.exe)
+      - name: Checksum the tested installer
+        run: |
+          $hash = (Get-FileHash Matra-Setup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Matra-Setup.exe" | Set-Content SHA256SUMS.txt -Encoding utf8NoBOM
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Matra-Windows-evidence-${{ github.sha }}
+          # Only the exact fixture screenshot glob below, never other hidden data.
+          include-hidden-files: true
+          path: |
+            .desktop-test/windows-185-*.png
+            .desktop-test/windows-190-*.png
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Matra-Windows-Preview-${{ github.sha }}
+          path: |
+            native/Matra-Setup.exe
+            native/SHA256SUMS.txt
+          if-no-files-found: error

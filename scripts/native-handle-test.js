@@ -71,17 +71,20 @@ function assertHandles(value, context) {
   }
   const visible = (state,expected,label) => assert.deepEqual(state.controls.map(control=>control.visible),expected,`${context}: ${label}`);
   for(const name of ['idle','center','near','away']) {
-    visible(s[name],[false,false],`${name} hides both controls`);
-    assert.ok(s[name].controls.every(control=>control.pointer==='none'),`${context}: ${name} has no hidden pointer targets`);
-    assert.equal(s[name].hot.length,1,`${context}: ${name} reports capsule only`);
+    visible(s[name],[false,true],`${name} keeps the drag grip visible`);
+    assert.equal(s[name].controls[0].pointer,'none',`${context}: hidden settings does not intercept clicks`);
+    assert.equal(s[name].controls[1].pointer,'auto',`${context}: visible grip remains clickable`);
+    assert.equal(s[name].hot.length,3,`${context}: ${name} reports capsule, grip and travel lane`);
   }
   assert.equal(s.center.intent,null);assert.equal(s.near.intent,null);assert.equal(s.away.intent,null);
-  for(const name of ['far','firstGap','orb','secondGap','grip']) {
+  for(const name of ['far','firstGap','orb','grip']) {
     visible(s[name],[true,true],`${name} reveals the pair together`);
     assert.equal(s[name].hot.length,5,`${context}: ${name} reports capsule, both controls and their travel lanes`);
   }
   assert.equal(s.far.intent,'orb');assert.equal(s.firstGap.intent,'orb');assert.equal(s.orb.intent,'orb');
-  assert.equal(s.secondGap.intent,'move');assert.equal(s.grip.intent,'move');
+  visible(s.secondGap,[false,true],'the grip remains visible across its travel gap');
+  assert.equal(s.secondGap.hot.length,3);
+  assert.equal(s.grip.intent,'move');
   const hot=s.far.hot, hit=(x,y,rects=hot)=>rects.some(r=>x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3]);
   const physical = r=>[r.left*dpr,r.top*dpr,r.width*dpr,r.height*dpr];
   for(const r of [o,m])assert.ok(hot.some(h=>h.every((n,i)=>Math.abs(n-physical(r)[i])<.75)),`${context}: rendered control is reported in physical pixels`);

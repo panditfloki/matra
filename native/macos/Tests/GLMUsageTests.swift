@@ -192,7 +192,7 @@ final class GLMCredentialsTests: XCTestCase {
     private var scratch: URL!
 
     override func setUpWithError() throws {
-        scratch = FileManager.default.temporaryDirectory
+        scratch = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("GLMCredentialsTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
     }
@@ -298,7 +298,7 @@ final class GLMCredentialsTests: XCTestCase {
     }
 
     func testReadsAZCodeStartPlanKey() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("zcode-\(UUID().uuidString).json")
+        let url = MatraTestFiles.temporaryDirectory.appendingPathComponent("zcode-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         try """
         { "provider": { "builtin:zai-start-plan": {

@@ -4,37 +4,32 @@ import XCTest
 final class ResetCopyTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_700_000_000)
 
-    func testRelativeUnderAnHour() {
+    func testRemainingUnderAnHour() {
         XCTAssertEqual(
-            ResetCopy.text(for: now.addingTimeInterval(51 * 60), now: now),
+            ResetCopy.text(for: now.addingTimeInterval(51 * 60), now: now, format: .remaining),
             "Resets in 51 min"
         )
     }
 
     func testRoundsToTheNearestMinute() {
         XCTAssertEqual(
-            ResetCopy.text(for: now.addingTimeInterval(50 * 60 + 20), now: now),
+            ResetCopy.text(for: now.addingTimeInterval(50 * 60 + 20), now: now, format: .remaining),
             "Resets in 50 min"
         )
         XCTAssertEqual(
-            ResetCopy.text(for: now.addingTimeInterval(50 * 60 + 40), now: now),
+            ResetCopy.text(for: now.addingTimeInterval(50 * 60 + 40), now: now, format: .remaining),
             "Resets in 51 min"
         )
     }
 
-    /// The edge the whole rule turns on: at 60 minutes it stops counting down
-    /// and names a time instead, so "Resets in 60 min" never appears.
-    func testSwitchesToAbsoluteAtSixtyMinutes() {
-        let atTheEdge = ResetCopy.text(for: now.addingTimeInterval(60 * 60), now: now)
-        XCTAssertFalse(atTheEdge.contains("min"))
-        XCTAssertTrue(atTheEdge.hasPrefix("Resets "))
-
-        let justUnder = ResetCopy.text(for: now.addingTimeInterval(59 * 60 + 20), now: now)
-        XCTAssertEqual(justUnder, "Resets in 59 min")
-
-        // 59m40s rounds to 60, which must not print as "60 min" either.
-        let rounding = ResetCopy.text(for: now.addingTimeInterval(59 * 60 + 40), now: now)
-        XCTAssertFalse(rounding.contains("min"))
+    /// Choosing a date must keep showing it even in the last hour. The prior
+    /// automatic formatter silently switched this setting back to a countdown.
+    func testResetDateRemainsAbsoluteInsideAndOutsideAnHour() {
+        for seconds: TimeInterval in [1, 59 * 60 + 20, 59 * 60 + 40, 60 * 60] {
+            let text = ResetCopy.text(for: now.addingTimeInterval(seconds), now: now)
+            XCTAssertFalse(text.contains("Resets in"), text)
+            XCTAssertTrue(text.contains(":"), "missing clock time: \(text)")
+        }
     }
 
     /// The frame writes "Resets Thu 12:00 AM"; a localised template gives
@@ -158,14 +153,12 @@ final class ResetCopyTests: XCTestCase {
     }
 }
 
-/// A weekday only identifies a day inside the coming week. Codex's monthly
-/// window resets nearly four weeks out, and "Resets Mon 3:55 PM" read as *this*
-/// Monday — which is what made the app appear to disagree with Codex's own
-/// "Resets Sep 28".
+/// Date mode identifies the actual local reset date for session, weekly and
+/// monthly allowances, including windows close to midnight and New Year.
 final class ResetCopyDistantDateTests: XCTestCase {
     private var calendar: Calendar = {
         var c = Calendar(identifier: .gregorian)
-        c.timeZone = TimeZone(identifier: "Asia/Bangkok")!
+        c.timeZone = TimeZone(identifier: "Asia/Kolkata")!
         return c
     }()
 
@@ -176,38 +169,54 @@ final class ResetCopyDistantDateTests: XCTestCase {
         return f.date(from: iso)!
     }
 
-    /// The reported case: 1 Sep to 28 Sep.
     func testAMonthAwayShowsTheDateNotAWeekday() {
-        let text = ResetCopy.text(for: date("2026-09-28T15:55:00+07:00"),
-                                  now: date("2026-09-01T23:30:00+07:00"),
+        let text = ResetCopy.text(for: date("2026-09-28T15:55:00+05:30"),
+                                  now: date("2026-09-01T23:30:00+05:30"),
                                   calendar: calendar)
         XCTAssertTrue(text.contains("28"), "the day of the month is missing: \(text)")
         XCTAssertFalse(text.contains("Mon"), "a date four weeks out still reads as a weekday")
-        XCTAssertFalse(text.contains("PM"), "a time four weeks out is noise")
+        XCTAssertTrue(text.contains("3:55"), "the reset clock time is missing: \(text)")
     }
 
-    /// Inside the week a weekday is the friendlier answer, and unambiguous.
-    func testWithinTheWeekKeepsTheWeekdayAndTime() {
-        let text = ResetCopy.text(for: date("2026-09-04T12:00:00+07:00"),
-                                  now: date("2026-09-01T23:30:00+07:00"),
-                                  calendar: calendar)
-        XCTAssertTrue(text.contains("12:00"), "expected a time: \(text)")
+    func testWithinTheWeekShowsTheDateAndTimeInIndia() {
+        let text = ResetCopy.text(for: date("2026-10-05T03:30:00+05:30"),
+                                  now: date("2026-10-04T16:25:00+05:30"),
+                                  calendar: calendar, locale: Locale(identifier: "en_IN"))
+        XCTAssertTrue(text.contains("5 Oct"), "expected the calendar date: \(text)")
+        XCTAssertTrue(text.contains("3:30"), "expected the local time: \(text)")
+        XCTAssertFalse(text.contains("Mon"), "a weekday alone does not identify the date")
     }
 
-    /// Seven days out is the same weekday name as today — the first genuinely
-    /// ambiguous distance, so it is where the date form starts.
-    func testSevenDaysIsAlreadyTooFarForAWeekday() {
-        let text = ResetCopy.text(for: date("2026-09-08T12:00:00+07:00"),
-                                  now: date("2026-09-01T12:00:00+07:00"),
+    func testUTCResetIsDisplayedInTheInjectedLocalTimeZone() {
+        let text = ResetCopy.text(for: date("2026-10-04T22:00:00Z"),
+                                  now: date("2026-10-04T16:25:00+05:30"),
+                                  calendar: calendar, locale: Locale(identifier: "en_IN"))
+        XCTAssertTrue(text.contains("5 Oct"), "UTC conversion lost the next local day: \(text)")
+        XCTAssertTrue(text.contains("3:30"), "UTC conversion lost the local reset time: \(text)")
+    }
+
+    func testResetInTheNextYearIncludesItsYear() {
+        let text = ResetCopy.text(for: date("2027-01-01T03:30:00+05:30"),
+                                  now: date("2026-12-31T23:45:00+05:30"),
+                                  calendar: calendar, locale: Locale(identifier: "en_IN"))
+        XCTAssertTrue(text.contains("2027"), "the reset year is missing: \(text)")
+        XCTAssertTrue(text.contains("1 Jan"), "the reset date is missing: \(text)")
+        XCTAssertTrue(text.contains("3:30"), "the reset time is missing: \(text)")
+    }
+
+    func testAWeekAwayStillIncludesTheClockTime() {
+        let text = ResetCopy.text(for: date("2026-09-08T12:00:00+05:30"),
+                                  now: date("2026-09-01T12:00:00+05:30"),
                                   calendar: calendar)
         XCTAssertTrue(text.contains("8"), "expected a date: \(text)")
+        XCTAssertTrue(text.contains("12:00"), "expected a clock time: \(text)")
     }
 
     func testCountsWholeCalendarDaysNotElapsedHours() {
         // 23:30 to 00:30 the next day is one hour, but a different day.
         XCTAssertEqual(
-            ResetCopy.daysApart(from: date("2026-09-01T23:30:00+07:00"),
-                                to: date("2026-09-02T00:30:00+07:00"),
+            ResetCopy.daysApart(from: date("2026-09-01T23:30:00+05:30"),
+                                to: date("2026-09-02T00:30:00+05:30"),
                                 calendar: calendar), 1)
     }
 }

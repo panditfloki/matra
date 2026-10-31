@@ -1,0 +1,112 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mātrā · Project Activity</title><style>
+  /* The Mac's Settings (Sources/Settings/SettingsView.swift) over Windows 11's Mica: a sidebar card
+     darker than the pane, grouped sections with captions as rows, and Windows' own control cues —
+     a soft fill with an accent bar for the selected section, outlined toggles, the system accent.
+     The panel is translucent so Mica shows through; without Mica, body.solid draws the same tones. */
+  :root{
+    --accent:#0a7aff; --on-accent:#ffffff;
+    --text:#f2f2f4; --text2:rgba(235,235,245,.62); --text3:rgba(235,235,245,.38);
+    --pane:rgba(255,255,255,.13); --side:rgba(0,0,0,.40); --group:rgba(255,255,255,.06);
+    --line:rgba(255,255,255,.08); --hi:rgba(255,255,255,.05); --sep:rgba(255,255,255,.08);
+    --seg-bg:rgba(255,255,255,.09); --hover:rgba(255,255,255,.06); --sel-soft:rgba(255,255,255,.08);
+    --btn:rgba(255,255,255,.10); --btn-hover:rgba(255,255,255,.16);
+    --danger-bg:rgba(255,99,99,.14); --danger:#ff8a8a;
+  }
+  @media (prefers-color-scheme: light){
+    :root{
+      --text:#1d1d1f; --text2:rgba(60,60,67,.70); --text3:rgba(60,60,67,.45);
+      --pane:rgba(255,255,255,.50); --side:rgba(0,0,0,.06); --group:rgba(255,255,255,.72);
+      --line:rgba(0,0,0,.07); --hi:rgba(255,255,255,.80); --sep:rgba(0,0,0,.07);
+      --seg-bg:rgba(0,0,0,.06); --hover:rgba(0,0,0,.04); --sel-soft:rgba(0,0,0,.05);
+      --btn:rgba(0,0,0,.05); --btn-hover:rgba(0,0,0,.09);
+      --danger-bg:rgba(196,43,28,.10); --danger:#c42b1c;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:transparent;overflow:hidden;user-select:none}
+  body{font:13.5px/1.35 "Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;color:var(--text)}
+  body.solid{--pane:#3d3d40;--side:#1f2022;--group:#48484b;--hi:transparent;background:#2b2b2e}
+  @media (prefers-color-scheme: light){ body.solid{--pane:#f0f0f2;--side:#e2e2e6;--group:#ffffff;background:#f0f0f2} }
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  button{font:inherit;color:inherit}
+  html[lang="ko"] body{word-break:keep-all}
+  [hidden]{display:none!important}
+
+  #app{display:flex;height:100%;background:var(--pane)}
+
+  /* ---- sidebar: a card inset from the window, as on the Mac ---- */
+  #side{width:196px;margin:4px;border-radius:14px;background:var(--side);border:1px solid var(--line);
+    box-shadow:inset 0 1px 0 var(--hi);display:flex;flex-direction:column;padding:0 8px 8px;flex:none}
+  #side .band{height:48px;flex:none}
+  #side .grow{flex:1}
+  .row{position:relative;display:flex;align-items:center;gap:9px;width:100%;height:32px;padding:0 8px;margin-bottom:2px;
+    border:0;border-radius:8px;background:transparent;text-align:left;font-size:13.5px}
+  .row:hover{background:var(--hover)}
+  .row.sel{background:var(--sel-soft)}
+  .row.sel::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--accent)}
+  .badge{width:20px;height:20px;border-radius:5.5px;display:grid;place-items:center;flex:none}
+  .badge svg{width:12px;height:12px;fill:#fff}
+  .b-blue{background:linear-gradient(#4fa6ff,#0a6cff)}
+  .b-indigo{background:linear-gradient(#8784ff,#5856d6)}
+  .b-gray{background:linear-gradient(#a6a6ab,#727277)}
+  .b-red{background:linear-gradient(#ff6d62,#dd3328)}
+
+  /* ---- pane ---- */
+  #pane{flex:1;display:flex;flex-direction:column;min-width:0}
+  #head{height:52px;display:flex;align-items:center;padding-left:24px;position:relative;flex:none}
+  #head h1{font-size:22px;font-weight:600;margin:0}
+  #close{position:absolute;top:0;right:0;width:46px;height:34px;border:0;background:transparent;color:var(--text2);
+    display:grid;place-items:center;border-top-right-radius:8px}
+  #close svg{width:10px;height:10px;stroke:currentColor;stroke-width:1.2}
+  #close:hover{background:#c42b1c;color:#fff}
+  #strip{margin:0 20px 8px;padding:7px 10px;border-radius:8px;background:var(--danger-bg);color:var(--danger);font-size:12px;overflow-wrap:anywhere}
+  #body{flex:1;overflow:auto;padding:0 20px 20px;scrollbar-width:none}
+  #body::-webkit-scrollbar{display:none}
+
+  .sec{font-size:13.5px;font-weight:600;margin:18px 12px 8px}
+  .pane > .sec:first-child{margin-top:6px}
+  .group{background:var(--group);border:1px solid var(--line);border-radius:10px;box-shadow:inset 0 1px 0 var(--hi)}
+  .group + .group{margin-top:14px}
+  .pane > .group:first-child{margin-top:6px}
+  .group > * + *{border-top:1px solid var(--sep)}
+  .item{padding:9px 12px;min-height:40px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .item.cap{min-height:0;padding:8px 12px;font-size:12px;color:var(--text2);display:block}
+  .item .hint{font-size:12px;color:var(--text2)}
+  .value{color:var(--text2)}
+
+  /* ---- account rows ---- */
+  .acct{padding:9px 12px}
+  .acct-line{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:24px}
+  .acct-name{display:flex;align-items:center;gap:10px;min-width:0}
+  .acct.off .acct-name{color:var(--text2)}
+  .acct.off .glyph{opacity:.5}
+  .acct-detail{margin:4px 0 0 26px;font-size:12px;color:var(--text2)}
+  .acct-sub{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 0 26px;font-size:13px}
+  .glyph{width:16px;height:16px;display:inline-grid;place-items:center;flex:none;color:var(--text)}
+  .glyph svg{width:16px;height:16px;fill:currentColor}
+  .glyph img{width:16px;height:16px;border-radius:4px;display:block}
+  .glyph.letter{font-size:10px;font-weight:700;background:var(--seg-bg);border-radius:4px}
+
+  /* ---- controls: Windows 11 cues in the system accent ---- */
+  .switch{width:40px;height:20px;border-radius:10px;border:1px solid var(--text2);background:transparent;position:relative;flex:none;padding:0}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:6px;background:var(--text2);transition:left .12s}
+  .switch.on{border-color:transparent;background:var(--accent)}
+  .switch.on::after{left:23px;background:var(--on-accent)}
+  .switch:disabled,.switch.locked{opacity:.5}
+  .seg{display:inline-flex;background:var(--seg-bg);border-radius:7px;padding:2px;gap:2px;flex:none}
+  .seg button{border:0;background:transparent;font-size:13px;padding:3px 14px;border-radius:5px}
+  .seg button:hover:not(.on):not(:disabled){background:var(--hover)}
+  .seg button.on{background:var(--accent);color:var(--on-accent)}
+  .seg button:disabled{opacity:.45}
+  .btn{border:0;background:var(--btn);font-size:13px;padding:5px 12px;border-radius:6px;flex:none}
+  .btn:hover{background:var(--btn-hover)}
+  select{font:inherit;font-size:13px;color:var(--text);background:var(--seg-bg);border:0;border-radius:6px;padding:4px 8px}
+  select option{color:#000}
+  .link{border:0;background:none;padding:0;color:var(--accent);cursor:pointer;font-size:12px}
+  .link:hover{text-decoration:underline}
+
+  #toast{position:fixed;right:18px;bottom:14px;background:var(--side);border:1px solid var(--line);border-radius:8px;
+    padding:5px 10px;font-size:12px;color:var(--text2);opacity:0;transition:opacity .3s;pointer-events:none}
+  #toast.show{opacity:1}
+
+body{background:var(--matra-bg);overflow:auto}main{max-width:1140px;margin:0 auto;padding:24px}header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}header h1{margin:0;font-size:24px}header small{color:var(--text2)}#activity-root{padding-bottom:24px}</style><link rel="stylesheet" href="matra-theme.css"><link rel="stylesheet" href="matra-parity.css"><script defer src="matra-theme.js"></script><script defer src="matra-activity.js"></script><script defer src="activity.js"></script></head><body class="solid"><main><header><div><h1>Project Activity</h1><small>Mātrā · local usage and INR estimates</small></div><button class="btn" id="activity-settings">Settings</button></header><section id="activity-root" aria-live="polite"></section></main></body></html>

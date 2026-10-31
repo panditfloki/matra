@@ -102,7 +102,7 @@ final class CommandCodeUsageTests: XCTestCase {
 
 final class CommandCodeCredentialsTests: XCTestCase {
     private func file(_ text: String) throws -> URL {
-        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        let url = URL(fileURLWithPath: MatraTestFiles.temporaryDirectory.path)
             .appendingPathComponent("commandcode-auth-\(UUID().uuidString).json")
         try text.write(to: url, atomically: true, encoding: .utf8)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }

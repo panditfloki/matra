@@ -178,7 +178,7 @@ final class LMStudioViewTests: XCTestCase {
                                                                   session: URLSession(configuration: .ephemeral), token: { nil })],
                                archive: UsageArchive(defaults: defaults), disconnected: ["lmstudio"])
         let metrics = LMStudioMetrics(makeLink: { _ in LMStudioLinkStub() },
-                                      logsDirectory: FileManager.default.temporaryDirectory.appendingPathComponent(domain))
+                                      logsDirectory: MatraTestFiles.temporaryDirectory.appendingPathComponent(domain))
         for enabled in [false, true] {
             preferences.setConnected(enabled, for: "lmstudio")
             store.disconnected = preferences.disconnectedIDs(among: store.knownIDs)

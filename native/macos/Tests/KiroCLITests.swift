@@ -132,7 +132,7 @@ final class KiroCLITests: XCTestCase {
     // MARK: - Fixtures
 
     private func makeTemp() throws -> URL {
-        let root = FileManager.default.temporaryDirectory
+        let root = MatraTestFiles.temporaryDirectory
             .appendingPathComponent("KiroCLITests.\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
