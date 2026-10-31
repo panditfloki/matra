@@ -9,7 +9,7 @@ APP := $(CURDIR)/build/Build/Products/Debug/Matra.app
 BUILD_ARGS := -project $(PROJECT) -scheme $(SCHEME) -destination '$(DEST)' \
 	-configuration Debug -derivedDataPath build \
 	-clonedSourcePackagesDirPath '$(PACKAGE_CACHE)' -onlyUsePackageVersionsFromResolvedFile \
-	CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= CODE_SIGN_STYLE=Automatic
+	CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= CODE_SIGN_STYLE=Automatic ENABLE_HARDENED_RUNTIME=NO
 
 .PHONY: gen build preview-build test preview preview-local preview-live run install
 

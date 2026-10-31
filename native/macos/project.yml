@@ -12,19 +12,19 @@ settings:
     SWIFT_STRICT_CONCURRENCY: minimal
     # Windows visual baseline, local Mac preview build.
     MARKETING_VERSION: "1.9.0"
-    CURRENT_PROJECT_VERSION: "1901"
+    CURRENT_PROJECT_VERSION: "1902"
     # Local ad-hoc signing only. Public notarization is separate release work.
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
     CODE_SIGNING_REQUIRED: "YES"
     CODE_SIGNING_ALLOWED: "YES"
-    # Required by notarization. Worth knowing what it does *not* break here:
-    # the keychain read is unaffected (the ACL keys on the signing identity,
-    # which is unchanged), and reading Cursor's and Codex's SQLite files is
-    # ordinary file access. It is the App Sandbox that would break both, which
-    # is why that stays off — Developer ID distribution does not require it.
-    ENABLE_HARDENED_RUNTIME: "YES"
+    # Ad-hoc signing has no Apple Team ID. Hardened runtime's library validation
+    # rejects the bundled Sparkle framework before main, even when codesign
+    # verifies every signature. Local/test builds must not combine the two.
+    # A future Developer ID archive must explicitly enable hardened runtime and
+    # sign all nested code with that identity before notarization.
+    ENABLE_HARDENED_RUNTIME: "NO"
     ENABLE_APP_SANDBOX: "NO"
     ENABLE_USER_SCRIPT_SANDBOXING: "NO"
 
