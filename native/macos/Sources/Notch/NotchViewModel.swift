@@ -1110,9 +1110,9 @@ final class NotchViewModel: ObservableObject {
     /// Where the grip is, in stack space.
     var gripPoint: CGPoint { CGPoint(x: gripAlong, y: orbInset) }
 
-    /// An expanded notch always offers its move handle. Discovering it must
-    /// not depend on first finding the settings orb's hover target.
-    var showsMoveGrip: Bool { isExpanded }
+    /// Reveal the dots only while the pointer is on the settings/drag handle.
+    /// The controller keeps the hover target available while the dots are hidden.
+    var showsMoveGrip: Bool { isExpanded && (isHoveringSettings || isHoveringMove) }
 
     /// Whether a point in stack space is on the grip — a capsule's worth of
     /// ground round it, generous as the settings button's.

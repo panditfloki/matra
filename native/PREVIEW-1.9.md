@@ -1,6 +1,6 @@
 # Mātrā 1.9 · Mac and Windows preview
 
-This preview brings the latest Mac controls and integrations to the native Windows app. Windows uses the [1.9.0 beta 1 release](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.1). Mac users should install [1.9.0 beta 2](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.2), which fixes a launch-time signing error in the earlier Mac package. The stable release channel stays separate; these betas require manual installation.
+This preview brings the latest Mac controls and integrations to the native Windows app. Windows uses the [1.9.0 beta 1 release](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.1). Mac users should install [1.9.0 beta 3](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.3), which makes the drag dots appear only on handle hover and retains the Beta 2 launch correction. The stable release channel stays separate; these betas require manual installation.
 
 ## Test on a ROG PC
 
@@ -16,9 +16,9 @@ The installer needs Windows 10/11 x64 and WebView2. Windows 11 supplies Mica; ot
 
 ## Test on a Mac
 
-Download `Matra-1.9.0-beta.2-macOS-universal.dmg`. It contains version 1.9.0 (1902), with Apple Silicon and Intel code for macOS 15 or later. Quit an earlier copy, then copy the app into Applications. This test build is ad-hoc signed and not Apple-notarized; macOS may require your review in **System Settings → Privacy & Security**. No system security setting needs to be disabled. See the [Mac launch correction](macos/LAUNCH-HOTFIX-1.9.md).
+Download `Matra-1.9.0-beta.3-macOS-universal.dmg`. It contains version 1.9.0 (1903), with Apple Silicon and Intel code for macOS 15 or later. Quit an earlier copy, then copy the app into Applications. This test build is ad-hoc signed and not Apple-notarized; macOS may require your review in **System Settings → Privacy & Security**. No system security setting needs to be disabled. See the [Mac launch correction](macos/LAUNCH-HOTFIX-1.9.md).
 
-The Mac app includes the existing dashboard, Project Activity, new provider integrations, the two-way menu bar switch and the always-visible expanded-notch grip. The standalone build uses the installed app identity; the earlier development preview remains a separate identity.
+The Mac app includes the existing dashboard, Project Activity, new provider integrations, the two-way menu bar switch and a grip that appears when hovering the settings/drag-handle area. The dots hide when the pointer leaves; drag feedback stays visible while moving the notch. The standalone build uses the installed app identity; the earlier development preview remains a separate identity.
 
 ## Controls and integrations
 

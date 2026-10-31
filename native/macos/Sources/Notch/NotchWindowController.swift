@@ -343,7 +343,7 @@ final class NotchWindowController {
             panel.startsDrag = { [weak self] point in
                 guard let self, let panel = self.panel else { return false }
                 let local = CGPoint(x: point.x, y: panel.frame.height - point.y)
-                return self.gripRevealed && !self.isOverHandle(local) && self.isOverGrip(local)
+                return self.model.isExpanded && !self.isOverHandle(local) && self.isOverGrip(local)
             }
             panel.onDrag = { [weak self] dx, dy in self?.dragged(dx: dx, dy: dy) }
             panel.onDragEnd = { [weak self] in
@@ -1176,8 +1176,9 @@ final class NotchWindowController {
     /// than a box can answer — see `isOverHandle`.
     private var handleRect: CGRect {
         let side = max(model.orbHotZone, NotchLayout.gripHotZone) * model.sizeScale
-        // Use the same visibility as the renderer, including before hover.
-        let grip = gripRevealed ? [model.gripPoint] : []
+        // Keep the activation region while the dots are hidden, so hovering
+        // directly over their position reveals them without a settings detour.
+        let grip = model.isExpanded ? [model.gripPoint] : []
         let boxes = (model.orbHandlePoints + grip).map { point -> CGRect in
             let centre = placement.point(along: model.handleWing.lead + point.x * model.sizeScale,
                                          across: point.y * model.sizeScale)
@@ -1198,8 +1199,6 @@ final class NotchWindowController {
             across: placement.across(of: local) / model.sizeScale
         )
     }
-
-    private var gripRevealed: Bool { model.showsMoveGrip }
 
     /// Whether the pointer is on the grip, asked in the same notch-own
     /// measurements `isOverHandle` uses.
@@ -1396,8 +1395,13 @@ final class NotchWindowController {
     // Not private: tests drive the hover fold through it, the same way they
     // drive the event fold through handleActiveSpaceOrAppChange.
     func cursorMoved() {
-        guard let panel, !isOptionDragging else { return }
-        let local = localCursor(in: panel.frame)
+        guard let panel else { return }
+        cursorMoved(local: localCursor(in: panel.frame))
+    }
+
+    /// The same hover route can be checked without moving the system pointer.
+    func cursorMoved(local: CGPoint) {
+        guard panel != nil, !isOptionDragging else { return }
         let overTooltip = model.hoveredIndex
             .flatMap(tooltipRect(index:))
             .map { model.isExpanded && $0.contains(local) } ?? false
@@ -1418,9 +1422,8 @@ final class NotchWindowController {
         }
 
         var overHandle = model.isExpanded && isOverHandle(local)
-        // Out already, or coming out with the settings button now.
-        let gripOut = gripRevealed || overHandle
-        var overMove = model.isExpanded && gripOut && !overHandle && isOverGrip(local)
+        // Hover discovery must not depend on the dots already being visible.
+        var overMove = model.isExpanded && !overHandle && isOverGrip(local)
         // Just set down by its dots: on them until the pointer moves — see
         // `finishDrag`.
         if let rest = restingOnGrip {

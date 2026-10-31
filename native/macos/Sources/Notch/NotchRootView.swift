@@ -33,8 +33,8 @@ struct NotchRootView: View {
                         .animation(motion(NotchMotion.reading), value: model.readingAcrossTextWidth)
                 }
 
-                // The grip stays visible below settings while the notch is
-                // expanded; hovering only changes its emphasis.
+                // The dots emerge on handle hover and retreat when it ends.
+                // CarriedHandle supplies the feedback during an active drag.
                 MoveGrip(separation: gripOut ? 1 : 0,
                          hover: model.isHoveringMove ? 1 : 0,
                          edge: model.edge,

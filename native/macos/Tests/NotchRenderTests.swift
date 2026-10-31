@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class NotchGripInteractionTests: XCTestCase {
-    func testVisibleGripStartsDraggingWithoutHoverAndSettingsKeepsItsClicks() throws {
+    func testHoverRevealsGripAndSettingsKeepsItsClicks() throws {
         for edge in NotchEdge.allCases {
             for size in NotchSize.allCases {
                 let controller = NotchWindowController()
@@ -14,6 +14,7 @@ final class NotchGripInteractionTests: XCTestCase {
                 m.sizeScale = size.scale
                 m.updateSnapshots(Array(Fixtures.snapshots().prefix(3)))
                 m.isExpanded = true
+                m.isPinned = true
                 controller.relocate()
                 let panel = try XCTUnwrap(controller.panelContentViewForTesting?.window as? NotchPanel)
                 let startsDrag = try XCTUnwrap(panel.startsDrag)
@@ -25,12 +26,25 @@ final class NotchGripInteractionTests: XCTestCase {
                 }
                 XCTAssertFalse(m.isHoveringSettings)
                 XCTAssertFalse(m.isHoveringMove)
+                XCTAssertFalse(m.showsMoveGrip)
                 let grip = point(along: m.gripAlong)
-                XCTAssertTrue(startsDrag(grip), "\(edge)/\(size): grip needs a hidden hover step")
+                controller.cursorMoved(local: CGPoint(x: grip.x, y: panel.frame.height - grip.y))
+                XCTAssertTrue(m.isHoveringMove, "Direct hover must discover the hidden handle")
+                XCTAssertTrue(m.showsMoveGrip)
+                XCTAssertTrue(startsDrag(grip), "\(edge)/\(size): hovered grip cannot start dragging")
                 XCTAssertNotNil(panel.contentView?.hitTest(grip), "The visible grip must receive the press")
                 XCTAssertFalse(startsDrag(point(along: m.orbAlong)))
                 // Both generous hit circles overlap here. Settings must win.
                 XCTAssertFalse(startsDrag(point(along: (m.orbAlong + m.gripAlong) / 2)))
+
+                let settings = point(along: m.orbAlong)
+                controller.cursorMoved(local: CGPoint(x: settings.x, y: panel.frame.height - settings.y))
+                XCTAssertTrue(m.isHoveringSettings)
+                XCTAssertFalse(m.isHoveringMove)
+                XCTAssertTrue(m.showsMoveGrip, "Moving between settings and the grip must keep it revealed")
+                controller.cursorMoved(local: CGPoint(x: -1000, y: -1000))
+                XCTAssertTrue(m.isExpanded, "A pinned notch stays open after pointer exit")
+                XCTAssertFalse(m.showsMoveGrip, "Dots must hide even when the notch stays open")
 
                 m.isExpanded = false
                 XCTAssertFalse(startsDrag(grip), "A folded notch must not intercept grip drags")
@@ -108,13 +122,15 @@ final class NotchRenderTests: XCTestCase {
         return total == 0 ? 0 : Double(inked) / Double(total)
     }
 
-    func testMoveGripIsVisibleWithoutHoverOnEveryEdgeAndSize() throws {
+    func testMoveGripIsHiddenUntilHoverOnEveryEdgeAndSize() throws {
         for edge in NotchEdge.allCases {
             for size in NotchSize.allCases {
                 let m = model(edge: edge)
                 m.sizeScale = size.scale
                 XCTAssertFalse(m.isHoveringSettings)
                 XCTAssertFalse(m.isHoveringMove)
+                let idle = try XCTUnwrap(render(m))
+                m.isHoveringMove = true
                 let rep = try XCTUnwrap(render(m))
                 let centre = m.placement.point(
                     along: m.handleWing.lead + m.gripAlong * m.sizeScale,
@@ -122,8 +138,14 @@ final class NotchRenderTests: XCTestCase {
                 let radius = Int((NotchLayout.gripLength / 2 + 2) * m.sizeScale)
                 var visiblePixels = 0
                 var contrastingPixels = 0
+                var idleContrastingPixels = 0
                 for x in max(0, Int(centre.x) - radius)..<min(rep.pixelsWide, Int(centre.x) + radius) {
                     for y in max(0, Int(centre.y) - radius)..<min(rep.pixelsHigh, Int(centre.y) + radius) {
+                        if let ink = idle.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
+                           ink.alphaComponent > 0.3,
+                           max(ink.redComponent, ink.greenComponent, ink.blueComponent) > 0.5 {
+                            idleContrastingPixels += 1
+                        }
                         guard let ink = rep.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB),
                               ink.alphaComponent > 0.3 else { continue }
                         visiblePixels += 1
@@ -132,7 +154,8 @@ final class NotchRenderTests: XCTestCase {
                         }
                     }
                 }
-                XCTAssertGreaterThan(visiblePixels, 30, "\(edge)/\(size): handle missing before hover")
+                XCTAssertEqual(idleContrastingPixels, 0, "\(edge)/\(size): dots visible without hover")
+                XCTAssertGreaterThan(visiblePixels, 30, "\(edge)/\(size): handle missing on hover")
                 XCTAssertGreaterThan(contrastingPixels, 8, "\(edge)/\(size): dots disappear on a dark desktop")
                 if edge == .right, size == .medium,
                    ProcessInfo.processInfo.environment["MATRA_TEST_WORKSPACE"] != nil {
@@ -156,6 +179,7 @@ final class NotchRenderTests: XCTestCase {
             for reduced in [false, true] {
                 let m = model(edge: .right, cells: 2)
                 m.surfaceStyle = style
+                m.isHoveringMove = true
                 let rep = try XCTUnwrap(render(m, reduceTransparency: reduced))
                 let centre = m.placement.point(along: m.handleWing.lead + m.gripAlong,
                                                 across: m.orbInset)
