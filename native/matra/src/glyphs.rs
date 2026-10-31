@@ -26,15 +26,23 @@ pub struct Glyph {
     pub source: String,
 }
 
-pub const IDS: [&str; 5] = ["claude", "codex", "cursor", "grok", "gemini"];
+pub const IDS: [&str; 12] = ["claude", "codex", "cursor", "grok", "gemini", "grokbot", "higgsfield", "deepseek", "ollama", "lmstudio", "omlx", "llamacpp"];
 
 /// Built-in artwork (@lobehub/icons-static-svg, MIT): the OpenAI mark for codex (matching upstream's glyph choice), the Antigravity mark for gemini
-const BUILTIN: [(&str, &str); 5] = [
+const BUILTIN: [(&str, &str); 12] = [
     ("claude", include_str!("../glyphs/claude.svg")),
     ("codex", include_str!("../glyphs/codex.svg")),
     ("cursor", include_str!("../glyphs/cursor.svg")),
     ("grok", include_str!("../glyphs/grok.svg")),
     ("gemini", include_str!("../glyphs/gemini.svg")),
+    ("grokbot", include_str!("../glyphs/grokbot.svg")),
+    ("higgsfield", include_str!("../glyphs/higgsfield.svg")),
+    ("deepseek", include_str!("../glyphs/deepseek.svg")),
+    ("ollama", include_str!("../glyphs/ollama.svg")),
+    ("lmstudio", include_str!("../glyphs/lmstudio.svg")),
+    ("omlx", include_str!("../glyphs/omlx.svg")),
+    ("llamacpp", include_str!("../glyphs/llamacpp.svg")),
+
 ];
 
 /// Minimal SVG sanitising before inlining into the DOM: drop <script> blocks and on*="…" event
@@ -285,7 +293,7 @@ pub fn collect() -> HashMap<String, Glyph> {
                 found = Some(Glyph {
                     kind: "svg".into(),
                     svg: sanitize_svg(svg),
-                    source: "built-in · @lobehub/icons-static-svg 1.95.0 (MIT)".into(),
+                    source: "built-in · see PROVIDER-NOTICES.txt".into(),
                     ..Default::default()
                 });
             }

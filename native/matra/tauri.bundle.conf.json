@@ -4,7 +4,10 @@
       "../target/hook/release/matra-hook.exe": "matra-hook.exe",
       "../../LICENSE": "LICENSE.txt",
       "../LICENSE": "THIRD-PARTY-NOTICES.txt",
-      "glyphs/NOTICE.md": "PROVIDER-NOTICES.txt"
+      "glyphs/NOTICE.md": "PROVIDER-NOTICES.txt",
+      "resources/LlamaBrand-LICENSE.txt": "LlamaBrand-LICENSE.txt",
+      "resources/LlamaBrand-NOTICE.txt": "LlamaBrand-NOTICE.txt",
+      "resources/ThirdParty-Codenotch-LICENSE.txt": "ThirdParty-Codenotch-LICENSE.txt"
     }
   }
 }

@@ -3,8 +3,10 @@
 mod autostart;
 mod config;
 mod parity;
+mod alerts;
 mod providers_plus;
 mod costs;
+mod opencode_activity;
 mod quota_colors;
 mod doctor;
 mod focus;
@@ -1881,6 +1883,10 @@ fn main() {
             parity::set_parity_settings,
             parity::refresh_on_look,
             parity::open_activity,
+            alerts::get_alert_settings,
+            alerts::set_alert_settings,
+            alerts::get_alert_status,
+            alerts::send_test_alert,
             providers_plus::get_parity_usage,
             providers_plus::get_provider_registry,
             providers_plus::set_parity_provider,
@@ -2013,6 +2019,7 @@ fn main() {
             glm::start(handle.clone());
             extra_providers::start(handle.clone());
             providers_plus::start(handle.clone());
+            alerts::start(handle.clone());
             activity::start(handle.clone());
             // Collecting glyphs may read icon resources out of a few executables; do it off the main thread and push when done
             let gh = handle.clone();

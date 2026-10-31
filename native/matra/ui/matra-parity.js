@@ -6,7 +6,7 @@
   const CLICKS = ['menu', 'refresh', 'activity'];
   const ACTIVITY = ['pulse', 'wave', 'none'];
   const defaults = Object.freeze({
-    shows_remaining: false, ring_order: 'manual', hide_depleted: false, shut_rings_when_spent: false,
+    shows_remaining: false, ring_order: 'manual', hide_depleted: false, shut_rings_when_spent: true,
     shows_notch_readings: true, menu_bar_reading: 'both', menu_bar_click_action: 'menu',
     menu_bar_activity_style: 'pulse', shows_limits_in_tray: false, tray_providers: Object.freeze([])
   });

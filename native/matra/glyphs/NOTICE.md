@@ -22,3 +22,7 @@ they can be swapped for generated glyphs without touching any code.
 
 **Overrides**: a file of the same name (`.svg` or `.png`) in `%APPDATA%\matra\glyphs\` takes
 precedence over the built-in mark; it is picked up after "Refresh usage now" in the tray menu.
+
+## Shared native Mātrā marks
+
+The Windows build also uses the unmodified Grok Bot, Higgsfield, DeepSeek, Ollama, LM Studio, oMLX and llama.cpp assets already shipped with the Mac source. These identify the corresponding providers. See the bundled third-party source license. The llama.cpp mark comes from ggml-org/llama.brand; its attribution and express software-distribution permission are preserved in LlamaBrand-NOTICE.txt and LlamaBrand-LICENSE.txt.

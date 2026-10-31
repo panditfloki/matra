@@ -61,6 +61,10 @@ pub struct CustomEndpoint {
     #[serde(default)]
     pub selected_model: String,
     #[serde(default)]
+    pub open_code_provider_id: Option<String>,
+    #[serde(default)]
+    pub open_code_model_id: Option<String>,
+    #[serde(default)]
     pub available_models: Vec<String>,
     #[serde(default = "default_true")]
     pub is_enabled: bool,
@@ -175,6 +179,9 @@ pub fn validate(mut e: CustomEndpoint) -> Result<CustomEndpoint, String> {
     }
     e.available_models.retain(|m| !m.is_empty() && m.len() <= MAX_MODEL_ID);
     e.available_models.truncate(MAX_MODELS);
+    if ![&e.open_code_provider_id, &e.open_code_model_id].into_iter().all(field_ok) {
+        return Err("OpenCode identifiers must be at most 128 characters.".into());
+    }
     if e.selected_model.len() > MAX_MODEL_ID {
         return Err("That model name is too long.".into());
     }

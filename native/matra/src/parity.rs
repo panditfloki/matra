@@ -22,7 +22,7 @@ impl Default for ParitySettings {
     fn default() -> Self {
         Self {
             shows_remaining: false, ring_order: "manual".into(), hide_depleted: false,
-            shut_rings_when_spent: false, shows_notch_readings: true,
+            shut_rings_when_spent: true, shows_notch_readings: true,
             menu_bar_reading: "both".into(), menu_bar_click_action: "menu".into(),
             menu_bar_activity_style: "pulse".into(), shows_limits_in_tray: false,
             tray_providers: Vec::new(),

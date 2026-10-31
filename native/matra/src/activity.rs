@@ -652,7 +652,8 @@ pub fn start(app: AppHandle) {
                 pres = presence();
             }
             tick = tick.wrapping_add(1);
-            let found = read_all(pres, &mut ctx);
+            let mut found = read_all(pres, &mut ctx);
+            found.extend(crate::opencode_activity::read());
             if found != last {
                 // Log the first 20 state changes (with the Codex raw material) so thresholds can be calibrated
                 static LOGGED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);

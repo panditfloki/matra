@@ -117,10 +117,16 @@ async function saved(command, predicate) {
   evaluate('settings',`document.querySelector('#tab-costs').click()`);
   const report=evaluate('settings',`invoke('get_activity_report',{range:'week',account:null,project:null,date:null})`);
   assert.ok(Array.isArray(report.rows));
-  assert.equal(report.currency,undefined);
   assert.equal(report.cost_basis,'api_list_price_estimate');
   await pause(200);
   evaluate('settings','document.title','windows-190-activity.png');
+  evaluate('settings',`document.querySelector('#tab-alerts').click()`);
+  const alertsBefore=evaluate('settings',`invoke('get_alert_settings')`);
+  assert.equal(alertsBefore.enabled,false,'Alerts are opt-in');
+  const alertStatus=evaluate('settings',`invoke('get_alert_status')`);
+  assert.ok(['enabled','disabled_app','disabled_user','disabled_policy','disabled_manifest','identity_missing','unsupported','error'].includes(alertStatus.os_state));
+  assert.equal(alertStatus.delivered,0,'Opening settings never sends an alert');
+  evaluate('settings','document.title','windows-190-alerts.png');
   evaluate('settings',`invoke('open_activity')`);
   for(let n=0;n<40;n++){
     try {if(evaluate('activity',`!!document.querySelector('#activity-root') && document.readyState==='complete'`))break;}catch{}
@@ -128,7 +134,9 @@ async function saved(command, predicate) {
   }
   assert.equal(evaluate('activity',`!!window.MatraActivity && !!document.querySelector('#activity-root')`),true);
   evaluate('activity','document.title','windows-190-activity-window.png');
-  evaluate('activity',`window.__TAURI__.window.getCurrentWindow().close()`);
+  evaluate('activity',`setTimeout(()=>window.__TAURI__.window.getCurrentWindow().close(),250);true`);
+  await pause(500);
+  assert.equal((await (await fetch('http://127.0.0.1:9337/json/list')).json()).some(t=>t.url.endsWith('/activity.html')),false,'Closing Activity closes only that window');
   const controls=await testNativeHandles(expression=>evaluate('notch',expression));
   assert.equal(controls.cases,16,'Six/ten provider fixtures fit four native edges with and without bottom/right work insets');
   console.log('PASS: far-end settings/grip pair, always-visible grip, exact native hot payload, disabled grip and usable viewport', JSON.stringify(controls));

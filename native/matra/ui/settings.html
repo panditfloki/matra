@@ -127,6 +127,7 @@
 <script defer src="matra-parity-settings.js"></script>
 <script defer src="matra-activity.js"></script>
 <script defer src="matra-providers.js"></script>
+<script defer src="matra-alerts.js"></script>
 </head>
 <body>
 <div id="app">
@@ -254,18 +255,8 @@
       </section>
 
       <section class="pane" id="pane-alerts" role="tabpanel" aria-labelledby="tab-alerts" hidden>
-        <p class="matra-intro">Choose which changes deserve your attention.</p>
-        <div class="group">
-          <div class="item cap">Windows notifications are not available in this build. Mātrā shows changes on the meter itself, as described here.</div>
-        </div>
-        <div class="sec">Session activity</div>
-        <div class="group">
-          <div class="item cap">When a session starts working or finishes, its ring marks it. A meter set to On hover opens for a moment so you can see it.</div>
-        </div>
-        <div class="sec">Usage warnings</div>
-        <div class="group">
-          <div class="item"><span class="hint">Ring and bar colours change at your Watch and Critical thresholds, and turn red at 90% used.</span><button class="btn" id="btn-thresholds">Thresholds</button></div>
-        </div>
+        <div id="alerts-host"></div>
+        <div class="group"><div class="item"><span>Watch and Critical colours</span><button class="btn" id="btn-thresholds">Thresholds</button></div></div>
       </section>
 
       <section class="pane" id="pane-costs" role="tabpanel" aria-labelledby="tab-costs" hidden>
@@ -1636,6 +1627,7 @@ function boot(){
 let activityView = null, sourcesView = null;
 function mountModules(){
   const bridge = { invoke, ui:window.matraUi };
+  window.MatraAlerts.mount(document.getElementById("alerts-host"), { ...bridge, listen:window.__TAURI__.event.listen });
   const costs = document.getElementById('activity-root');
   if(window.MatraActivity) activityView = window.MatraActivity.mount(costs, bridge);
   else costs.innerHTML = '<div class="group"><div class="item cap">' + esc(ui('Activity is unavailable in this build.', 'Activity is unavailable in this build.')) + '</div></div>';

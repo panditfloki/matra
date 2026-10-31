@@ -3,7 +3,7 @@
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const secretArg = (value, remove) => remove ? '' : (String(value || '').trim() || null);
   const defaults = {id:'',name:'',base_url:'',header_key:'Authorization',api_type:'openAICompatible',
-    selected_model:'',available_models:[],is_enabled:true,accent_color_hex:'#6366F1',icon_preset:'openai',
+    selected_model:'',open_code_provider_id:null,open_code_model_id:null,available_models:[],is_enabled:true,accent_color_hex:'#6366F1',icon_preset:'openai',
     usage_source:'manual',usage_preset:null,usage_url:null,usage_records_path:null,usage_model_field:null,
     usage_token_field:null,usage_model_filter:null,usage_authentication:'apiKey',usage_history:[],
     tracking_unit:'currency',monthly_budget_usd:null,current_spend_usd:null,monthly_budget_tokens_m:null,
@@ -48,6 +48,8 @@
         + textField('header_key','API key header',endpoint.header_key) + textField('secret','API key','','password')
         + `<div class="acct-sub"><label><input name="remove_secret" type="checkbox"> Remove saved key</label><span class="hint">Empty keeps the saved key.</span></div>`
         + textField('selected_model','Model',endpoint.selected_model)
+        + textField('open_code_provider_id','OpenCode provider ID',endpoint.open_code_provider_id)
+        + textField('open_code_model_id','OpenCode model ID (optional)',endpoint.open_code_model_id)
         + `<div class="acct-sub"><label><input name="is_enabled" type="checkbox" ${endpoint.is_enabled ? 'checked' : ''}> Enabled</label><span class="hint">${endpoint.has_key ? 'A key is stored securely.' : ''}</span></div>`
         + selectField('usage_preset','Usage adapter',endpoint.usage_preset || '',[['','Manual / JSON mapping'],['openRouter','OpenRouter'],['litellm','LiteLLM'],['newAPI','New API'],['vllm','vLLM'],['llamaCpp','llama.cpp'],['abacus','Abacus']])
         + selectField('tracking_unit','Track',endpoint.tracking_unit,[['currency','Currency (USD)'],['tokens','Tokens (millions)']])

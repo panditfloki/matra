@@ -47,6 +47,11 @@
 
 ## Less checking. More context.
 
+## 1.9 cross-platform preview
+
+The latest Mac controls and Windows adaptation are available for testing. [Download both builds](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.1) · [ROG/Mac test guide and platform coverage](native/PREVIEW-1.9.md).
+
+
 Working across AI tools means keeping track of several allowances and reset windows. **Mātrā** (मात्रा, *measure*) brings supported readings into a compact desktop meter, so you can check them without opening another dashboard.
 
 <table>
