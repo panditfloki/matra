@@ -10,7 +10,7 @@ This preview brings the latest Mac controls and integrations to the native Windo
 4. Expand the notch. Drag the visible six-dot grip below Settings, without holding a modifier. Test all four screen edges, then your ROG's usual scaling and external display.
 5. In **AI sources**, enable the sources you use. New sources start off. Enter optional keys through Settings; they are kept in Windows Credential Manager. Custom endpoints support OpenAI-compatible, Anthropic and Gemini APIs.
 6. Open **Dashboard** from the tray or Settings. **Overview** shows current allowances and local usage; choose a source for its details. Open **Project Activity**, or **Settings → Costs**, for account/project filters, calendar navigation and plan settings. Set your INR estimate, plan or custom model prices before relying on cost estimates.
-7. **Alerts** starts off. Enable only the events you want. **Send a test** reports whether Windows accepted the notification. Do Not Disturb can suppress a banner even after acceptance.
+7. **Alerts** starts off. Enable only the events you want. **Send a test** reports whether Windows accepted the notification. Run Mātrā normally from Start: Windows cannot deliver app notifications when it is run as administrator. Do Not Disturb can suppress a banner even after acceptance.
 
 The installer needs Windows 10/11 x64 and WebView2. Windows 11 supplies Mica; other systems use a solid surface. `%APPDATA%\matra-notch` holds the app's preferences. New endpoint credentials do not go into that folder.
 
@@ -42,7 +42,7 @@ This is a Windows adaptation with the same main layout and workflows. The Window
 - **DeepSeek:** Windows uses the [documented balance API](https://api-docs.deepseek.com/api/get-user-balance/), not the Mac browser's per-model spend history. Unknown denominators do not become quota rings.
 - **Costs:** INR uses a user-editable estimate, not a live FX rate. Missing model prices remain unavailable; partial totals say “At least”. API-equivalent use is not the amount billed. Subscription allocation uses the configured month's price split across this PC's local weighted tokens; it has no other-device or weekly-limit attribution. Weeks start on Monday. These are estimates, not invoices or GST calculations.
 - **Accounts:** there is no cross-device credential transport. Sign in to the relevant tools on the ROG PC. Locally discovered tool paths and live-account behavior still need target-device testing.
-- **Notifications:** Windows uses its default sound or silence. The Mac's notch notification channel and sound selection are not reproduced. Toast text currently falls back to English.
+- **Notifications:** Windows uses its default sound or silence. The Mac's notch notification channel and sound selection are not reproduced. Toast text currently falls back to English. Native CI runs elevated, so its real-process privilege check and disabled-state UI are verified; actual notification delivery needs a normal Windows user session on the target PC. [Microsoft documents the elevation restriction](https://learn.microsoft.com/windows/apps/develop/notifications/app-notifications/app-notifications-quickstart).
 - **Ordering:** Windows uses accessible up/down controls for manual account order. Custom icon files can be placed in the app's glyph folder; there is no custom-icon upload picker.
 
 Fixture checks, native Windows CI, installer lifecycle checks and the Mac package checks are distinct from acceptance on the physical ROG PC. Release notes identify the checks that passed for the actual downloadable builds.

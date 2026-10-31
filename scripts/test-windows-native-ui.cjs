@@ -148,9 +148,14 @@ async function saved(command, predicate) {
   const alertsBefore=evaluate('settings',`invoke('get_alert_settings')`);
   assert.equal(alertsBefore.enabled,false,'Alerts are opt-in');
   const alertStatus=evaluate('settings',`invoke('get_alert_status')`);
-  assert.ok(['enabled','disabled_app','disabled_user','disabled_policy','disabled_manifest','identity_missing','unsupported','error'].includes(alertStatus.os_state));
+  assert.ok(['enabled','disabled_app','disabled_user','disabled_policy','disabled_manifest','identity_missing','elevated','unsupported','error'].includes(alertStatus.os_state));
   assert.equal(alertStatus.delivered,0,'Opening settings never sends an alert');
   console.log('Windows alert availability:',JSON.stringify({os_state:alertStatus.os_state,can_deliver:alertStatus.can_deliver}));
+  if(process.argv.includes('--expected-elevated')){
+    assert.equal(alertStatus.os_state,'elevated','The real process token identifies the elevated CI session');
+    assert.equal(alertStatus.can_deliver,false);
+    assert.match(alertStatus.message,/reopen it normally/);
+  }
   assert.notEqual(alertStatus.os_state,'identity_missing','The installed app has a registered Start Menu notification identity');
   if(alertStatus.can_deliver){
     const sent=evaluate('settings',`invoke('send_test_alert')`);

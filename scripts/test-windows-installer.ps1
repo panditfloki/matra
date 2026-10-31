@@ -89,7 +89,12 @@ New-ItemProperty -Path $debugKey -Name 'matra.exe' -PropertyType String -Value '
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9337'
 try {
     $native = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru -RedirectStandardError (Join-Path $dataDir 'launch-stderr.log')
-    & node (Join-Path $PSScriptRoot 'test-windows-native-ui.cjs')
+    $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+    $elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    Write-Output "Native fixture process inherits administrator elevation: $elevated"
+    $uiArgs = @((Join-Path $PSScriptRoot 'test-windows-native-ui.cjs'))
+    if ($elevated) { $uiArgs += '--expected-elevated' }
+    & node @uiArgs
     $uiFailed = $LASTEXITCODE -ne 0
     if (!$uiFailed) { & (Join-Path $PSScriptRoot 'test-windows-topmost.ps1') -AppProcessId $native.Id }
 } finally {

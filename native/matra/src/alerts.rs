@@ -571,6 +571,9 @@ mod windows_sink {
         NotificationSetting, ToastFailedEventArgs, ToastNotification, ToastNotificationManager, ToastNotifier,
     };
     use windows::Win32::System::Com::{CoInitializeEx, IBindCtx, COINIT_MULTITHREADED};
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
     use windows::Win32::UI::Shell::{IShellItem, SHCreateItemFromParsingName};
 
     /// Failures arrive on an event shortly after Show returns. Past this, Windows has taken it.
@@ -599,7 +602,29 @@ mod windows_sink {
         ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(APP_USER_MODEL_ID))
     }
 
+    fn process_elevated() -> Option<bool> {
+        unsafe {
+            let mut token = HANDLE::default();
+            OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).ok()?;
+            let mut elevation = TOKEN_ELEVATION::default();
+            let mut length = 0;
+            let result = GetTokenInformation(token, TokenElevation,
+                Some((&mut elevation as *mut TOKEN_ELEVATION).cast()),
+                std::mem::size_of::<TOKEN_ELEVATION>() as u32, &mut length);
+            let _ = CloseHandle(token);
+            result.ok().map(|()| elevation.TokenIsElevated != 0)
+        }
+    }
+
     fn read_availability() -> Availability {
+        // Windows app notifications cannot be delivered from an elevated process.
+        // Report the actionable cause instead of the service's opaque 0x80070490.
+        match process_elevated() {
+            Some(true) => return Availability::new("elevated", false,
+                "Windows cannot show app notifications while Mātrā runs as administrator. Quit it and reopen it normally from Start."),
+            None => return Availability::new("error", false, "Windows could not check this app's notification privileges."),
+            Some(false) => {}
+        }
         if !identity_registered() {
             return Availability::new(
                 "identity_missing",
