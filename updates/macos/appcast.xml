@@ -7,16 +7,20 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <description>Mātrā Mac updates</description>
     <language>en</language>
     <item>
-      <title>Mātrā 1.9.0 Beta 3</title>
-      <pubDate>Sat, 31 Oct 2026 20:42:14 +0000</pubDate>
-      <sparkle:version>1903</sparkle:version>
-      <sparkle:shortVersionString>1.9.0 Beta 3</sparkle:shortVersionString>
+      <title>Mātrā 1.9.0 Beta 4 — updater correction</title>
+      <link>https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.4</link>
+      <pubDate>Sat, 31 Oct 2026 21:09:23 +0000</pubDate>
+      <sparkle:version>1904</sparkle:version>
+      <sparkle:shortVersionString>1.9.0 Beta 4</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<p>Drag dots now appear on hover and stay visible while dragging. Includes the corrected Mac launch packaging, menu-bar controls and Project Activity improvements.</p><p>This is a universal Apple Silicon and Intel beta. It is ad-hoc signed and not notarized.</p>]]></description>
-      <enclosure url="https://github.com/panditfloki/matra/releases/download/v1.9.0-beta.3/Matra-1.9.0-beta.3-macOS-universal.dmg" sparkle:edSignature="41TqCd0a/cj9qIpP4gXD2roECTi30nhCXTiVfHwcyNRPerPFUQNbTxqqTNTPe3GY9E+e5N3aLmbnO9sxzF8UBw==" length="15482905" type="application/octet-stream"></enclosure>
+      <sparkle:informationalUpdate>
+        <sparkle:belowVersion>1904</sparkle:belowVersion>
+      </sparkle:informationalUpdate>
+      <description><![CDATA[<p>One-time manual install required: use View releases on GitHub in Settings and install Beta 4. The updater in earlier copies cannot create its download folder. Beta 4 fixes that name, keeps the branding and hover-only drag dots, and retains the Mac launch correction.</p><p>Universal Apple Silicon and Intel beta; ad-hoc signed and not notarized.</p>]]></description>
+      <enclosure url="https://github.com/panditfloki/matra/releases/download/v1.9.0-beta.4/Matra-1.9.0-beta.4-macOS-universal.dmg" sparkle:edSignature="Zl8BwFhAxLwRqW3xJ9s32PEO+oh7EBVf/b3rv7r67rsJhmPiC35xGrtTPmyfbT5qdQGh05s5ITfX5jBCCESPDA==" length="16320841" type="application/octet-stream"></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: xlU4qWY1wj1+XVm/BSWKRa8JNUHLCLUw7MW55dX32YnIbomUS5im0kSAnQKLTTFk/2imQtCgGf/aeM75VHztCg==
-length: 1509
+edSignature: 70LxHzrUIb4c89MQAix5qWGspOUos5HuLA1c/VDA4e/NWicJV93lrTZQOLBUWFYPvg2oFs6jVxfT7/CjIdWBCA==
+length: 1836
 -->

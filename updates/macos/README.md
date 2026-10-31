@@ -5,16 +5,21 @@ The Mac app's **Check for updates** reads
 Uploading a GitHub release alone does not update this feed. The feed file must be
 published on `main`, even when the corresponding application source is on a release branch.
 
-The feed currently offers **1.9.0 Beta 3 (build 1903)**. This explicitly includes the
-beta in Mac update delivery; it does not change GitHub's stable/latest release or
-the separate Windows updater. The offer is labelled Beta 3 in the app. Existing
-Mac installations use the same feed URL and public key, so no bootstrap install
-or key rotation is needed. The beta remains ad-hoc signed and unnotarized.
+The feed currently offers **1.9.0 Beta 4 (build 1904)**. Builds below 1904 receive
+an informational item: their installed display name contains a slash that breaks
+Sparkle's download directory. They need one manual replacement from the release
+page. The old custom notch driver does not open an informational link itself;
+use **View releases on GitHub** in Settings. This avoids repeatedly downloading
+an archive the old app cannot store. Build 1904 supplies the safe `SUBundleName`.
+
+The feed and public signing key remain unchanged. GitHub's stable/latest release
+and Windows updater are separate. The Mac beta remains ad-hoc signed and unnotarized.
 
 ## Every Mac release
 
 1. Build, package and verify the final app, including native launch from the final
-   disk image. Increment `CFBundleVersion` for every update, including beta fixes.
+   disk image. Require a safe `SUBundleName`, and keep branded display names out
+   of download paths. Increment `CFBundleVersion` for every update, including beta fixes.
 2. Publish the immutable archive. Download it anonymously and verify its SHA-256.
 3. Sign those exact archive bytes with Sparkle's `sign_update`. Use the existing
    signing key for account `com.dydxfx.matra.mac`; do not generate a replacement.
