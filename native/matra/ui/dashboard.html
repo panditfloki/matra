@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mātrā · Dashboard</title>
+<link rel="icon" href="matra-logo.png">
+<link rel="stylesheet" href="matra-theme.css">
+<link rel="stylesheet" href="matra-parity.css">
+<link rel="stylesheet" href="dashboard.css">
+<!-- Loaded before the body so the saved theme applies to the first paint. -->
+<script src="matra-theme.js"></script>
+<script defer src="matra-quota.js"></script>
+<script defer src="matra-parity.js"></script>
+<script defer src="matra-parity-card.js"></script>
+<script defer src="matra-activity.js"></script>
+<script defer src="dashboard.js"></script>
+</head>
+<body>
+<div id="dash">
+  <aside id="dash-side">
+    <div class="dash-brand">
+      <img src="matra-logo.png" width="36" height="36" alt="">
+      <div><strong>Mātrā</strong><small>by dy/dx · fx</small></div>
+    </div>
+    <nav id="dash-nav" aria-label="Dashboard">
+      <button type="button" class="dash-row" id="dash-overview" data-act="overview" data-k="nav:overview">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z"/></svg><span>Overview</span>
+      </button>
+      <div class="dash-eyebrow" id="dash-sources-label">AI SOURCES</div>
+      <div id="dash-sources" role="list" aria-labelledby="dash-sources-label"></div>
+    </nav>
+    <div class="dash-foot">
+      <button type="button" class="dash-row" data-act="activity" data-k="nav:activity">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 14V8h3v6zM6.5 14V2h3v12zM11 14V5h3v9z"/></svg><span>Project activity…</span>
+      </button>
+      <button type="button" class="dash-row" data-act="settings" data-k="nav:settings">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.4 1l.4 1.9c.4.1.8.3 1.1.5l1.7-1 1.4 1.4-1 1.7c.2.3.4.7.5 1.1l1.9.4v2l-1.9.4c-.1.4-.3.8-.5 1.1l1 1.7-1.4 1.4-1.7-1c-.3.2-.7.4-1.1.5L9.4 15h-2L7 13.100c-.4-.1-.8-.3-1.100-.5l-1.700 1-1.400-1.400 1-1.700c-.2-.3-.4-.7-.5-1.100L1.400 9V7l1.900-.4c.1-.4.3-.8.5-1.100l-1-1.700L4.200 2.400l1.700 1c.3-.2.7-.4 1.100-.5L7.400 1zM8.400 5.500a2.500 2.500 0 100 5 2.500 2.500 0 000-5z" fill-rule="evenodd"/></svg><span>Settings…</span>
+      </button>
+      <button type="button" class="dash-site" data-act="site" data-k="nav:site">dydxfx.com</button>
+      <p class="dash-tag">Usage, in proportion.</p>
+    </div>
+  </aside>
+  <main id="dash-main">
+    <header id="dash-head">
+      <div>
+        <h1 id="dash-title">Overview</h1>
+        <p id="dash-sub"></p>
+      </div>
+      <button type="button" class="btn" id="dash-refresh" data-act="refresh" data-k="head:refresh" aria-keyshortcuts="Control+R">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.500 8a5.500 5.500 0 11-1.700-4l-1.800 1.800H15V.8l-2 2A7 7 0 1015 8z"/></svg><span id="dash-refresh-label">Refresh</span>
+      </button>
+    </header>
+    <div id="dash-strip" role="alert" hidden></div>
+    <div id="dash-scroll" tabindex="-1"><div id="dash-body"></div></div>
+    <div id="dash-announce" class="dash-sr" role="status" aria-live="polite"></div>
+  </main>
+</div>
+</body>
+</html>

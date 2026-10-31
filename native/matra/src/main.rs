@@ -1883,6 +1883,7 @@ fn main() {
             parity::set_parity_settings,
             parity::refresh_on_look,
             parity::open_activity,
+            parity::open_dashboard,
             alerts::get_alert_settings,
             alerts::set_alert_settings,
             alerts::get_alert_status,

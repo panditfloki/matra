@@ -635,8 +635,9 @@ impl Engine {
 
     /// The stored key may only be used for the address it was saved with.
     fn draft_key(&self, draft: &CustomEndpoint, secret: Option<&str>) -> Option<String> {
-        if let Some(text) = secret.and_then(net::clean_secret) {
-            return Some(text);
+        if let Some(text) = secret {
+            // An explicit empty value means the user asked to test without a key.
+            return net::clean_secret(text);
         }
         let state = self.state.lock().unwrap();
         let saved = state.settings.custom.iter().find(|e| e.id == draft.id)?;
@@ -650,7 +651,9 @@ impl Engine {
         let result = custom::test_endpoint(draft, key.as_deref());
         let mut state = self.state.lock().unwrap();
         let mut next = state.settings.clone();
-        if let Some(saved) = next.custom.iter_mut().find(|e| e.id == draft.id) {
+        if let Some(saved) = next.custom.iter_mut().find(|e| {
+            e.id == draft.id && e.base_url == draft.base_url && e.api_type == draft.api_type
+        }) {
             saved.last_health_status = result.health.clone();
             saved.last_latency_ms = Some(result.latency_ms);
             saved.last_checked_at = Some(now_ms());
@@ -1193,6 +1196,22 @@ mod tests {
         engine.delete_custom(&saved.id).unwrap();
         assert!(!engine.usage_map().contains_key(&id));
         assert!(engine.delete_custom(&saved.id).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn testing_an_unsaved_address_does_not_replace_saved_endpoint_health() {
+        let dir = temp("draft-health");
+        let saved_server = testkit::serve(vec![("/models", testkit::ok(r#"{"data":[{"id":"saved-model"}]}"#))]);
+        let draft_server = testkit::serve(vec![("/models", testkit::ok(r#"{"data":[{"id":"draft-model"}]}"#))]);
+        let engine = Engine::new(env(&dir, &[]));
+        let saved = engine.save_custom(draft(&saved_server.base), None).unwrap();
+        assert_eq!(engine.test_custom(&saved, None).models, vec!["saved-model"]);
+        let before = engine.list_custom();
+        let mut unsaved = saved.clone();
+        unsaved.base_url = draft_server.base.clone();
+        assert_eq!(engine.test_custom(&unsaved, None).models, vec!["draft-model"]);
+        assert_eq!(engine.list_custom(), before);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

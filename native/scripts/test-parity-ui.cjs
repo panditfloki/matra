@@ -8,6 +8,7 @@ const P = require('../matra/ui/matra-parity.js');
 const A = require('../matra/ui/matra-activity.js');
 const Sources = require('../matra/ui/matra-providers.js');
 const Card = require('../matra/ui/matra-parity-card.js');
+const Dashboard = require('../matra/ui/dashboard.js');
 const week=7*86400000;
 const cell=(id,used,left)=>({id,snap:{status:'ok',windows:[{id:'weekly',label:'Weekly',used,resets_at:left}]}});
 const adapter={headline:c=>c.snap.windows[0],weekly:c=>c.snap.windows[1],fresh:c=>c.snap.status==='ok'};
@@ -87,7 +88,7 @@ test('optional sources render errors and nullable runtime metrics honestly',()=>
 });
 
 test('every shipped page has its scripts and styles; every external script parses',()=>{
-  for(const name of ['settings.html','notch.html','dropzones.html','activity.html']){
+  for(const name of ['settings.html','notch.html','dropzones.html','activity.html','dashboard.html']){
     const html=readFileSync(path.join(ui,name),'utf8');
     for(const [,src] of html.matchAll(/<script[^>]*\bsrc="([^"]+)"/g)){
       assert.ok(existsSync(path.join(ui,src)),`${name}: ${src}`);
@@ -95,4 +96,21 @@ test('every shipped page has its scripts and styles; every external script parse
     }
     for(const [,src] of html.matchAll(/<link[^>]*href="([^"]+)"/g))assert.ok(existsSync(path.join(ui,src)),`${name}: ${src}`);
   }
+});
+
+test('dashboard keeps absent sources, account quota and local model costs distinct',()=>{
+  assert.deepEqual(Dashboard.buildSources({usage:{status:'absent',windows:[]}}),[]);
+  const now=Date.now(),source={id:'codex',base:'codex',name:'Codex',snap:{status:'ok',fetched_at:now,windows:[{id:'primary',label:'Five hours',used:.5,resets_at:now+3600000}]}};
+  const report={from:'2026-10-01',to:'2026-10-31',rows:[{account:'codex',model:'<script>fixture</script>',project:'p',project_name:'Work',input_tokens:100,output_tokens:25,cost_inr:null,priced_cost_inr:0,unpriced_turns:1}],partial:true,total_cost_inr:null,coverage:'unavailable',sessions:[]};
+  const html=Dashboard.detailHtml(source,{now,range:'month',measure:'tokens',report,glyphs:{},parity:{},sessions:[],activity:[]});
+  assert.match(html,/50% used/);assert.match(html,/125/);assert.match(html,/Unavailable/);
+  assert.match(html,/&lt;script&gt;fixture&lt;\/script&gt;/);assert.doesNotMatch(html,/<script>|~₹0\.00/);
+  assert.match(html,/Account-wide and local token totals are not added together/);
+});
+
+test('dashboard history distinguishes an explicitly reported zero from an unreported day',()=>{
+  const now=new Date(2026,9,31,12).getTime();
+  const h=Dashboard.historyDays([{day:'2026-10-31',tokens:0}],now);
+  assert.equal(h.count,1);assert.equal(h.total,0);
+  assert.equal(h.days.at(-1).tokens,0);assert.equal(h.days.at(-2).tokens,null);
 });

@@ -1,0 +1,139 @@
+/* Mātrā Dashboard: the Mac layout over the shared theme tokens. Every colour comes from matra-theme.css,
+   so System, Light, Dark and both Glass choices follow without a rule of their own. */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+html[data-matra-theme] body,body{background:var(--matra-bg);color:var(--matra-text);font:13px/1.4 Inter,"Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;user-select:none}
+button{font:inherit;color:inherit}
+[hidden]{display:none!important}
+:focus-visible{outline:2px solid var(--matra-accent);outline-offset:2px}
+svg{fill:currentColor}
+.dash-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
+#dash{display:flex;height:100%}
+
+/* ---- sidebar ---- */
+#dash-side{width:212px;flex:none;display:flex;flex-direction:column;min-height:0;background:var(--side);border-right:1px solid var(--line);padding:22px 10px 16px}
+.dash-brand{display:flex;align-items:center;gap:10px;padding:0 8px 22px}
+.dash-brand img{flex:none;object-fit:contain}
+.dash-brand strong{display:block;font-size:18px;font-weight:600;line-height:1.2}
+.dash-brand small{display:block;margin-top:3px;font:500 10px/1.2 "JetBrains Mono",Consolas,monospace;color:var(--matra-muted)}
+#dash-nav{display:flex;flex-direction:column;flex:1;min-height:0}
+.dash-eyebrow{padding:22px 10px 8px;font-size:10px;font-weight:600;letter-spacing:.04em;color:var(--matra-muted)}
+#dash-sources{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:2px;padding:2px}
+.dash-row{display:flex;align-items:center;gap:10px;width:100%;min-height:34px;padding:7px 10px;border:0;border-radius:8px;background:transparent;text-align:left;cursor:default}
+.dash-row>svg{width:14px;height:14px;flex:none;color:var(--matra-muted)}
+.dash-row>span:last-child{min-width:0;overflow-wrap:anywhere}
+.dash-row:hover{background:var(--hover)}
+.dash-row[aria-current="page"]{background:color-mix(in oklab,var(--matra-accent) 14%,transparent);font-weight:600}
+.dash-foot{display:flex;flex-direction:column;gap:6px;padding-top:12px}
+.dash-site{align-self:flex-start;margin-left:10px;padding:0;border:0;background:none;font-size:12px;font-weight:600;color:var(--matra-accent);cursor:pointer}
+.dash-site:hover{text-decoration:underline}
+.dash-tag{margin:0;padding:0 10px;font-size:11px;color:var(--matra-muted)}
+
+.dash-glyph{width:18px;height:18px;flex:none;display:inline-grid;place-items:center}
+.dash-glyph img{width:16px;height:16px;border-radius:4px;display:block}
+.dash-glyph.mask{background:currentColor;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center}
+.dash-glyph.letter{font-size:9px;font-weight:700;background:var(--seg-bg);border:1px solid var(--line);border-radius:5px;color:var(--matra-text)}
+
+/* ---- main ---- */
+#dash-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--pane);position:relative}
+#dash-head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:22px 28px;border-bottom:1px solid var(--line)}
+#dash-head>div{min-width:0}
+#dash-title{margin:0;font-size:24px;font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+#dash-sub{margin:6px 0 0;color:var(--matra-muted)}
+#dash-refresh{display:inline-flex;align-items:center;gap:7px}
+#dash-refresh svg{width:13px;height:13px}
+#dash-strip{flex:none;margin:12px 28px 0;padding:8px 10px;border-radius:8px;background:var(--danger-bg);color:var(--danger);font-size:12px;overflow-wrap:anywhere}
+#dash-scroll{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;outline:0}
+#dash-body{padding:24px 28px 32px;user-select:text;display:flex;flex-direction:column;gap:16px}
+
+h2.dash-h{margin:0;font-size:16px;font-weight:600}
+.dash-note{margin:0;font-size:12px;color:var(--matra-muted);overflow-wrap:anywhere}
+.dash-warn{color:var(--matra-watch);display:flex;gap:6px}
+.dash-sechead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.dash-sechead+.dash-note{margin-top:-10px}
+.dash-gapped{margin-top:12px}
+
+/* Base controls. activity.html and settings.html carry these inline, so this page needs its own copy. */
+.btn{border:0;background:var(--btn);font-size:13px;padding:6px 12px;border-radius:7px;flex:none;cursor:default}
+.btn:hover:not(:disabled){background:var(--btn-hover)}
+.btn:disabled{opacity:.5}
+.seg{display:inline-flex;background:var(--seg-bg);border:1px solid var(--line);border-radius:8px;padding:2px;gap:2px;flex:none}
+.seg button{border:0;background:transparent;font-size:12px;padding:3px 12px;border-radius:6px;cursor:default}
+.seg button:hover:not([aria-pressed="true"]){background:var(--hover)}
+.seg button[aria-pressed="true"]{background:var(--matra-accent);color:var(--matra-on-accent)}
+.group{background:var(--group);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.group>*+*{border-top:1px solid var(--sep)}
+.item{padding:9px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.item.cap{display:block;padding:8px 12px;font-size:12px;color:var(--matra-muted);overflow-wrap:anywhere}
+/* matra-parity.css sets these two on .act-*; the metric row and chart are shared with Project Activity. */
+.group.act-metrics{margin-top:0}
+.act-chart{height:84px}
+
+/* ---- source card ---- */
+.dash-card{background:var(--group);border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.dash-card-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dash-card-head h3{margin:0;font-size:15px;font-weight:600;min-width:0;overflow-wrap:anywhere}
+.dash-plan{color:var(--matra-muted);font-size:12px}
+.dash-pills{display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap}
+.dash-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border:1px solid var(--line);border-radius:999px;font-size:11px;color:var(--matra-muted);white-space:nowrap}
+.dash-pill i{width:6px;height:6px;border-radius:50%;background:var(--matra-muted)}
+.dash-pill.good i{background:var(--quota-green)}
+.dash-pill.watch i{background:var(--quota-amber)}
+.dash-pill.bad i{background:var(--quota-red)}
+.dash-windows{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px 22px}
+.dash-group{grid-column:1/-1;display:flex;flex-direction:column;gap:8px}
+.dash-group h4{margin:0;font-size:12px;font-weight:600;overflow-wrap:anywhere}
+.dash-group-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 22px}
+.dash-win{min-width:0;display:flex;flex-direction:column;gap:5px}
+.dash-win-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.dash-win-label{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.dash-win-reset{font-size:11.5px;color:var(--matra-muted);font-variant-numeric:tabular-nums}
+.dash-win-value{font-size:12px;color:var(--matra-muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.dash-win-value strong{font-size:16px;font-weight:600;color:var(--matra-text)}
+.dash-track{height:6px;border-radius:3px;background:var(--matra-track);overflow:hidden}
+.dash-track i{display:block;height:100%;border-radius:3px;min-width:0}
+.dash-card-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.dash-card-foot .dash-note{flex:1;min-width:200px}
+.dash-local{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;font-variant-numeric:tabular-nums;padding-top:12px;border-top:1px solid var(--sep)}
+.dash-local b{font-weight:600}
+.dash-local span{color:var(--matra-muted)}
+
+/* The shared provider-detail renderer (matra-parity-card.js) emits these class names. */
+.dash-card .c-sessions{display:flex;flex-direction:column;gap:6px;padding-top:12px;border-top:1px solid var(--sep);font-size:12px}
+.dash-card .c-note{font-size:12px;overflow-wrap:anywhere}
+.dash-card .w-row{display:flex;justify-content:space-between;gap:10px}
+.dash-card .w-label{font-weight:600;overflow-wrap:anywhere}
+.dash-card .w-used,.dash-card .s-more{font-size:12px;color:var(--matra-muted);overflow-wrap:anywhere}
+
+.dash-live{display:flex;flex-direction:column;gap:6px;padding-top:12px;border-top:1px solid var(--sep);font-size:12px}
+.dash-live-row{display:flex;align-items:center;gap:8px}
+.dash-live-row i{width:7px;height:7px;border-radius:50%;flex:none;background:var(--matra-text)}
+.dash-live-row.waiting i{background:var(--quota-amber)}
+.dash-live-row span:nth-child(2){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-live-row span:last-child{color:var(--matra-muted)}
+
+/* ---- Codex account details and day histories ---- */
+.dash-section{display:flex;flex-direction:column;gap:10px;padding-top:12px;border-top:1px solid var(--sep)}
+.dash-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px 18px;margin:0}
+.dash-stats div{min-width:0}
+.dash-stats dt{font-size:11px;color:var(--matra-muted)}
+.dash-stats dd{margin:2px 0 0;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.dash-chart{display:flex;flex-direction:column}
+.dash-chart .act-chart{margin:0}
+.dash-chart .act-axis{margin:3px 0 0}
+.dash-chart .act-readout{margin:4px 0 0}
+.group .dash-chart{padding:0 12px 8px}
+.dash-chart-title{margin:0 0 8px;font-size:12px;font-weight:600}
+
+@media (max-width:900px){
+  #dash-head{padding:18px 20px}
+  #dash-body{padding:18px 20px 24px}
+  #dash-strip{margin:12px 20px 0}
+}
+@media (forced-colors:active){
+  .dash-track{background:Canvas;border:1px solid CanvasText}
+  .dash-track i,.act-bar i{background:Highlight!important;forced-color-adjust:none}
+  .dash-row[aria-current="page"]{outline:2px solid Highlight}
+  .dash-glyph.mask{background:CanvasText;forced-color-adjust:none}
+}

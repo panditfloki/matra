@@ -9,7 +9,7 @@ This preview brings the latest Mac controls and integrations to the native Windo
 3. Open Mātrā from Start. In **Settings → Display**, turn **Show in system tray** off and on. When hidden, Settings remains reachable through the notch or by reopening Mātrā.
 4. Expand the notch. Drag the visible six-dot grip below Settings, without holding a modifier. Test all four screen edges, then your ROG's usual scaling and external display.
 5. In **AI sources**, enable the sources you use. New sources start off. Enter optional keys through Settings; they are kept in Windows Credential Manager. Custom endpoints support OpenAI-compatible, Anthropic and Gemini APIs.
-6. Open **Project Activity** from the tray, or **Settings → Costs**. Choose day, week or month, then filter account and project. Set your INR estimate, plan or custom model prices before relying on cost estimates.
+6. Open **Dashboard** from the tray or Settings. **Overview** shows current allowances and local usage; choose a source for its details. Open **Project Activity**, or **Settings → Costs**, for account/project filters, calendar navigation and plan settings. Set your INR estimate, plan or custom model prices before relying on cost estimates.
 7. **Alerts** starts off. Enable only the events you want. **Send a test** reports whether Windows accepted the notification. Do Not Disturb can suppress a banner even after acceptance.
 
 The installer needs Windows 10/11 x64 and WebView2. Windows 11 supplies Mica; other systems use a solid surface. `%APPDATA%\matra-notch` holds the app's preferences. New endpoint credentials do not go into that folder.
@@ -31,11 +31,12 @@ The Mac app includes the existing dashboard, Project Activity, new provider inte
 | Custom endpoints | Protocol selection, model discovery, health, usage adapters/JSON mapping, manual budgets, local discovery and explicit OpenCode provider/model mapping |
 | OpenCode | Database-first credential compatibility and an optional metadata-only bridge, installed or removed only through its buttons |
 | Activity | Local Claude/Codex per-turn accounting, models, cached tokens, account/project filters, calendar navigation and explicit unknown/partial costs |
+| Dashboard | The Mac layout adapted to Windows: Overview, source sidebar, allowance cards, source details, local token/model/project charts, live activity and theme controls |
 | Alerts | Opt-in quota thresholds, limits, resets, work-complete and attention notifications, per-provider mute and sound toggle |
 
 ## Platform differences and coverage
 
-This is a Windows adaptation, not a claim of pixel-identical native controls or complete platform parity. The Windows system tray uses compact raster readings instead of macOS's wide menu bar text. Window materials, system menus and notification presentation are supplied by each OS. Windows has the new Activity view; the complete Mac dashboard shell is not reproduced.
+This is a Windows adaptation with the same main layout and workflows. The Windows system tray uses compact raster readings instead of macOS's wide menu bar text. Window materials, system menus and notification presentation are supplied by each OS. The following data-source and OS-specific differences remain; this is not a claim of pixel-identical controls or complete backend parity.
 
 - **Local runtimes:** Windows shows metrics the endpoint actually reports. It does not include the Mac's LM Studio WebSocket/log history, oMLX log history or Ollama relay activity. oMLX itself runs on a Mac; Windows can monitor that Mac's endpoint. llama.cpp needs `--metrics` for performance readings.
 - **DeepSeek:** Windows uses the [documented balance API](https://api-docs.deepseek.com/api/get-user-balance/), not the Mac browser's per-model spend history. Unknown denominators do not become quota rings.

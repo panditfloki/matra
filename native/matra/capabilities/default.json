@@ -4,7 +4,8 @@
   "windows": [
     "notch",
     "settings",
-    "activity"
+    "activity",
+    "dashboard"
   ],
   "permissions": [
     "core:default",

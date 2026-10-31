@@ -106,7 +106,36 @@ pub fn refresh_on_look(app: AppHandle) -> bool {
 #[tauri::command]
 pub fn open_activity(app: AppHandle) { open_activity_window(&app); }
 
+#[tauri::command]
+pub fn open_dashboard(app: AppHandle) { open_dashboard_window(&app); }
+
+pub fn open_dashboard_window(app: &AppHandle) {
+    refresh_on_look(app.clone());
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        let app = handle.clone();
+        let _ = handle.run_on_main_thread(move || {
+            if let Some(window) = app.get_webview_window("dashboard") {
+                let _ = window.unminimize(); let _ = window.show(); let _ = window.set_focus();
+                return;
+            }
+            let size = app.get_webview_window("notch")
+                .and_then(|w| w.current_monitor().ok().flatten())
+                .map(|m| ((m.size().width as f64 / m.scale_factor() - 64.0).clamp(820.0, 1080.0),
+                    (m.size().height as f64 / m.scale_factor() - 100.0).clamp(600.0, 760.0)))
+                .unwrap_or((1080.0, 760.0));
+            match tauri::WebviewWindowBuilder::new(&app, "dashboard", tauri::WebviewUrl::App("dashboard.html".into()))
+                .title("Mātrā Dashboard").inner_size(size.0, size.1)
+                .min_inner_size(820.0, 600.0).center().build() {
+                Ok(window) => { let _ = window.set_focus(); }
+                Err(_) => crate::applog("Could not open Dashboard."),
+            }
+        });
+    });
+}
+
 pub fn open_activity_window(app: &AppHandle) {
+    refresh_on_look(app.clone());
     let handle = app.clone();
     std::thread::spawn(move || {
         let app = handle.clone();

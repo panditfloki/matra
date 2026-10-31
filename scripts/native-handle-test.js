@@ -82,8 +82,9 @@ function assertHandles(value, context) {
     assert.equal(s[name].hot.length,5,`${context}: ${name} reports capsule, both controls and their travel lanes`);
   }
   assert.equal(s.far.intent,'orb');assert.equal(s.firstGap.intent,'orb');assert.equal(s.orb.intent,'orb');
-  visible(s.secondGap,[false,true],'the grip remains visible across its travel gap');
-  assert.equal(s.secondGap.hot.length,3);
+  visible(s.secondGap,[true,true],'settings and grip remain visible while crossing their travel gap');
+  assert.equal(s.secondGap.intent,'move');
+  assert.equal(s.secondGap.hot.length,5);
   assert.equal(s.grip.intent,'move');
   const hot=s.far.hot, hit=(x,y,rects=hot)=>rects.some(r=>x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3]);
   const physical = r=>[r.left*dpr,r.top*dpr,r.width*dpr,r.height*dpr];
