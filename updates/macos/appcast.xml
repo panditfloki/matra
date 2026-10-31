@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Mātrā for macOS</title>
+    <link>https://github.com/panditfloki/matra</link>
+    <description>Mātrā Mac updates</description>
+    <language>en</language>
+    <item>
+      <title>Mātrā 1.9.0 Beta 3</title>
+      <pubDate>Sat, 31 Oct 2026 20:42:14 +0000</pubDate>
+      <sparkle:version>1903</sparkle:version>
+      <sparkle:shortVersionString>1.9.0 Beta 3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<p>Drag dots now appear on hover and stay visible while dragging. Includes the corrected Mac launch packaging, menu-bar controls and Project Activity improvements.</p><p>This is a universal Apple Silicon and Intel beta. It is ad-hoc signed and not notarized.</p>]]></description>
+      <enclosure url="https://github.com/panditfloki/matra/releases/download/v1.9.0-beta.3/Matra-1.9.0-beta.3-macOS-universal.dmg" sparkle:edSignature="41TqCd0a/cj9qIpP4gXD2roECTi30nhCXTiVfHwcyNRPerPFUQNbTxqqTNTPe3GY9E+e5N3aLmbnO9sxzF8UBw==" length="15482905" type="application/octet-stream"></enclosure>
+    </item>
+  </channel>
+</rss><!-- sparkle-signatures:
+edSignature: xlU4qWY1wj1+XVm/BSWKRa8JNUHLCLUw7MW55dX32YnIbomUS5im0kSAnQKLTTFk/2imQtCgGf/aeM75VHztCg==
+length: 1509
+-->
