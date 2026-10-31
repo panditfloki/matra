@@ -12,7 +12,7 @@ settings:
     SWIFT_STRICT_CONCURRENCY: minimal
     # Windows visual baseline, local Mac preview build.
     MARKETING_VERSION: "1.9.0"
-    CURRENT_PROJECT_VERSION: "1903"
+    CURRENT_PROJECT_VERSION: "1904"
     # Local ad-hoc signing only. Public notarization is separate release work.
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Automatic
@@ -63,6 +63,9 @@ targets:
         # and no obvious way to reach settings or quit.
         CFBundleName: Mātrā
         CFBundleDisplayName: dy/dx.f(Mātrā)
+        # Sparkle uses its host name as a download directory component. Keep
+        # the branded display name, but do not pass its slash to the updater.
+        SUBundleName: Mātrā
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations:
           - en

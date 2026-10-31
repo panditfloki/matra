@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Mātrā for macOS</title>
+    <link>https://github.com/panditfloki/matra</link>
+    <description>Mātrā Mac updates</description>
+    <language>en</language>
+    <item>
+      <title>Mātrā 1.9.0 Beta 4 — updater correction</title>
+      <link>https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.4</link>
+      <pubDate>Sat, 31 Oct 2026 21:09:23 +0000</pubDate>
+      <sparkle:version>1904</sparkle:version>
+      <sparkle:shortVersionString>1.9.0 Beta 4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <sparkle:informationalUpdate>
+        <sparkle:belowVersion>1904</sparkle:belowVersion>
+      </sparkle:informationalUpdate>
+      <description><![CDATA[<p>One-time manual install required: use View releases on GitHub in Settings and install Beta 4. The updater in earlier copies cannot create its download folder. Beta 4 fixes that name, keeps the branding and hover-only drag dots, and retains the Mac launch correction.</p><p>Universal Apple Silicon and Intel beta; ad-hoc signed and not notarized.</p>]]></description>
+      <enclosure url="https://github.com/panditfloki/matra/releases/download/v1.9.0-beta.4/Matra-1.9.0-beta.4-macOS-universal.dmg" sparkle:edSignature="Zl8BwFhAxLwRqW3xJ9s32PEO+oh7EBVf/b3rv7r67rsJhmPiC35xGrtTPmyfbT5qdQGh05s5ITfX5jBCCESPDA==" length="16320841" type="application/octet-stream"></enclosure>
+    </item>
+  </channel>
+</rss><!-- sparkle-signatures:
+edSignature: 70LxHzrUIb4c89MQAix5qWGspOUos5HuLA1c/VDA4e/NWicJV93lrTZQOLBUWFYPvg2oFs6jVxfT7/CjIdWBCA==
+length: 1836
+-->

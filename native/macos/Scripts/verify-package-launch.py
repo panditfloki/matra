@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import plistlib
 import re
 import subprocess
 import sys
@@ -25,6 +26,18 @@ def main():
     executable = app / "Contents/MacOS/Matra"
     if not executable.is_file() or app.suffix != ".app":
         parser.error("Expected a complete Matra.app bundle")
+    info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
+    # Sparkle builds a persistent-download directory from its host name and
+    # build number. A slash in CFBundleDisplayName broke every update in 1902/3.
+    # SUBundleName lets the updater use a safe name without changing branding.
+    update_name = next((info.get(key) for key in
+                        ("SUBundleName", "CFBundleDisplayName", "CFBundleName")
+                        if isinstance(info.get(key), str) and info[key]), app.stem)
+    update_version = info.get("CFBundleVersion", "")
+    if not update_version or any(character in str(value)
+                                 for value in (update_name, update_version)
+                                 for character in ("/", "\0")):
+        raise RuntimeError("Sparkle update name/build must be a single directory component; set a safe SUBundleName")
     if output == app or app in output.parents:
         parser.error("Evidence must be outside the signed bundle")
     output.mkdir(parents=True, exist_ok=True)
@@ -49,6 +62,7 @@ def main():
         command += ["/usr/bin/arch", "-" + args.arch]
     command.append(str(executable))
     evidence = {"app": str(app), "architecture": args.arch or "native",
+                "sparkle_storage_name": update_name, "build": update_version,
                 "provider_startup_disabled": True, "network_denied": True,
                 "signature_verified": True, "duration_seconds": 8}
     with (output / "launch.log").open("w") as log:
