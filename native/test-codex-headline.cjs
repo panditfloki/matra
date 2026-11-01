@@ -48,3 +48,26 @@ test('Other provider headline selection is unchanged', () => {
   assert.equal(pick([{ id: 'weekly_all' }, { id: 'session' }], 'claude'), 'session');
   assert.equal(pick([{ id: 'on_demand' }, { id: 'included' }], 'cursor'), 'included');
 });
+
+const dashboard = require('./matra/ui/dashboard.js');
+for (const [surface, selector] of [
+  ['notch', (windows, provider) => context.headlineOf({ windows }, provider)],
+  ['dashboard', (windows, provider) => dashboard.headlineOf({ windows }, provider)],
+]) {
+  test(`${surface}: Claude uses the all-models week only without a session`, () => {
+    for (const id of ['seven_day', 'weekly_all', 'weekly']) {
+      const week = { id, used: 0.89 };
+      assert.equal(selector([week], 'claude').id, id);
+      assert.equal(Math.round(100 * (1 - selector([week], 'claude').used)), 11);
+      for (const sessionID of ['session', 'five_hour']) {
+        assert.equal(selector([week, { id: sessionID, used: 0 }], 'claude').id, sessionID);
+      }
+      assert.equal(selector([week], 'claude').id, id, 'window changes have no sticky state');
+    }
+  });
+  test(`${surface}: a model-specific or missing limit cannot stand for Claude`, () => {
+    for (const windows of [[], [{ id: 'weekly_scoped' }], [{ id: 'seven_day_opus' }], [{ id: 'weekly_opus' }]]) {
+      assert.equal(selector(windows, 'claude') ?? null, null);
+    }
+  });
+}

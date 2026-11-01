@@ -1227,7 +1227,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var menuBarLimitRows: some View {
         Toggle(L10n.settings("Show limit information in menu bar"), isOn: $preferences.showsLimitsInMenuBar)
-        Text(L10n.settings("Swaps the icon for each chosen provider's five-hour limit — how much is used and how long until it resets."))
+        Text(L10n.settings("Shows each chosen provider's usage and reset time. Claude uses its weekly limit when no five-hour limit is reported."))
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -1294,11 +1294,11 @@ struct SettingsView: View {
                 }
                 .toggleStyle(.switch)
                 .controlSize(.small)
-                .help(L10n.settingsBranded("Shows \(choice.name)'s five-hour limit in the menu bar. Matra reads it either way."))
+                .help(L10n.settingsBranded("Shows \(choice.name)'s usage limit in the menu bar. Matra reads it either way."))
             }
 
             Text(menuBarChoices.isEmpty
-                 ? L10n.settingsBranded("Nothing Matra reads has a five-hour limit to show yet. Claude and Codex do — switch one on in Accounts.")
+                 ? L10n.settingsBranded("No usage limit is available for the menu bar yet. Connect Claude or Codex in Accounts.")
                  : L10n.settingsBranded("Leaving a provider out keeps it off the menu bar only — Matra still reads it. With none chosen, the icon comes back."))
                 .font(.caption)
                 .foregroundStyle(.secondary)

@@ -47,6 +47,8 @@
 	<string>Mātrā answers your phone on this network so it can show your usage.</string>
 	<key>SUAutomaticallyUpdate</key>
 	<false/>
+	<key>SUBundleName</key>
+	<string>Mātrā</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>

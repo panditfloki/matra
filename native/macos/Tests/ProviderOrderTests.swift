@@ -313,7 +313,7 @@ final class ProviderOrderTests: XCTestCase {
     }
 
     private func barOrdered(_ snapshots: [ProviderSnapshot]) -> [String] {
-        ProviderOrder.byRemainingFiveHour(snapshots).map(\.id)
+        ProviderOrder.byRemainingMenuBarUsage(snapshots).map(\.id)
     }
 
     func testTheBarSortsByWhatIsLeftOfTheFiveHourWindow() {

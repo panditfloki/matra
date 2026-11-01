@@ -174,15 +174,63 @@ final class UsageResponseTests: XCTestCase {
         XCTAssertEqual(UsageResponse.headlineID(for: windows), "spend")
     }
 
-    /// And on a plan seat nothing moves: the session leads, and a session
-    /// merely missing from one response still shows a dash rather than
-    /// promoting the weekly into its place.
+    /// A capped account retains its session even when the week is more used.
     func testTheSessionStillLeadsWhereThereIsOne() throws {
         XCTAssertEqual(UsageResponse.headlineID(for: try decode(live).limitWindows()), "session")
+    }
 
-        let weeklyOnly = [LimitWindow(id: "weekly_all", label: "All models", usedFraction: 0.3)]
-        XCTAssertEqual(UsageResponse.headlineID(for: weeklyOnly), "session",
-                       "a weekly percentage must not wear the session's place")
+    func testWeeklyOnlyRepliesShowTheAllModelsPercentage() throws {
+        let reset = "2026-11-08T00:00:00.000000+00:00"
+        let bodies = [
+            """
+            {"five_hour":null,"seven_day":{"utilization":89,"resets_at":"\(reset)"}}
+            """,
+            """
+            {"limits":[{"kind":"weekly_all","percent":89,"resets_at":"\(reset)"}]}
+            """,
+            """
+            {"five_hour":{"utilization":0,"resets_at":null},"seven_day":{"utilization":89,"resets_at":"\(reset)"}}
+            """
+        ]
+        for body in bodies {
+            let windows = try decode(body).limitWindows()
+            let snapshot = ProviderSnapshot(id: "claude", displayName: "Claude", glyph: .claude,
+                fidelity: .official, status: .ok, windows: windows,
+                headlineID: UsageResponse.headlineID(for: windows), weeklyID: "weekly_all")
+            XCTAssertEqual(snapshot.headline?.id, "weekly_all")
+            XCTAssertEqual(snapshot.headlineText, "89%")
+            XCTAssertEqual(snapshot.headlineText(showingRemaining: true), "11%")
+            XCTAssertNil(snapshot.weeklyWindow, "the same week must not draw a second ring")
+        }
+    }
+
+    func testHeadlineFollowsReportedWindowsWhenAccountCapabilitiesChange() {
+        let week = LimitWindow(id: "weekly_all", label: "All models", usedFraction: 0.89)
+        let session = LimitWindow(id: "session", label: "Current session", usedFraction: 0)
+        for windows in [[week], [week, session], [week], [session, week]] {
+            XCTAssertEqual(UsageResponse.headlineID(for: windows),
+                           windows.contains(where: { $0.id == "session" }) ? "session" : "weekly_all")
+        }
+    }
+
+    func testScopedWeeksAndUnknownWindowsCannotLeadTheAccount() {
+        for windows in [[], [LimitWindow(id: "weekly_scoped", label: "Fable", usedFraction: 0.17)],
+                        [LimitWindow(id: "unknown", label: "Unknown", usedFraction: 0.5)]] {
+            let snapshot = ProviderSnapshot(id: "claude", displayName: "Claude", glyph: .claude,
+                fidelity: .official, status: .ok, windows: windows,
+                headlineID: UsageResponse.headlineID(for: windows), weeklyID: "weekly_all")
+            XCTAssertNil(snapshot.headline)
+            XCTAssertEqual(snapshot.headlineText(showingRemaining: true), "—")
+        }
+    }
+
+    func testAWeeklyOnlyAccountCanBeExhausted() {
+        let windows = [LimitWindow(id: "weekly_all", label: "All models", usedFraction: 1)]
+        let snapshot = ProviderSnapshot(id: "claude", displayName: "Claude", glyph: .claude,
+            fidelity: .official, status: .ok, windows: windows,
+            headlineID: UsageResponse.headlineID(for: windows), weeklyID: "weekly_all")
+        XCTAssertEqual(snapshot.headlineText(showingRemaining: true), "0%")
+        XCTAssertTrue(snapshot.isDepleted)
     }
 
     /// `amber_ladder`, `nimbus_quill` and friends carry `limit_dollars` and

@@ -52,6 +52,7 @@ typealias UsageResetEvent = UsageAlertEvent
 @MainActor
 final class UsageResetWatcher {
     private struct TrackedState {
+        var windowID: String
         var fraction: Double
         var resetsAt: Date?
         var peakFraction: Double
@@ -93,8 +94,9 @@ final class UsageResetWatcher {
         guard let headline = snapshot.headline,
               let fraction = snapshot.usedFraction else { return }
 
-        guard var previous = states[snapshot.id] else {
+        guard var previous = states[snapshot.id], previous.windowID == headline.id else {
             states[snapshot.id] = TrackedState(
+                windowID: headline.id,
                 fraction: fraction,
                 resetsAt: headline.resetsAt,
                 peakFraction: fraction,

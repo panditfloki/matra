@@ -408,17 +408,10 @@ struct ProviderSnapshot: Identifiable, Equatable {
     /// Locally sampled cumulative token usage for a custom endpoint.
     var customUsageHistory: [CustomEndpointUsageDay]? = nil
 
-    /// The number on the cell: the provider's declared primary window — for
-    /// Claude, the current session.
-    ///
-    /// Not the most-constrained window, which is what the design spec asks for.
-    /// Picking whichever limit is highest means the headline silently changes
-    /// meaning — session one minute, weekly the next — and disagrees with
-    /// Claude's own panel, which always leads with the session.
-    ///
-    /// If the declared window is missing from the response the cell shows no
-    /// reading rather than promoting a different one. A blank is honest; a
-    /// weekly percentage wearing the session's place is not.
+    /// The provider chooses the window that leads the cell. Claude chooses
+    /// its session when present, otherwise its all-models week or seat balance.
+    /// Resolve that declaration exactly; arbitrary model-specific windows must
+    /// not fill in for a missing account allowance.
     var headline: LimitWindow? {
         guard let headlineID else { return windows.first }
         return windows.first { $0.id == headlineID }
@@ -438,6 +431,15 @@ struct ProviderSnapshot: Identifiable, Equatable {
     var fiveHourWindow: LimitWindow? {
         if let headline, headline.isFiveHour { return headline }
         return windows.first { $0.isFiveHour && $0.group == nil }
+    }
+
+    /// Keep five-hour summaries for capped accounts. Claude accounts without
+    /// that window use their declared all-models week, including when a notch
+    /// display preference derives a different headline.
+    var menuBarLimitWindow: LimitWindow? {
+        if let fiveHourWindow { return fiveHourWindow }
+        guard ClaudeProfile.isClaude(providerID: id) else { return nil }
+        return windows.first { $0.id == "weekly_all" }
     }
 
     /// The provider-declared weekly allowance, whether or not another surface

@@ -52,6 +52,24 @@ final class UsageLimitWatcherTests: XCTestCase {
         XCTAssertTrue(alerts.isEmpty, "baseline observation records state and does not trigger false alerts on launch")
     }
 
+    func testWeeklyHeadlineAnnouncesOneWeeklyLimitAndWindowChangesRebaseline() {
+        func weekly(_ fraction: Double) -> ProviderSnapshot {
+            ProviderSnapshot(id: "claude", displayName: "Claude", glyph: .claude,
+                fidelity: .official, status: .ok,
+                windows: [LimitWindow(id: "weekly_all", label: "All models", usedFraction: fraction)],
+                headlineID: "weekly_all", weeklyID: "weekly_all")
+        }
+        watcher.observe([weekly(0.89)])
+        watcher.observe([weekly(1)])
+        watcher.observe([weekly(1)])
+        XCTAssertEqual(alerts.map(\.kind), [.weeklyLimitReached])
+        watcher.observe([snapshot("claude", "Claude", sessionFraction: 1, weeklyFraction: 0)])
+        XCTAssertEqual(alerts.count, 1, "a new session is a baseline, not a crossing")
+        watcher.observe([snapshot("claude", "Claude", sessionFraction: 0.5, weeklyFraction: 0)])
+        watcher.observe([snapshot("claude", "Claude", sessionFraction: 1, weeklyFraction: 0)])
+        XCTAssertEqual(alerts.map(\.kind), [.weeklyLimitReached, .sessionLimitReached])
+    }
+
     /// The store's first publication for a provider can be a placeholder with
     /// no window at all. Counting that as the baseline made the first real
     /// reading a "crossing", and a Codex already spent at launch was announced.

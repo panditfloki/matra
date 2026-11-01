@@ -69,7 +69,8 @@
   function headlineOf(snap, id, ag) {
     const ws = snap.windows; if (!ws.length) return null;
     const byId = x => ws.find(w => w.id === x) || null;
-    if (id === 'claude' || id === 'glm') return byId('session');
+    if (id === 'claude') return byId('session') || byId('five_hour') || byId('seven_day') || byId('weekly_all') || byId('weekly');
+    if (id === 'glm') return byId('session');
     if (id === 'codex') return byId('primary');
     if (id === 'cursor') return byId('included') || byId('api');
     if (id === 'grok') return byId('credits') || ws[0];

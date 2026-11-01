@@ -12,7 +12,7 @@ settings:
     SWIFT_STRICT_CONCURRENCY: minimal
     # Windows visual baseline, local Mac preview build.
     MARKETING_VERSION: "1.9.0"
-    CURRENT_PROJECT_VERSION: "1904"
+    CURRENT_PROJECT_VERSION: "1905"
     # Local ad-hoc signing only. Public notarization is separate release work.
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Automatic

@@ -85,6 +85,58 @@ final class StatusItemSummaryTests: XCTestCase {
 
     // MARK: - Which providers
 
+    func testWeeklyOnlyClaudeUsesItsWeekWithoutADuplicateSupplement() throws {
+        for id in ["claude", "claude-work"] {
+            var account = claude(0, resetIn: hour, id: id)
+            account.windows.removeAll { $0.id == "session" }
+            account.headlineID = UsageResponse.headlineID(for: account.windows)
+            let entry = try XCTUnwrap(summary([account], weekly: true, remaining: true).entries.first)
+            XCTAssertEqual(entry.percent, "69%")
+            XCTAssertNotEqual(entry.countdown, "—")
+            XCTAssertNil(entry.weeklyFraction)
+            XCTAssertTrue(entry.detail.contains("All models: 69% left"))
+            XCTAssertFalse(entry.detail.contains("Current session"))
+            XCTAssertEqual(summary([account]).entries.first?.percent, "31%")
+        }
+    }
+
+    func testAZeroPercentSessionStillLeadsTheMenuBar() throws {
+        let entry = try XCTUnwrap(summary([claude(0, resetIn: hour)], weekly: true, remaining: true).entries.first)
+        XCTAssertEqual(entry.percent, "100%")
+        XCTAssertEqual(entry.weeklyFraction ?? -1, 0.69, accuracy: 0.00001)
+        XCTAssertTrue(entry.detail.contains("Current session"))
+    }
+
+    func testWeeklyOnlyMenuBarExpiresAndSchedulesItsCountdown() throws {
+        var account = claude(0, resetIn: hour)
+        account.windows.removeAll { $0.id == "session" }
+        account.headlineID = "weekly_all"
+        // An imminent reset makes the next countdown tick observable.
+        account.windows = [LimitWindow(id: "weekly_all", label: "All models", usedFraction: 0.89,
+                                       resetsAt: now.addingTimeInterval(hour + 30), duration: 7 * 86400)]
+        XCTAssertNotNil(summary([account]).nextChange)
+        account.windows = [LimitWindow(id: "weekly_all", label: "All models", usedFraction: 0.89,
+                                       resetsAt: now.addingTimeInterval(-1), duration: 7 * 86400)]
+        XCTAssertEqual(summary([account]).entries.first?.percent, "—")
+    }
+
+    func testMenuBarOrdersWeeklyOnlyClaudeByTheFigureItDisplays() {
+        var weekly = claude(0, resetIn: hour)
+        weekly.windows.removeAll { $0.id == "session" }
+        weekly.headlineID = "weekly_all"
+        let capped = claude(0.8, resetIn: hour, id: "claude-work")
+        XCTAssertEqual(summary([capped, weekly], autoOrder: true).entries.map(\.id), ["claude", "claude-work"])
+    }
+
+    func testDailyPaceDoesNotHideAWeeklyOnlyMenuBarReading() {
+        var weekly = claude(0, resetIn: hour)
+        weekly.windows.removeAll { $0.id == "session" }
+        weekly.headlineID = "weekly_all"
+        let paced = DailyPace.apply(to: weekly, now: now)
+        XCTAssertNotEqual(paced.headlineID, weekly.headlineID)
+        XCTAssertEqual(summary([paced], remaining: true).entries.first?.percent, "69%")
+    }
+
     func testClaudeReadsAsItsSessionShareAndCountdown() throws {
         let entry = try XCTUnwrap(summary([claude(0.72, resetIn: 2 * hour + 18 * minute + 20)]).entries.first)
         XCTAssertEqual(entry.glyph, .claude)

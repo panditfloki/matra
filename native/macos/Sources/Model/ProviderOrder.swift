@@ -86,15 +86,16 @@ enum ProviderOrder {
         sorted(snapshots) { orderKey(for: $0, leading: $0.headline) }
     }
 
-    /// The same rule read off the five-hour window, for the menu bar.
+    /// The same rule read off the menu bar's window: five hours where present,
+    /// otherwise Claude's all-models week for weekly-only accounts.
     ///
     /// The bar prints that window whatever the notch's rings are leading
     /// with, and it has four places with the countdowns in the first of them
     /// — so here the order decides what is said about an account and whether
     /// it is said at all. Sorting it by a figure it is not showing would be
     /// the same fault as printing one.
-    static func byRemainingFiveHour(_ snapshots: [ProviderSnapshot]) -> [ProviderSnapshot] {
-        sorted(snapshots) { orderKey(for: $0, leading: $0.fiveHourWindow) }
+    static func byRemainingMenuBarUsage(_ snapshots: [ProviderSnapshot]) -> [ProviderSnapshot] {
+        sorted(snapshots) { orderKey(for: $0, leading: $0.menuBarLimitWindow) }
     }
 
     /// Tier, then remaining within it, then arrival — which is the manual

@@ -34,6 +34,19 @@ final class UsageResetWatcherTests: XCTestCase {
         XCTAssertTrue(alerts.isEmpty, "initial reading records baseline and does not alert")
     }
 
+    func testSwitchingFromWeeklyToSessionIsNotAReset() {
+        let weekly = ProviderSnapshot(id: "claude", displayName: "Claude", glyph: .claude,
+            fidelity: .official, status: .ok,
+            windows: [LimitWindow(id: "weekly_all", label: "All models", usedFraction: 0.89)],
+            headlineID: "weekly_all", weeklyID: "weekly_all")
+        watcher.observe([weekly])
+        watcher.observe([snapshot("claude", "Claude", 0)])
+        XCTAssertTrue(alerts.isEmpty, "changing which window leads is not a reset")
+        watcher.observe([snapshot("claude", "Claude", 0.9)])
+        watcher.observe([snapshot("claude", "Claude", 0)])
+        XCTAssertEqual(alerts.count, 1, "subsequent real session resets still alert")
+    }
+
     /// At launch the store publishes the archived reading, marked stale, and
     /// the live one follows. A newer reset date between the two is not a reset
     /// that happened; it is the archive being old.

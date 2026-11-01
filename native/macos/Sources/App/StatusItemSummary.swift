@@ -59,9 +59,8 @@ struct StatusItemSummary: Equatable {
     var isCompact: Bool { reading.isCompact(entryCount: entries.count) }
 
     /// Whether the bar has anything to say about this provider: it meters a
-    /// five-hour window, or it is Claude or Codex, whose headline limit *is*
-    /// that window — so a missing figure is worth a dash rather than a silent
-    /// gap. Anyone else qualifies once they report one.
+    /// five-hour window, or it is Claude or Codex. Claude's weekly-only accounts
+    /// use the all-models week; unavailable readings still get a dash.
     ///
     /// Settings lists exactly these, so it never offers a provider the bar
     /// would not draw.
@@ -95,7 +94,7 @@ struct StatusItemSummary: Equatable {
         // Before the four are taken, not after: on a bar this short the order
         // decides who is on it at all, which is the whole of what auto-order
         // is for here.
-        let summarised = (autoOrdering ? ProviderOrder.byRemainingFiveHour(chosen) : chosen)
+        let summarised = (autoOrdering ? ProviderOrder.byRemainingMenuBarUsage(chosen) : chosen)
             .prefix(entryLimit)
         var marks: [ProviderGlyph: Int] = [:]
         for snapshot in summarised { marks[snapshot.glyph, default: 0] += 1 }
@@ -105,7 +104,7 @@ struct StatusItemSummary: Equatable {
                   showingRemaining: showingRemaining)
         }
         let nextChange = summarised
-            .compactMap { $0.fiveHourWindow?.resetsAt }
+            .compactMap { $0.menuBarLimitWindow?.resetsAt }
             .compactMap { ResetCopy.nextCountdownChange(to: $0, now: now) }
             .min()
         return StatusItemSummary(entries: entries, nextChange: nextChange, reading: reading)
@@ -120,7 +119,7 @@ struct StatusItemSummary: Equatable {
                               now: Date, format: ResetTimeFormat,
                               showingWeeklyLimit: Bool,
                               showingRemaining: Bool) -> Entry {
-        let window = snapshot.fiveHourWindow
+        let window = snapshot.menuBarLimitWindow
         // Past its reset a reading describes a window that is over. The store
         // re-reads on its first tick after a reset; until that lands the honest
         // figure is none, not the old one.
@@ -136,7 +135,8 @@ struct StatusItemSummary: Equatable {
         let label = sharesMark
             ? (ClaudeProfile.slug(fromProviderID: snapshot.id) ?? CodexProfile.slug(fromProviderID: snapshot.id))
             : nil
-        let weeklyWindow = showingWeeklyLimit ? snapshot.weeklyLimitWindow : nil
+        let weeklyWindow = showingWeeklyLimit && snapshot.weeklyLimitWindow?.id != window?.id
+            ? snapshot.weeklyLimitWindow : nil
         let weeklyIsOver = weeklyWindow?.resetsAt.map { $0 <= now } ?? false
         let weeklyFraction = weeklyIsOver ? nil : weeklyWindow?.usedFraction.flatMap { fraction in
             // The ring sweeps from the end the figure beside it is read from,

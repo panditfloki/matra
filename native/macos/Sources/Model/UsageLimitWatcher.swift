@@ -5,6 +5,7 @@ import Foundation
 @MainActor
 final class UsageLimitWatcher {
     private struct TrackedLimit {
+        var windowID: String?
         /// False until this window has been read once. The first reading of a
         /// window only records: a limit already spent when Matra starts is
         /// not news. Kept per window rather than per provider because the
@@ -65,6 +66,10 @@ final class UsageLimitWatcher {
 
         // 1. Session limit (headline window)
         if let headline = snapshot.headline, let fraction = snapshot.usedFraction {
+            // A plan/window change is a new baseline, not a threshold crossing.
+            if state.session.windowID != headline.id {
+                state.session = TrackedLimit(windowID: headline.id)
+            }
             let isExhausted = fraction >= 1.0 || snapshot.block != nil
 
             let dateRolledOver = rolledOver(from: state.session.resetsAt, to: headline.resetsAt)
@@ -79,7 +84,7 @@ final class UsageLimitWatcher {
             } else if isExhausted && !state.session.isExhausted && !isMuted(snapshot.id) {
                 state.session.isExhausted = true
                 deliver(UsageAlertEvent(
-                    kind: .sessionLimitReached,
+                    kind: headline.id == snapshot.weeklyID ? .weeklyLimitReached : .sessionLimitReached,
                     providerID: snapshot.id,
                     providerName: snapshot.displayName,
                     windowLabel: headline.label,

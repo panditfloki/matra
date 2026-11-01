@@ -217,6 +217,28 @@ final class NotchRenderTests: XCTestCase {
         }
     }
 
+    func testWeeklyOnlyClaudeRendersItsRemainingReading() throws {
+        let model = model(edge: .left, cells: 1)
+        let windows = [LimitWindow(id: "weekly_all", label: "All models", usedFraction: 0.89,
+                                  resetsAt: Date().addingTimeInterval(86400), duration: 7 * 86400)]
+        model.snapshots = [ProviderSnapshot(id: "claude", displayName: "Claude", glyph: .claude,
+            fidelity: .official, status: .ok, windows: windows,
+            headlineID: UsageResponse.headlineID(for: windows), weeklyID: "weekly_all")]
+        model.showsRemainingInNotch = true
+        model.showsNotchReadings = true
+        model.weeklyRing = .outside
+        XCTAssertEqual(model.snapshots[0].headlineText(showingRemaining: true), "11%")
+        XCTAssertEqual(ProviderReading(snapshot: model.snapshots[0], weeklyRing: .outside,
+                                       showsWeeklyReading: true, showsRemaining: true).text, "11%")
+        XCTAssertNil(model.snapshots[0].weeklyWindow)
+        let rep = try XCTUnwrap(render(model))
+        XCTAssertGreaterThan(colouredFraction(rep), 0, "the weekly headline must paint an arc")
+        if ProcessInfo.processInfo.environment["MATRA_TEST_WORKSPACE"] != nil {
+            try XCTUnwrap(rep.representation(using: .png, properties: [:])).write(
+                to: MatraTestFiles.temporaryDirectory.appendingPathComponent("claude-weekly-only.png"))
+        }
+    }
+
     /// The weekly ring has to actually appear, and only when asked for.
     ///
     /// Counted by colour rather than by ink: the arcs are drawn on top of the

@@ -1214,7 +1214,9 @@ fn tightest<'a>(
 
 /// The window a provider's ring shows, declared per provider as the macOS providers declare
 /// `headlineID`: a window dropping out of a reply shows a dash instead of promoting another one
-/// into its place. `headlineOf` in ui/notch.html is the same rule, so the ring and the tray agree.
+/// into its place. `headlineOf` in ui/notch.html and ui/dashboard.js is the same rule, so the ring
+/// and the tray agree. Claude is the one declared pair: an account that reports no session window
+/// is led by its all-models week. A model-scoped week never leads, since it is not the account's.
 pub(crate) fn ring_window<'a>(
     provider: &str,
     windows: &'a [usage::LimitWindow],
@@ -1223,7 +1225,9 @@ pub(crate) fn ring_window<'a>(
 ) -> Option<&'a usage::LimitWindow> {
     let by_id = |id: &str| windows.iter().find(|w| w.id == id);
     match provider {
-        "claude" => by_id("session"),
+        "claude" => ["session", "five_hour", "seven_day", "weekly_all", "weekly"]
+            .iter()
+            .find_map(|id| by_id(id)),
         "codex" => by_id("primary"),
         "cursor" => by_id("included").or_else(|| by_id("api")),
         "grok" => by_id("credits").or_else(|| windows.first()),
@@ -2321,8 +2325,47 @@ mod tests {
     }
 
     #[test]
+    fn a_weekly_only_claude_account_is_led_by_its_week() {
+        let weekly = [win("seven_day", 0.89)];
+        let headline = ring_window("claude", &weekly, "automatic", "gemini").unwrap();
+        assert_eq!(headline.id, "seven_day");
+        assert_eq!(((1.0 - headline.used) * 100.0).round() as u32, 11, "89% used is 11% left");
+        for alias in ["weekly_all", "weekly"] {
+            assert_eq!(pick("claude", &[win(alias, 0.89)]), Some(alias));
+        }
+    }
+
+    #[test]
+    fn a_claude_session_outranks_the_week_even_at_zero() {
+        assert_eq!(pick("claude", &[win("seven_day", 0.89), win("session", 0.0)]), Some("session"));
+        assert_eq!(pick("claude", &[win("weekly_all", 0.89), win("five_hour", 0.0)]), Some("five_hour"));
+    }
+
+    #[test]
+    fn a_claude_account_changing_shape_changes_its_headline_with_no_memory() {
+        let both = [win("session", 0.2), win("seven_day", 0.89)];
+        assert_eq!(pick("claude", &both), Some("session"));
+        assert_eq!(pick("claude", &both[1..]), Some("seven_day"));
+        assert_eq!(pick("claude", &both), Some("session"));
+    }
+
+    #[test]
+    fn a_claude_model_scoped_week_never_leads() {
+        for scoped in ["weekly_scoped", "seven_day_opus", "weekly_opus"] {
+            assert_eq!(pick("claude", &[win(scoped, 0.9)]), None);
+            assert_eq!(pick("claude", &[win(scoped, 0.9), win("seven_day", 0.1)]), Some("seven_day"));
+        }
+    }
+
+    #[test]
+    fn claude_with_no_usable_window_is_a_dash() {
+        assert_eq!(pick("claude", &[]), None);
+        assert_eq!(pick("claude", &[win("some_future_kind", 0.5)]), None);
+    }
+
+    #[test]
     fn a_missing_declared_window_is_a_dash_not_a_stand_in() {
-        assert_eq!(pick("claude", &[win("weekly_all", 0.60)]), None);
+        assert_eq!(pick("glm", &[win("weekly", 0.60)]), None);
     }
 
     #[test]

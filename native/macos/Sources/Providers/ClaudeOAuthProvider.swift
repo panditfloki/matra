@@ -849,18 +849,14 @@ struct UsageResponse: Decodable {
 
     /// Which window the ring means.
     ///
-    /// The session where there is one: that is what Claude Code's own `/usage`
-    /// leads with, and promoting another of the plan's windows into its place
-    /// would silently change what the ring is about — so where a session is
-    /// merely missing from a response, "session" stays declared and the cell
-    /// shows a dash rather than a weekly percentage wearing the session's
-    /// place.
-    ///
-    /// A credit seat is not that case. It reports no session window at all,
-    /// ever, so there is nothing to promote *over* — and declaring one anyway
-    /// left the ring showing a dash beside a card that was full of numbers.
+    /// Prefer the session whenever the account reports one, including 0%.
+    /// Weekly-only accounts instead lead with the all-models allowance. Read
+    /// capabilities from the response, never a plan name or subscription price.
+    /// Model-scoped weeks cannot stand for the account. Credit seats retain
+    /// their balance, and an empty response still has no headline reading.
     static func headlineID(for windows: [LimitWindow]) -> String {
         if windows.contains(where: { $0.id == "session" }) { return "session" }
+        if windows.contains(where: { $0.id == "weekly_all" }) { return "weekly_all" }
         if let balance = windows.first(where: { $0.money != nil }) { return balance.id }
         return "session"
     }

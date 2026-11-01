@@ -483,6 +483,9 @@ fn parse_response(v: &serde_json::Value) -> Vec<LimitWindow> {
         let Some(u) = w.get("utilization").and_then(|x| x.as_f64()) else { continue };
         let used = (u / 100.0).clamp(0.0, 1.0);
         let resets_at = w.get("resets_at").and_then(parse_reset);
+        // Match the limits-array and Mac rules: a null-reset placeholder is
+        // not an active cap, even when it contains a zero utilization.
+        if resets_at.is_none() { continue; }
         let label = label_for(id);
         let dup = out.iter().any(|x| {
             alias.contains(&x.id.as_str())
@@ -790,6 +793,59 @@ mod tests {
     use super::*;
 
     const EXP: u64 = 1_000_000_000;
+
+    #[test]
+    fn a_weekly_only_reply_keeps_only_its_week() {
+        let reset = "2026-11-08T00:00:00Z";
+        let fields = parse_response(&serde_json::json!({
+            "five_hour": null,
+            "seven_day": { "utilization": 89.0, "resets_at": reset },
+        }));
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].id, "seven_day");
+        assert!((fields[0].used - 0.89).abs() < 1e-9);
+
+        let limits = parse_response(&serde_json::json!({
+            "limits": [{ "kind": "weekly_all", "percent": 89.0, "resets_at": reset }],
+            "five_hour": null,
+            "seven_day": { "utilization": 89.0, "resets_at": reset },
+        }));
+        assert_eq!(limits.len(), 1, "the named field does not twin the limits entry");
+        assert_eq!(limits[0].id, "weekly_all");
+    }
+
+    #[test]
+    fn a_session_at_zero_is_a_reading_and_comes_first() {
+        let reset = "2026-11-08T00:00:00Z";
+        let windows = parse_response(&serde_json::json!({
+            "seven_day": { "utilization": 89.0, "resets_at": reset },
+            "five_hour": { "utilization": 0.0, "resets_at": reset },
+        }));
+        assert_eq!(windows[0].id, "session");
+        assert_eq!(windows[0].used, 0.0);
+        assert_eq!(windows[1].id, "seven_day");
+    }
+
+    #[test]
+    fn scoped_and_empty_replies_invent_no_all_models_week() {
+        let scoped = parse_response(&serde_json::json!({
+            "limits": [{ "kind": "weekly_scoped", "percent": 40.0, "resets_at": "2026-11-08T00:00:00Z" }],
+            "five_hour": null,
+            "seven_day": null,
+        }));
+        assert_eq!(scoped.iter().map(|w| w.id.as_str()).collect::<Vec<_>>(), ["weekly_scoped"]);
+        assert!(parse_response(&serde_json::json!({})).is_empty());
+    }
+
+    #[test]
+    fn a_null_reset_placeholder_does_not_mask_the_week() {
+        let windows = parse_response(&serde_json::json!({
+            "five_hour": { "utilization": 0.0, "resets_at": null },
+            "seven_day": { "utilization": 89.0, "resets_at": "2026-11-08T00:00:00Z" },
+        }));
+        assert_eq!(windows.len(), 1);
+        assert_eq!(windows[0].id, "seven_day");
+    }
 
     #[test]
     fn renews_only_inside_the_margin() {
