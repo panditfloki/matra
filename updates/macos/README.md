@@ -5,12 +5,14 @@ The Mac app's **Check for updates** reads
 Uploading a GitHub release alone does not update this feed. The feed file must be
 published on `main`, even when the corresponding application source is on a release branch.
 
-The feed currently offers **1.9.0 Beta 4 (build 1904)**. Builds below 1904 receive
+The feed currently offers **1.9.0 Beta 5 (build 1905)**. Builds below 1904 receive
 an informational item: their installed display name contains a slash that breaks
 Sparkle's download directory. They need one manual replacement from the release
 page. The old custom notch driver does not open an informational link itself;
 use **View releases on GitHub** in Settings. This avoids repeatedly downloading
-an archive the old app cannot store. Build 1904 supplies the safe `SUBundleName`.
+an archive the old app cannot store. Build 1904 supplies the safe `SUBundleName` and receives Beta 5 as a normal update.
+Beta 5 fixes Claude weekly-only percentage readings while retaining five-hour
+session readings on accounts that report them.
 
 The feed and public signing key remain unchanged. GitHub's stable/latest release
 and Windows updater are separate. The Mac beta remains ad-hoc signed and unnotarized.

@@ -7,20 +7,20 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <description>Mātrā Mac updates</description>
     <language>en</language>
     <item>
-      <title>Mātrā 1.9.0 Beta 4 — updater correction</title>
-      <link>https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.4</link>
-      <pubDate>Sat, 31 Oct 2026 21:09:23 +0000</pubDate>
-      <sparkle:version>1904</sparkle:version>
-      <sparkle:shortVersionString>1.9.0 Beta 4</sparkle:shortVersionString>
+      <title>Mātrā 1.9.0 Beta 5 — Claude weekly usage</title>
+      <link>https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.5</link>
+      <pubDate>Sun, 01 Nov 2026 10:44:37 +0000</pubDate>
+      <sparkle:version>1905</sparkle:version>
+      <sparkle:shortVersionString>1.9.0 Beta 5</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
       <sparkle:informationalUpdate>
         <sparkle:belowVersion>1904</sparkle:belowVersion>
       </sparkle:informationalUpdate>
-      <description><![CDATA[<p>One-time manual install required: use View releases on GitHub in Settings and install Beta 4. The updater in earlier copies cannot create its download folder. Beta 4 fixes that name, keeps the branding and hover-only drag dots, and retains the Mac launch correction.</p><p>Universal Apple Silicon and Intel beta; ad-hoc signed and not notarized.</p>]]></description>
-      <enclosure url="https://github.com/panditfloki/matra/releases/download/v1.9.0-beta.4/Matra-1.9.0-beta.4-macOS-universal.dmg" sparkle:edSignature="Zl8BwFhAxLwRqW3xJ9s32PEO+oh7EBVf/b3rv7r67rsJhmPiC35xGrtTPmyfbT5qdQGh05s5ITfX5jBCCESPDA==" length="16320841" type="application/octet-stream"></enclosure>
+      <description><![CDATA[<p>Claude accounts without a five-hour session now show their all-models weekly percentage. Five-hour capped accounts retain their session reading, including 0%. Menu bar summaries and alerts follow the reported windows.</p><p>Build 1904 can update normally. Earlier builds require one manual replacement via View releases on GitHub in Settings because their updater cannot create its download folder.</p><p>Universal Apple Silicon and Intel beta; ad-hoc signed and not notarized.</p>]]></description>
+      <enclosure url="https://github.com/panditfloki/matra/releases/download/v1.9.0-beta.5/Matra-1.9.0-beta.5-macOS-universal.dmg" sparkle:edSignature="OA2cVvbPG42GDo1CJiqLtd4DblQLiUg6Yy9V5YXESuihbXc4jtHeA6KpBSibxNxbmIDSmbmd0yv/FbELVK3kAA==" length="16323957" type="application/octet-stream"></enclosure>
     </item>
   </channel>
 </rss><!-- sparkle-signatures:
-edSignature: 70LxHzrUIb4c89MQAix5qWGspOUos5HuLA1c/VDA4e/NWicJV93lrTZQOLBUWFYPvg2oFs6jVxfT7/CjIdWBCA==
-length: 1836
+edSignature: jVLa8ifSNfk8P2KXOQujF+4RhkbVFf9cNGd8t4yGjxxhPveqfLx4NqVN9MzZx7KTL3430xcH9y7ZBPibg4FeAw==
+length: 1969
 -->
