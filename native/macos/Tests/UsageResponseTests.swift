@@ -174,6 +174,12 @@ final class UsageResponseTests: XCTestCase {
         XCTAssertEqual(UsageResponse.headlineID(for: windows), "spend")
     }
 
+    func testAnAccountAllowanceLeadsBeforeAnAdditionalCreditBalance() throws {
+        let windows = try decode(enterprise).limitWindows()
+            + [LimitWindow(id: "weekly_all", label: "All models", usedFraction: 0.89)]
+        XCTAssertEqual(UsageResponse.headlineID(for: windows), "weekly_all")
+    }
+
     /// A capped account retains its session even when the week is more used.
     func testTheSessionStillLeadsWhereThereIsOne() throws {
         XCTAssertEqual(UsageResponse.headlineID(for: try decode(live).limitWindows()), "session")

@@ -17,7 +17,7 @@ struct ThresholdAlert: Equatable {
 /// limit crosses 80% or reaches 100%.
 ///
 /// Crossing, not level: a provider parked at 91% must not alert twice, so the
-/// highest threshold currently crossed is remembered per provider. The memory
+/// highest threshold currently crossed is remembered per provider and window. The memory
 /// clears when the reading drops back below the first threshold — the window
 /// has rolled over, and the next climb is a new fact worth announcing.
 ///
@@ -25,7 +25,7 @@ struct ThresholdAlert: Equatable {
 /// testable without ever touching the notification centre.
 @MainActor
 final class ThresholdNotifier {
-    private var crossed: [String: Int] = [:]
+    private var crossed: [String: [String: Int]] = [:]
     private let isMuted: (String) -> Bool
     private let deliver: (ThresholdAlert) -> Void
 
@@ -51,7 +51,7 @@ final class ThresholdNotifier {
             crossed.removeValue(forKey: snapshot.id)
             return
         }
-        guard let fraction = snapshot.usedFraction else { return }
+        guard let headline = snapshot.headline, let fraction = snapshot.usedFraction else { return }
         let percent = fraction * 100
         let level = percent >= 100 ? 100 : percent >= 80 ? 80 : 0
 
@@ -59,14 +59,13 @@ final class ThresholdNotifier {
         // history when Matra launches, and after a restart that reading is
         // the archived one, often already past a threshold; treating it as a
         // crossing rang "limit reached" on every start.
-        guard let previous = crossed[snapshot.id] else {
-            crossed[snapshot.id] = level
+        guard let previous = crossed[snapshot.id]?[headline.id] else {
+            crossed[snapshot.id, default: [:]][headline.id] = level
             return
         }
-        defer { crossed[snapshot.id] = level }
+        defer { crossed[snapshot.id, default: [:]][headline.id] = level }
         guard level > previous, !isMuted(snapshot.id) else { return }
 
-        guard let headline = snapshot.headline else { return }
         for threshold in [80, 100] where threshold > previous && threshold <= level {
             deliver(ThresholdAlert(
                 threshold: threshold,

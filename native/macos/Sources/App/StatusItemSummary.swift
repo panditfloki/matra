@@ -135,8 +135,11 @@ struct StatusItemSummary: Equatable {
         let label = sharesMark
             ? (ClaudeProfile.slug(fromProviderID: snapshot.id) ?? CodexProfile.slug(fromProviderID: snapshot.id))
             : nil
-        let weeklyWindow = showingWeeklyLimit && snapshot.weeklyLimitWindow?.id != window?.id
-            ? snapshot.weeklyLimitWindow : nil
+        // Notch display overrides can swap the secondary ID to the session.
+        // This setting still requests the account's week in the menu bar.
+        let accountWeek = ClaudeProfile.isClaude(providerID: snapshot.id)
+            ? snapshot.windows.first { $0.id == "weekly_all" } : snapshot.weeklyLimitWindow
+        let weeklyWindow = showingWeeklyLimit && accountWeek?.id != window?.id ? accountWeek : nil
         let weeklyIsOver = weeklyWindow?.resetsAt.map { $0 <= now } ?? false
         let weeklyFraction = weeklyIsOver ? nil : weeklyWindow?.usedFraction.flatMap { fraction in
             // The ring sweeps from the end the figure beside it is read from,

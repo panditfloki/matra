@@ -137,6 +137,16 @@ final class StatusItemSummaryTests: XCTestCase {
         XCTAssertEqual(summary([paced], remaining: true).entries.first?.percent, "69%")
     }
 
+    func testNotchOverridesPreserveTheCappedAccountsMenuBarWeek() {
+        let capped = claude(0.2, resetIn: hour)
+        for account in [WeeklyHeadline.apply(to: capped), DailyPace.apply(to: capped, now: now)] {
+            let entry = summary([account], weekly: true).entries.first
+            XCTAssertEqual(entry?.percent, "20%")
+            XCTAssertEqual(entry?.weeklyFraction, 0.31)
+            XCTAssertTrue(entry?.detail.contains("All models") == true)
+        }
+    }
+
     func testClaudeReadsAsItsSessionShareAndCountdown() throws {
         let entry = try XCTUnwrap(summary([claude(0.72, resetIn: 2 * hour + 18 * minute + 20)]).entries.first)
         XCTAssertEqual(entry.glyph, .claude)

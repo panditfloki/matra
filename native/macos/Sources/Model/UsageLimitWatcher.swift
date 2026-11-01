@@ -5,7 +5,6 @@ import Foundation
 @MainActor
 final class UsageLimitWatcher {
     private struct TrackedLimit {
-        var windowID: String?
         /// False until this window has been read once. The first reading of a
         /// window only records: a limit already spent when Matra starts is
         /// not news. Kept per window rather than per provider because the
@@ -19,12 +18,7 @@ final class UsageLimitWatcher {
         var fraction: Double = 0
     }
 
-    private struct ProviderLimitState {
-        var session: TrackedLimit = TrackedLimit()
-        var weekly: TrackedLimit = TrackedLimit()
-    }
-
-    private var states: [String: ProviderLimitState] = [:]
+    private var states: [String: [String: TrackedLimit]] = [:]
     private let isMuted: (String) -> Bool
     private let deliver: (UsageAlertEvent) -> Void
     private let now: () -> Date
@@ -62,72 +56,73 @@ final class UsageLimitWatcher {
             states.removeValue(forKey: snapshot.id)
             return
         }
-        var state = states[snapshot.id] ?? ProviderLimitState()
+        var state = states[snapshot.id] ?? [:]
 
         // 1. Session limit (headline window)
         if let headline = snapshot.headline, let fraction = snapshot.usedFraction {
-            // A plan/window change is a new baseline, not a threshold crossing.
-            if state.session.windowID != headline.id {
-                state.session = TrackedLimit(windowID: headline.id)
-            }
+            // A new window seeds silently; a returning window retains its history.
+            var primary = state[headline.id] ?? TrackedLimit()
             let isExhausted = fraction >= 1.0 || snapshot.block != nil
 
-            let dateRolledOver = rolledOver(from: state.session.resetsAt, to: headline.resetsAt)
+            let dateRolledOver = rolledOver(from: primary.resetsAt, to: headline.resetsAt)
 
             if dateRolledOver || fraction < 0.95 {
-                state.session.isExhausted = false
+                primary.isExhausted = false
             }
 
-            if !state.session.seeded {
-                state.session.seeded = true
-                state.session.isExhausted = isExhausted
-            } else if isExhausted && !state.session.isExhausted && !isMuted(snapshot.id) {
-                state.session.isExhausted = true
+            if !primary.seeded {
+                primary.seeded = true
+                primary.isExhausted = isExhausted
+            } else if isExhausted && !primary.isExhausted && !isMuted(snapshot.id) {
+                primary.isExhausted = true
                 deliver(UsageAlertEvent(
                     kind: headline.id == snapshot.weeklyID ? .weeklyLimitReached : .sessionLimitReached,
                     providerID: snapshot.id,
                     providerName: snapshot.displayName,
                     windowLabel: headline.label,
                     glyph: snapshot.glyph,
-                    previousFraction: state.session.fraction,
+                    previousFraction: primary.fraction,
                     currentFraction: fraction,
                     resetsAt: headline.resetsAt
                 ))
             }
 
-            state.session.fraction = fraction
-            state.session.resetsAt = headline.resetsAt
+            primary.fraction = fraction
+            primary.resetsAt = headline.resetsAt
+            state[headline.id] = primary
         }
 
         // 2. Weekly limit (secondary window)
         if let weekly = snapshot.weeklyWindow, let weeklyFraction = snapshot.weeklyFraction {
+            var secondary = state[weekly.id] ?? TrackedLimit()
             let isWeeklyExhausted = weeklyFraction >= 1.0
 
-            let dateRolledOver = rolledOver(from: state.weekly.resetsAt, to: weekly.resetsAt)
+            let dateRolledOver = rolledOver(from: secondary.resetsAt, to: weekly.resetsAt)
 
             if dateRolledOver || weeklyFraction < 0.95 {
-                state.weekly.isExhausted = false
+                secondary.isExhausted = false
             }
 
-            if !state.weekly.seeded {
-                state.weekly.seeded = true
-                state.weekly.isExhausted = isWeeklyExhausted
-            } else if isWeeklyExhausted && !state.weekly.isExhausted && !isMuted(snapshot.id) {
-                state.weekly.isExhausted = true
+            if !secondary.seeded {
+                secondary.seeded = true
+                secondary.isExhausted = isWeeklyExhausted
+            } else if isWeeklyExhausted && !secondary.isExhausted && !isMuted(snapshot.id) {
+                secondary.isExhausted = true
                 deliver(UsageAlertEvent(
                     kind: .weeklyLimitReached,
                     providerID: snapshot.id,
                     providerName: snapshot.displayName,
                     windowLabel: weekly.label,
                     glyph: snapshot.glyph,
-                    previousFraction: state.weekly.fraction,
+                    previousFraction: secondary.fraction,
                     currentFraction: weeklyFraction,
                     resetsAt: weekly.resetsAt
                 ))
             }
 
-            state.weekly.fraction = weeklyFraction
-            state.weekly.resetsAt = weekly.resetsAt
+            secondary.fraction = weeklyFraction
+            secondary.resetsAt = weekly.resetsAt
+            state[weekly.id] = secondary
         }
 
         states[snapshot.id] = state

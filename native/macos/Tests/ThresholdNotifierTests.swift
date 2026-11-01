@@ -29,6 +29,25 @@ final class ThresholdNotifierTests: XCTestCase {
         )
     }
 
+    func testSwitchingToAWeeklyHeadlineDoesNotInventOrRepeatACrossing() {
+        func weekly(_ fraction: Double) -> ProviderSnapshot {
+            ProviderSnapshot(id: "claude", displayName: "Claude", glyph: .claude,
+                fidelity: .official, status: .ok,
+                windows: [LimitWindow(id: "weekly_all", label: "All models", usedFraction: fraction)],
+                headlineID: "weekly_all", weeklyID: "weekly_all")
+        }
+        notifier.observe([snapshot("claude", "Claude", 0.1)])
+        notifier.observe([weekly(0.85)])
+        notifier.observe([snapshot("claude", "Claude", 0.01)])
+        notifier.observe([weekly(0.86)])
+        XCTAssertTrue(alerts.isEmpty)
+        notifier.observe([weekly(1)])
+        XCTAssertEqual(alerts.map(\.threshold), [100])
+        notifier.observe([snapshot("claude", "Claude", 0.02)])
+        notifier.observe([weekly(1)])
+        XCTAssertEqual(alerts.count, 1)
+    }
+
     func testCrossingEightyAlertsOnce() {
         notifier.observe([snapshot("claude", "Claude", 0.5)])
         XCTAssertNil(alerts.first, "parked under the threshold is nobody's business")

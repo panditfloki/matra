@@ -47,6 +47,20 @@ final class UsageResetWatcherTests: XCTestCase {
         XCTAssertEqual(alerts.count, 1, "subsequent real session resets still alert")
     }
 
+    func testSessionResetSurvivesAWeeklyOnlyReadingBetweenSessions() {
+        let weekly = ProviderSnapshot(id: "claude", displayName: "Claude", glyph: .claude,
+            fidelity: .official, status: .ok,
+            windows: [LimitWindow(id: "weekly_all", label: "All models", usedFraction: 0.89,
+                                  resetsAt: Date(timeIntervalSince1970: 100_000))],
+            headlineID: "weekly_all", weeklyID: "weekly_all")
+        watcher.observe([snapshot("claude", "Claude", 0.9, resetsAt: Date(timeIntervalSince1970: 1_100))])
+        clock = Date(timeIntervalSince1970: 1_200)
+        watcher.observe([weekly])
+        XCTAssertTrue(alerts.isEmpty)
+        watcher.observe([snapshot("claude", "Claude", 0, resetsAt: Date(timeIntervalSince1970: 20_000))])
+        XCTAssertEqual(alerts.map(\.windowLabel), ["5-hour limit"])
+    }
+
     /// At launch the store publishes the archived reading, marked stale, and
     /// the live one follows. A newer reset date between the two is not a reset
     /// that happened; it is the archive being old.

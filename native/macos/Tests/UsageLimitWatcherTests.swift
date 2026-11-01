@@ -70,6 +70,18 @@ final class UsageLimitWatcherTests: XCTestCase {
         XCTAssertEqual(alerts.map(\.kind), [.weeklyLimitReached, .sessionLimitReached])
     }
 
+    func testAWeeklyLimitKeepsItsHistoryWhenItMovesToTheHeadline() {
+        watcher.observe([snapshot("claude", "Claude", sessionFraction: 0.1, weeklyFraction: 0.9)])
+        let weekly = ProviderSnapshot(id: "claude", displayName: "Claude", glyph: .claude,
+            fidelity: .official, status: .ok,
+            windows: [LimitWindow(id: "weekly", label: "Weekly limit", usedFraction: 1)],
+            headlineID: "weekly", weeklyID: "weekly")
+        watcher.observe([weekly])
+        watcher.observe([snapshot("claude", "Claude", sessionFraction: 0.1, weeklyFraction: 1)])
+        watcher.observe([weekly])
+        XCTAssertEqual(alerts.map(\.kind), [.weeklyLimitReached])
+    }
+
     /// The store's first publication for a provider can be a placeholder with
     /// no window at all. Counting that as the baseline made the first real
     /// reading a "crossing", and a Codex already spent at launch was announced.

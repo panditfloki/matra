@@ -52,14 +52,13 @@ typealias UsageResetEvent = UsageAlertEvent
 @MainActor
 final class UsageResetWatcher {
     private struct TrackedState {
-        var windowID: String
         var fraction: Double
         var resetsAt: Date?
         var peakFraction: Double
         var lastAlertedResetDate: Date?
     }
 
-    private var states: [String: TrackedState] = [:]
+    private var states: [String: [String: TrackedState]] = [:]
     private let isMuted: (String) -> Bool
     private let deliver: (UsageResetEvent) -> Void
     private let now: () -> Date
@@ -94,9 +93,9 @@ final class UsageResetWatcher {
         guard let headline = snapshot.headline,
               let fraction = snapshot.usedFraction else { return }
 
-        guard var previous = states[snapshot.id], previous.windowID == headline.id else {
-            states[snapshot.id] = TrackedState(
-                windowID: headline.id,
+        // Retain each window while another leads, including a session absent at rollover.
+        guard var previous = states[snapshot.id]?[headline.id] else {
+            states[snapshot.id, default: [:]][headline.id] = TrackedState(
                 fraction: fraction,
                 resetsAt: headline.resetsAt,
                 peakFraction: fraction,
@@ -145,12 +144,12 @@ final class UsageResetWatcher {
             previous.peakFraction = fraction
             previous.resetsAt = headline.resetsAt
             previous.lastAlertedResetDate = headline.resetsAt
-            states[snapshot.id] = previous
+            states[snapshot.id, default: [:]][headline.id] = previous
         } else {
             previous.fraction = fraction
             previous.peakFraction = max(previous.peakFraction, fraction)
             previous.resetsAt = headline.resetsAt
-            states[snapshot.id] = previous
+            states[snapshot.id, default: [:]][headline.id] = previous
         }
     }
 }

@@ -385,7 +385,10 @@ impl Engine {
                 continue;
             }
             let previous = self.windows.remove(&provider.id).unwrap_or_default();
-            let mut current = HashMap::new();
+            // A session can disappear at rollover while the week remains.
+            // Keep its baseline until it returns; stale/disconnected providers
+            // still clear all their tracks above.
+            let mut current = previous.clone();
             let mut best: Option<AlertEvent> = None;
             for window in &provider.snapshot.windows {
                 let Some(fraction) = measurable(window) else { continue };
@@ -1248,6 +1251,17 @@ mod tests {
         reset_step(&mut engine, at(0), 0.6, None);
         assert!(reset_step(&mut engine, at(1), 0.55, None).is_empty());
         assert_eq!(reset_step(&mut engine, at(2), 0.02, None), [AlertKind::UsageReset]);
+    }
+
+    #[test]
+    fn a_session_reset_survives_a_weekly_only_reading() {
+        let mut engine = Engine::new(START);
+        reset_step(&mut engine, at(0), 0.9, Some(at(2)));
+        let weekly = vec![window("seven_day", "Weekly", 0.89, Some(at(40)))];
+        assert!(engine.observe(at(3), &all_on(), T,
+            &[reading("claude", at(3), weekly)], &[]).events.is_empty());
+        assert_eq!(reset_step(&mut engine, at(4), 0.0, Some(at(20))), [AlertKind::UsageReset]);
+        assert!(reset_step(&mut engine, at(5), 0.0, Some(at(20))).is_empty());
     }
 
     #[test]

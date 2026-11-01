@@ -1,6 +1,6 @@
 # Mātrā 1.9 · Mac and Windows preview
 
-This preview brings the latest Mac controls and integrations to the native Windows app. Windows uses the [1.9.0 beta 1 release](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.1). Mac users should install [1.9.0 beta 4](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.4), which fixes the updater's download-folder name and retains the hover-only drag dots and launch correction. Affected earlier Mac builds need this one-time manual replacement; subsequent builds can use the signed Mac feed. Windows beta installation remains manual.
+This preview brings the latest Mac controls and integrations to the native Windows app. Windows uses the [1.9.0 beta 1 release](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.1). Mac users should install [1.9.0 beta 5](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.5): Claude accounts without a five-hour cap now show their all-models weekly percentage. Accounts reporting a session retain that reading, including 0%. Menu bar summaries and window-change alerts follow the available limits. The hover-only drag dots and earlier launch/updater corrections remain. Mac builds below 1904 require a one-time manual replacement; build 1904 can discover Beta 5 through the signed feed. Windows beta installation remains manual.
 
 ## Test on a ROG PC
 
