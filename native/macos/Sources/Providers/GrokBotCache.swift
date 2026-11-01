@@ -7,8 +7,9 @@ import Foundation
 /// mapped result as plain JSON in `sand-client-persistence`, one blob per
 /// account. The blob's filename is the lower-case base32 of its key with no
 /// padding, so the weekly cache for an account slot looks like
-/// `sand.client.slice.account.grok|user_….weekly-usage.cache` spelled in
-/// base32. Matra only reads it — no credential is involved, and nothing
+/// `sand.client.slice.account.grok%7Cuser_….weekly-usage.cache` spelled in
+/// base32 (older keys kept the slot unescaped). Matra only reads it — no
+/// credential is involved, and nothing
 /// here can sign in or refresh: while Grok Bot runs it keeps the cache fresh
 /// itself, and when it does not the reading ages in place.
 struct GrokBotReading {
@@ -82,23 +83,37 @@ enum GrokBotCache {
             at: persistenceDir, includingPropertiesForKeys: [.contentModificationDateKey]
         ) else { throw UsageProviderError.needsAuth }
 
-        let caches = files.compactMap { url -> (slot: String, url: URL)? in
+        let caches = files.compactMap { url -> (slot: String, url: URL, modifiedAt: Date)? in
             guard let key = decodeBlobName(url.lastPathComponent),
                   key.hasSuffix(weeklyUsageSuffix),
                   key.hasPrefix("sand.client.slice.account.")
             else { return nil }
             let slot = key.dropFirst("sand.client.slice.account.".count)
                 .dropLast(weeklyUsageSuffix.count)
-            return (String(slot), url)
+            return (String(slot), url, modifiedAt(url))
         }
         guard !caches.isEmpty else { throw UsageProviderError.needsAuth }
 
-        let candidates: [(slot: String, url: URL)]
+        let newestFirst = caches.sorted {
+            if $0.modifiedAt != $1.modifiedAt { return $0.modifiedAt > $1.modifiedAt }
+            return $0.url.lastPathComponent < $1.url.lastPathComponent
+        }
+        let candidates: [(slot: String, url: URL, modifiedAt: Date)]
         if let activeSlot = activeAccountSlot(in: persistenceDir) {
-            candidates = caches.filter { $0.slot == activeSlot }
-            guard !candidates.isEmpty else { throw nothingMeteredError }
+            // The selected slot is already raw. Decode only the key's slot,
+            // exactly once, while still accepting keys from the unescaped format.
+            guard let newest = newestFirst.first(where: {
+                $0.slot == activeSlot || $0.slot.removingPercentEncoding == activeSlot
+            }) else { throw nothingMeteredError }
+            candidates = [newest]
         } else {
-            candidates = caches.sorted { modifiedAt($0.url) > modifiedAt($1.url) }
+            // Raw and escaped names can coexist after an app update. An empty
+            // newer alias retires that account's older reading, even without a
+            // selection; another account may still supply its own reading.
+            var seenSlots: Set<String> = []
+            candidates = newestFirst.filter {
+                seenSlots.insert($0.slot.removingPercentEncoding ?? $0.slot).inserted
+            }
         }
 
         // Without a selected slot one account's empty or damaged cache must not
@@ -107,7 +122,7 @@ enum GrokBotCache {
         for candidate in candidates {
             guard let data = try? Data(contentsOf: candidate.url) else { continue }
             do {
-                return try reading(from: data, fallbackDate: modifiedAt(candidate.url))
+                return try reading(from: data, fallbackDate: candidate.modifiedAt)
             } catch UsageProviderError.nothingMetered {
                 sawNothingMetered = true
             } catch {

@@ -159,6 +159,114 @@ final class GrokBotUsageTests: XCTestCase {
         XCTAssertEqual(snapshot.usedFraction ?? -1, 0.10, accuracy: 0.0001)
     }
 
+    func testTheActiveRawSlotMatchesAnEscapedWeeklyKey() throws {
+        try writeBlobs(cache: Self.cache(percentUsed: 10), slot: "grok%7Cuser_active")
+        try writeBlobs(cache: Self.cache(percentUsed: 90), slot: "grok%7Cuser_other")
+        try touch(weeklyURL(slot: "grok%7Cuser_other"), daysFromNow: 1)
+        try selectSlot("grok|user_active")
+
+        XCTAssertEqual(try GrokBotCache.load(persistenceDir: directory).percentUsed, 10)
+    }
+
+    func testCacheSlotDecodingKeepsLiteralPlusesAndAcceptsLowercaseHex() throws {
+        try writeBlobs(cache: Self.cache(percentUsed: 10), slot: "grok%7cuser+active")
+        try selectSlot("grok|user+active")
+
+        XCTAssertEqual(try GrokBotCache.load(persistenceDir: directory).percentUsed, 10)
+    }
+
+    func testAnEscapedForeignAccountCannotFillTheActiveSlot() throws {
+        try writeBlobs(cache: Self.cache(percentUsed: 90), slot: "grok%7Cuser_other")
+        try selectSlot("grok|user_active")
+
+        XCTAssertThrowsError(try GrokBotCache.load(persistenceDir: directory)) { error in
+            guard case UsageProviderError.nothingMetered = error else {
+                return XCTFail("expected nothingMetered, got \(error)")
+            }
+        }
+    }
+
+    func testCacheSlotEscapesAreDecodedOnlyOnce() throws {
+        try writeBlobs(cache: Self.cache(percentUsed: 90), slot: "grok%257Cuser_active")
+        try selectSlot("grok|user_active")
+        XCTAssertThrowsError(try GrokBotCache.load(persistenceDir: directory))
+
+        // The active slot is a literal value, never another decoding input.
+        try selectSlot("grok%7Cuser_active")
+        XCTAssertEqual(try GrokBotCache.load(persistenceDir: directory).percentUsed, 90)
+    }
+
+    func testTheActiveSlotIsNotURIDecoded() throws {
+        try writeBlobs(cache: Self.cache(percentUsed: 90), slot: "grok|user_active")
+        try selectSlot("grok%7Cuser_active")
+
+        XCTAssertThrowsError(try GrokBotCache.load(persistenceDir: directory))
+    }
+
+    func testMalformedCacheSlotEscapesAreNotPartiallyDecoded() throws {
+        for suffix in ["%", "%7", "%GG", "%FF"] {
+            try writeBlobs(cache: Self.cache(percentUsed: 90), slot: "grok%7Cuser_active\(suffix)")
+            try selectSlot("grok|user_active\(suffix)")
+            XCTAssertThrowsError(try GrokBotCache.load(persistenceDir: directory), suffix)
+        }
+    }
+
+    func testTheNewestRawOrEscapedAliasWins() throws {
+        for (older, newer) in [("grok|user_active", "grok%7Cuser_active"),
+                               ("grok%7Cuser_active", "grok|user_active")] {
+            try writeBlobs(cache: Self.cache(percentUsed: 10), slot: older)
+            try writeBlobs(cache: Self.cache(percentUsed: 80), slot: newer)
+            try touch(weeklyURL(slot: older), daysFromNow: -2)
+            try touch(weeklyURL(slot: newer), daysFromNow: -1)
+            try selectSlot("grok|user_active")
+
+            XCTAssertEqual(try GrokBotCache.load(persistenceDir: directory).percentUsed, 80)
+        }
+    }
+
+    func testAliasTiesUseAStableFilenameOrder() throws {
+        try writeBlobs(cache: Self.cache(percentUsed: 10), slot: "grok|user_active")
+        try writeBlobs(cache: Self.cache(percentUsed: 80), slot: "grok%7Cuser_active")
+        let modifiedAt = Date(timeIntervalSince1970: 1_790_000_000)
+        for slot in ["grok|user_active", "grok%7Cuser_active"] {
+            try FileManager.default.setAttributes([.modificationDate: modifiedAt],
+                                                   ofItemAtPath: weeklyURL(slot: slot).path)
+        }
+        try selectSlot("grok|user_active")
+
+        // These fixed blob names sort the escaped key first at equal timestamps.
+        XCTAssertEqual(try GrokBotCache.load(persistenceDir: directory).percentUsed, 80)
+    }
+
+    func testANewerEmptyOrDamagedAliasCannotReviveAnOlderReading() throws {
+        for (older, newer) in [("grok|user_active", "grok%7Cuser_active"),
+                               ("grok%7Cuser_active", "grok|user_active")] {
+            for body in [#"{"value":{"kind":"absent"}}"#, "{broken"] {
+                try writeBlobs(cache: Self.cache(percentUsed: 10), slot: older)
+                try writeBlobs(cache: body, slot: newer)
+                try touch(weeklyURL(slot: older), daysFromNow: -2)
+                try touch(weeklyURL(slot: newer), daysFromNow: -1)
+                try selectSlot("grok|user_active")
+
+                XCTAssertThrowsError(try GrokBotCache.load(persistenceDir: directory), body)
+            }
+        }
+    }
+
+    func testWithoutASelectedSlotANewerAliasStillRetiresTheOlderReading() throws {
+        try writeBlobs(cache: Self.cache(percentUsed: 10), slot: "grok|user_active")
+        try writeBlobs(cache: Self.cache(percentUsed: 30), slot: "grok|user_other")
+        try touch(weeklyURL(slot: "grok|user_active"), daysFromNow: -2)
+        try touch(weeklyURL(slot: "grok|user_other"), daysFromNow: -3)
+
+        for body in [#"{"value":{"kind":"absent"}}"#, "{broken"] {
+            try writeBlobs(cache: body, slot: "grok%7Cuser_active")
+            try touch(weeklyURL(slot: "grok%7Cuser_active"), daysFromNow: -1)
+
+            XCTAssertEqual(try GrokBotCache.load(persistenceDir: directory).percentUsed, 30)
+        }
+    }
+
     /// Without a selected slot the freshest cache answers — a file Grok Bot
     /// wrote moments ago over one from a version that kept no slot.
     func testTheFreshestCacheWinsWithoutASelectedSlot() async throws {

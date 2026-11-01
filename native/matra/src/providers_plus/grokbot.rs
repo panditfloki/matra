@@ -108,6 +108,35 @@ fn active_slot(dir: &Path) -> Option<String> {
     root["value"].as_str().filter(|s| !s.is_empty()).map(str::to_owned)
 }
 
+/// Cache keys escape their slot as a URI component; the selected slot is already raw. Decode only
+/// the cache slot, once, and reject malformed escapes/UTF-8. This is not form decoding: '+' stays '+'.
+fn decode_cache_slot(slot: &str) -> Option<String> {
+    fn hex(byte: u8) -> Option<u8> {
+        match byte {
+            b'0'..=b'9' => Some(byte - b'0'),
+            b'a'..=b'f' => Some(byte - b'a' + 10),
+            b'A'..=b'F' => Some(byte - b'A' + 10),
+            _ => None,
+        }
+    }
+
+    let bytes = slot.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = hex(*bytes.get(index + 1)?)?;
+            let low = hex(*bytes.get(index + 2)?)?;
+            decoded.push((high << 4) | low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
 fn positive_ms(v: &Value) -> Option<u64> {
     number(v).filter(|n| *n > 0.0).map(|n| n as u64)
 }
@@ -173,31 +202,45 @@ pub fn reading_from(root: &Value, fallback_ms: u64, now: u64) -> Result<Reading,
 /// about that account, and another account's week must not stand in for it.
 pub fn load(dir: &Path, now: u64) -> Result<Reading, Failure> {
     let entries = std::fs::read_dir(dir).map_err(|_| no_cache())?;
-    let mut caches: Vec<(String, PathBuf)> = entries
+    let mut caches: Vec<(String, PathBuf, u64)> = entries
         .flatten()
         .take(MAX_ENTRIES)
         .filter_map(|entry| {
             let name = entry.file_name().to_string_lossy().to_string();
             let key = decode_blob_name(&name)?;
             let slot = key.strip_prefix(ACCOUNT_PREFIX)?.strip_suffix(WEEKLY_SUFFIX)?.to_string();
-            Some((slot, entry.path()))
+            let path = entry.path();
+            let modified = modified_ms(&path);
+            Some((slot, path, modified))
         })
         .collect();
     if caches.is_empty() {
         return Err(no_cache());
     }
+    caches.sort_by(|(_, path_a, modified_a), (_, path_b, modified_b)| {
+        modified_b.cmp(modified_a).then_with(|| path_a.cmp(path_b))
+    });
     if let Some(active) = active_slot(dir) {
-        caches.retain(|(slot, _)| *slot == active);
+        caches.retain(|(slot, _, _)| {
+            *slot == active || decode_cache_slot(slot).as_deref() == Some(active.as_str())
+        });
         if caches.is_empty() {
             return Err(nothing_metered());
         }
+        // The newest alias is authoritative, including an empty or damaged reading.
+        caches.truncate(1);
     } else {
-        caches.sort_by_key(|(_, path)| std::cmp::Reverse(modified_ms(path)));
+        // Keep fallback across different accounts, never to an older alias of an account whose
+        // newer cache is empty or damaged.
+        let mut seen_slots = std::collections::HashSet::new();
+        caches.retain(|(slot, _, _)| {
+            seen_slots.insert(decode_cache_slot(slot).unwrap_or_else(|| slot.clone()))
+        });
     }
     let mut saw_nothing_metered = false;
-    for (_, path) in &caches {
+    for (_, path, modified) in &caches {
         let Some(root) = read_json(path) else { continue };
-        match reading_from(&root, modified_ms(path), now) {
+        match reading_from(&root, *modified, now) {
             Ok(reading) => return Ok(reading),
             Err(failure) if failure.note == nothing_metered().note => saw_nothing_metered = true,
             Err(_) => {}
@@ -240,6 +283,24 @@ mod tests {
 
     fn weekly_name(slot: &str) -> String {
         blob_filename(&format!("{ACCOUNT_PREFIX}{slot}{WEEKLY_SUFFIX}"))
+    }
+
+    fn select_slot(dir: &Path, slot: &str) {
+        std::fs::write(dir.join(blob_filename(ACCOUNT_SLOT_KEY)), json!({"value":slot}).to_string())
+            .unwrap();
+    }
+
+    fn write_weekly_at(dir: &Path, slot: &str, body: &str, modified: u64) {
+        let path = dir.join(weekly_name(slot));
+        std::fs::write(&path, body).unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_times(std::fs::FileTimes::new().set_modified(
+                UNIX_EPOCH + std::time::Duration::from_millis(modified),
+            ))
+            .unwrap();
     }
 
     #[test]
@@ -319,6 +380,124 @@ mod tests {
         // A damaged cache for the selected account is an answer about that account.
         std::fs::write(dir.join(weekly_name("grok|user_a")), "{").unwrap();
         assert!(load(&dir, NOW).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_raw_selected_slot_matches_an_escaped_cache_key() {
+        let dir = temp("escaped-selected");
+        write_weekly_at(&dir, "grok%7Cuser_active", &cache(10.0), NOW - 2000);
+        write_weekly_at(&dir, "grok%7Cuser_other", &cache(90.0), NOW - 1000);
+        select_slot(&dir, "grok|user_active");
+
+        assert!((load(&dir, NOW).unwrap().windows[0].used - 0.1).abs() < 1e-9);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_escaped_foreign_account_cannot_fill_the_selected_slot() {
+        let dir = temp("escaped-foreign");
+        std::fs::write(dir.join(weekly_name("grok%7Cuser_other")), cache(90.0)).unwrap();
+        select_slot(&dir, "grok|user_active");
+
+        assert!(load(&dir, NOW).unwrap_err().note.contains("nothing metered"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn cache_slot_escapes_are_decoded_only_once() {
+        let dir = temp("escaped-once");
+        std::fs::write(dir.join(weekly_name("grok%257Cuser_active")), cache(90.0)).unwrap();
+        select_slot(&dir, "grok|user_active");
+        assert!(load(&dir, NOW).is_err());
+
+        // The active slot remains a literal value; a cache may escape its literal percent.
+        select_slot(&dir, "grok%7Cuser_active");
+        assert!((load(&dir, NOW).unwrap().windows[0].used - 0.9).abs() < 1e-9);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_selected_slot_is_not_uri_decoded() {
+        let dir = temp("selected-literal");
+        std::fs::write(dir.join(weekly_name("grok|user_active")), cache(90.0)).unwrap();
+        select_slot(&dir, "grok%7Cuser_active");
+
+        assert!(load(&dir, NOW).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn malformed_cache_slot_escapes_are_not_partially_decoded() {
+        let dir = temp("escaped-malformed");
+        for suffix in ["%", "%7", "%GG", "%FF"] {
+            let cache_slot = format!("grok%7Cuser_active{suffix}");
+            std::fs::write(dir.join(weekly_name(&cache_slot)), cache(90.0)).unwrap();
+            select_slot(&dir, &format!("grok|user_active{suffix}"));
+
+            assert_eq!(decode_cache_slot(&cache_slot), None);
+            assert!(load(&dir, NOW).is_err(), "{suffix}");
+        }
+        assert_eq!(decode_cache_slot("grok%7cuser+name").as_deref(), Some("grok|user+name"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_newest_raw_or_escaped_alias_wins() {
+        let dir = temp("alias-freshness");
+        select_slot(&dir, "grok|user_active");
+        for (older, newer) in [
+            ("grok|user_active", "grok%7Cuser_active"),
+            ("grok%7Cuser_active", "grok|user_active"),
+        ] {
+            write_weekly_at(&dir, older, &cache(10.0), NOW - 2000);
+            write_weekly_at(&dir, newer, &cache(80.0), NOW - 1000);
+
+            assert!((load(&dir, NOW).unwrap().windows[0].used - 0.8).abs() < 1e-9);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn alias_ties_use_a_stable_filename_order() {
+        let dir = temp("alias-ties");
+        write_weekly_at(&dir, "grok|user_active", &cache(10.0), NOW - 1000);
+        write_weekly_at(&dir, "grok%7Cuser_active", &cache(80.0), NOW - 1000);
+        select_slot(&dir, "grok|user_active");
+
+        // These fixed blob names sort the escaped key first at equal timestamps.
+        assert!((load(&dir, NOW).unwrap().windows[0].used - 0.8).abs() < 1e-9);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_newer_empty_or_damaged_alias_cannot_revive_an_older_reading() {
+        let dir = temp("alias-retired");
+        select_slot(&dir, "grok|user_active");
+        for (older, newer) in [
+            ("grok|user_active", "grok%7Cuser_active"),
+            ("grok%7Cuser_active", "grok|user_active"),
+        ] {
+            for body in [r#"{"value":{"kind":"absent"}}"#, "{broken"] {
+                write_weekly_at(&dir, older, &cache(10.0), NOW - 2000);
+                write_weekly_at(&dir, newer, body, NOW - 1000);
+
+                assert!(load(&dir, NOW).is_err(), "{body}");
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn without_a_selected_slot_a_newer_alias_still_retires_the_older_reading() {
+        let dir = temp("alias-no-selection");
+        write_weekly_at(&dir, "grok|user_active", &cache(10.0), NOW - 2000);
+        write_weekly_at(&dir, "grok|user_other", &cache(30.0), NOW - 3000);
+        for body in [r#"{"value":{"kind":"absent"}}"#, "{broken"] {
+            write_weekly_at(&dir, "grok%7Cuser_active", body, NOW - 1000);
+
+            assert!((load(&dir, NOW).unwrap().windows[0].used - 0.3).abs() < 1e-9);
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 

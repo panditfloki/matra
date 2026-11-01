@@ -1,4 +1,5 @@
 import Foundation
+import CommonCrypto
 import Security
 import SQLite3
 
@@ -12,16 +13,29 @@ import SQLite3
 /// checkpoint. The agent token lives in the login keychain; that read is
 /// cached, because every data fetch can raise a prompt.
 ///
-/// The two sessions are the same cookie. `/api/usage-summary` wants
-/// `WorkosCursorSessionToken={accountID}::{accessToken}`. The editor stores
-/// those two halves in SQLite; the CLI stores the JWT under
+/// The existing `/api/usage-summary` integration sends the historical cookie
+/// `WorkosCursorSessionToken={accountID}::{accessToken}`. Storage protection
+/// does not by itself establish a different HTTP authentication scheme.
+/// The editor stores those two halves in SQLite; the CLI stores the JWT under
 /// `cursor-access-token` and the account id in `~/.cursor/cli-config.json`.
-/// A token-only cookie, or a Bearer header, is 401 — the pair is required.
 struct CursorCredentials {
     let accountID: String
     let accessToken: String
     /// The web API wants the pair as one cookie.
     var sessionCookie: String { "WorkosCursorSessionToken=\(accountID)::\(accessToken)" }
+    var isUsableForRequest: Bool {
+        Self.isSafeCookieComponent(accountID) && Self.isSafeCookieComponent(accessToken)
+            && !CursorSafeStorage.isWrapped(accessToken)
+    }
+
+    /// RFC 6265 cookie-octet, including the `|` and `:` in Cursor's account
+    /// ids. Reject controls and delimiters instead of letting a malformed
+    /// credential add another cookie or HTTP header.
+    static func isSafeCookieComponent(_ value: String) -> Bool {
+        !value.isEmpty && value.utf8.allSatisfy {
+            $0 >= 0x21 && $0 <= 0x7e && ![0x22, 0x2c, 0x3b, 0x5c].contains($0)
+        }
+    }
 
     static var storeURL: URL {
         URL(fileURLWithPath: NSHomeDirectory())
@@ -41,24 +55,37 @@ struct CursorCredentials {
     /// activity monitor and the sign-in route both read this one.
     static let bundleID = "com.todesktop.230313mzl4w4u92"
 
-    /// Identity, editor first. A machine with only `cursor-agent` has no
-    /// `cachedEmail` row, so the CLI config is the address we can show.
+    /// Identity follows the source that would supply the credential. Cached
+    /// editor metadata alone must not conceal an active agent session.
+    /// Neither this path nor the settings row decrypts a token.
     static func account() -> ProviderAccount? {
-        account(from: storeURL) ?? agentAccount(from: agentConfigURL)
+        account(editorStore: storeURL, agentConfig: agentConfigURL,
+                agentTokenPresent: CursorAgentKeychain.isPresent)
+    }
+
+    static func account(editorStore: URL, agentConfig: URL,
+                        agentTokenPresent: Bool) -> ProviderAccount? {
+        do {
+            if let editor = try editorAuthInfo(from: editorStore) { return account(forEditor: editor) }
+            return agentTokenPresent ? agentAccount(from: agentConfig) : nil
+        } catch {
+            // An unreadable editor is not evidence that another account owns
+            // the current session. Do not display the CLI identity either.
+            return nil
+        }
     }
 
     /// Identity, read from the same store as the session. Non-secret: the email
     /// and plan the editor caches for its own UI.
     static func account(from url: URL) -> ProviderAccount? {
-        guard let db = SQLiteStore.open(url) else { return nil }
-        defer { sqlite3_close(db) }
-        func value(_ key: String) -> String? {
-            SQLiteStore.rows(in: db, sql: "SELECT value FROM ItemTable WHERE key = ?", bind: key).first
-        }
-        guard let email = value("cursorAuth/cachedEmail"), !email.isEmpty else { return nil }
+        guard let editor = try? editorAuthInfo(from: url) else { return nil }
+        return account(forEditor: editor)
+    }
+
+    private static func account(forEditor editor: EditorAuthInfo) -> ProviderAccount {
         return ProviderAccount(
-            label: email,
-            plan: value("cursorAuth/stripeMembershipType"),
+            label: editor.email,
+            plan: editor.plan,
             source: "Cursor",
             manageURL: URL(string: "https://cursor.com/dashboard")
         )
@@ -80,41 +107,29 @@ struct CursorCredentials {
     /// nothing to borrow — otherwise a laptop with both would flip between
     /// accounts depending on which file we happened to read.
     static func load() throws -> CursorCredentials {
-        do {
-            return try load(from: storeURL)
-        } catch UsageProviderError.needsAuth {
-            return try session(fromAgentToken: try CursorAgentKeychain.load(),
-                               configURL: agentConfigURL)
-        }
+        try load(editorStore: storeURL, agentConfig: agentConfigURL,
+                 agentToken: { try CursorAgentKeychain.load() })
     }
 
     /// Editor store only. Tests, and the combined loader above, pin the path
     /// so a missing editor cannot silently become a live keychain read.
-    static func load(from url: URL) throws -> CursorCredentials {
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw UsageProviderError.needsAuth
-        }
+    static func load(from url: URL, now: Date = Date(),
+                     keyReader: () throws -> Data = { try CursorSafeStorage.loadKey() }) throws -> CursorCredentials {
+        guard let editor = try editorAuthInfo(from: url) else { throw UsageProviderError.needsAuth }
+        return try session(fromEditor: editor, now: now, keyReader: keyReader)
+    }
 
-        // Read-only, but *not* `immutable`. Cursor runs the database in WAL
-        // mode, and `immutable=1` tells SQLite to ignore the write-ahead log —
-        // so it happily returns whatever was true at the last checkpoint. That
-        // is how you end up serving a token the editor has already rotated.
-        guard let db = SQLiteStore.open(url) else { throw UsageProviderError.needsAuth }
-        defer { sqlite3_close(db) }
-
-        guard let token = value(forKey: "cursorAuth/accessToken", in: db),
-              !token.isEmpty
-        else { throw UsageProviderError.needsAuth }
-
+    private static func session(fromEditor editor: EditorAuthInfo, now: Date,
+                                keyReader: () throws -> Data) throws -> CursorCredentials {
+        let token = try CursorSafeStorage.decode(editor.token, keyReader: keyReader)
+        if agentTokenIsExpired(token, now: now) { throw UsageProviderError.credentialExpired }
         // Prefer the editor's cached WorkOS id when present. Recent Cursor
         // builds (Auth0 / enterprise in particular) often omit
         // `stripeMembershipAuthId` even while signed in — the JWT `sub` is the
         // same value the cookie needs, so fall back to it rather than telling
         // the user to sign in again.
-        let account = value(forKey: "cursorAuth/stripeMembershipAuthId", in: db)
-            .flatMap { $0.isEmpty ? nil : $0 }
-            ?? subject(fromJWT: token)
-        guard let account, !account.isEmpty else { throw UsageProviderError.needsAuth }
+        let account = editor.accountID ?? subject(fromJWT: token)
+        guard let account, isSafeCookieComponent(account) else { throw UsageProviderError.needsAuth }
 
         return CursorCredentials(accountID: account, accessToken: token)
     }
@@ -122,13 +137,25 @@ struct CursorCredentials {
     /// Same precedence as `load()`, with the agent token injected so the
     /// fallback can be tested without a keychain.
     static func load(editorStore: URL, agentToken: String?, agentConfig: URL,
-                     now: Date = Date()) throws -> CursorCredentials {
-        do {
-            return try load(from: editorStore)
-        } catch UsageProviderError.needsAuth {
+                     now: Date = Date(),
+                     keyReader: () throws -> Data = { try CursorSafeStorage.loadKey() }) throws -> CursorCredentials {
+        try load(editorStore: editorStore, agentConfig: agentConfig, now: now,
+                 keyReader: keyReader, agentToken: {
             guard let agentToken, !agentToken.isEmpty else { throw UsageProviderError.needsAuth }
-            return try session(fromAgentToken: agentToken, configURL: agentConfig, now: now)
+            return agentToken
+        })
+    }
+
+    /// The absence of an editor token is the only fallback condition. A
+    /// protected, malformed, expired or refused editor session still belongs
+    /// to the editor's account; none is permission to select another login.
+    static func load(editorStore: URL, agentConfig: URL, now: Date = Date(),
+                     keyReader: () throws -> Data = { try CursorSafeStorage.loadKey() },
+                     agentToken: () throws -> String) throws -> CursorCredentials {
+        if let editor = try editorAuthInfo(from: editorStore) {
+            return try session(fromEditor: editor, now: now, keyReader: keyReader)
         }
+        return try session(fromAgentToken: agentToken(), configURL: agentConfig, now: now)
     }
 
     /// Open the editor when it is installed; otherwise name the CLI command.
@@ -162,12 +189,14 @@ struct CursorCredentials {
     static func session(fromAgentToken token: String, configURL: URL,
                         now: Date = Date()) throws -> CursorCredentials {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw UsageProviderError.needsAuth }
+        guard isSafeCookieComponent(trimmed), !CursorSafeStorage.isWrapped(trimmed) else {
+            throw UsageProviderError.needsAuth
+        }
         if agentTokenIsExpired(trimmed, now: now) {
             throw UsageProviderError.credentialExpired
         }
         guard let accountID = agentAccountID(token: trimmed, configURL: configURL),
-              !accountID.isEmpty
+              isSafeCookieComponent(accountID)
         else { throw UsageProviderError.needsAuth }
         return CursorCredentials(accountID: accountID, accessToken: trimmed)
     }
@@ -230,14 +259,232 @@ struct CursorCredentials {
         return sub
     }
 
-    private static func value(forKey key: String, in db: OpaquePointer?) -> String? {
-        SQLiteStore.rows(in: db, sql: "SELECT value FROM ItemTable WHERE key = ?", bind: key).first
+    private static func value(forKey key: String, in db: OpaquePointer) throws -> String? {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "SELECT value FROM ItemTable WHERE key = ?", -1, &statement, nil) == SQLITE_OK else {
+            throw UsageProviderError.credentialExpired
+        }
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_bind_text(statement, 1, key, -1,
+                                unsafeBitCast(-1, to: sqlite3_destructor_type.self)) == SQLITE_OK else {
+            throw UsageProviderError.credentialExpired
+        }
+        let result = sqlite3_step(statement)
+        if result == SQLITE_DONE { return nil }
+        guard result == SQLITE_ROW else { throw UsageProviderError.credentialExpired }
+        let type = sqlite3_column_type(statement, 0)
+        if type == SQLITE_NULL { return nil }
+        guard type == SQLITE_TEXT, let bytes = sqlite3_column_text(statement, 0),
+              let value = String(data: Data(bytes: bytes, count: Int(sqlite3_column_bytes(statement, 0))),
+                                 encoding: .utf8),
+              sqlite3_step(statement) == SQLITE_DONE else {
+            throw UsageProviderError.credentialExpired
+        }
+        return value
+    }
+
+    private static func editorAuthInfo(from url: URL) throws -> EditorAuthInfo? {
+        do {
+            _ = try FileManager.default.attributesOfItem(atPath: url.path)
+        } catch let error as NSError {
+            if error.domain == NSCocoaErrorDomain,
+               [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(error.code) { return nil }
+            throw UsageProviderError.credentialExpired
+        }
+        guard let db = SQLiteStore.open(url) else { throw UsageProviderError.credentialExpired }
+        defer { sqlite3_close(db) }
+        // A read-only WAL-aware connection sees the editor's current rotation.
+        guard let token = try value(forKey: "cursorAuth/accessToken", in: db),
+              !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        func nonempty(_ key: String) throws -> String? {
+            try value(forKey: key, in: db).flatMap { $0.isEmpty ? nil : $0 }
+        }
+        return EditorAuthInfo(token: token,
+                              accountID: try nonempty("cursorAuth/stripeMembershipAuthId"),
+                              email: try nonempty("cursorAuth/cachedEmail"),
+                              plan: try nonempty("cursorAuth/stripeMembershipType"))
+    }
+
+    private struct EditorAuthInfo {
+        let token: String
+        let accountID: String?
+        let email: String?
+        let plan: String?
     }
 
     private struct AgentAuthInfo {
         let email: String?
         let authId: String?
         let userId: String?
+    }
+}
+
+/// Cursor's editor wraps Electron safeStorage bytes before putting them in
+/// SQLite. The macOS v10 payload is AES-128-CBC with PKCS#7 padding, using
+/// Chromium's PBKDF2-HMAC-SHA1 parameters. Only the derived key is held in
+/// memory; neither it nor the decrypted session is saved by Matra.
+enum CursorSafeStorage {
+    static let service = "Cursor Safe Storage"
+    static let account = "Cursor Key"
+    private static let prefix = "cursor-safe-storage:v1:"
+
+    private static let keychain = CursorKeychainReader<Data>(
+        refusalKey: service,
+        refusals: Runtime.isUnderTest ? nil : .standard,
+        itemModifiedAt: { KeychainItem.modifiedAt(service: service, account: account) },
+        // Check the item's cheap metadata even while a key is held, so a
+        // safe-storage password rotation invalidates the in-memory copy.
+        isExpired: { _ in true },
+        reader: { interactive in
+            guard let winner = KeychainItem.newest(service: service, account: account) else {
+                throw UsageProviderError.needsAuth
+            }
+            let (status, data) = KeychainSecret.read(
+                query: [
+                    kSecClass: kSecClassGenericPassword,
+                    kSecValuePersistentRef: winner.persistentRef,
+                    kSecReturnData: true,
+                    kSecMatchLimit: kSecMatchLimitOne
+                ],
+                interactive: interactive,
+                rescue: nil
+            )
+            guard status == errSecSuccess, let data, !data.isEmpty else {
+                throw CursorKeychainReader<Data>.error(for: status)
+            }
+            return try deriveKey(password: data)
+        }
+    )
+
+    static func loadKey() throws -> Data { try keychain.load() }
+    static func forgetCached() { keychain.forgetCached() }
+    static func askAgain() { keychain.askAgain() }
+
+    /// Reserve the whole namespace, including unknown versions and casing.
+    /// A future wrapper must never become an HTTP cookie by accident.
+    static func isWrapped(_ token: String) -> Bool {
+        token.trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased().hasPrefix("cursor-safe-storage")
+    }
+
+    static func decode(_ stored: String,
+                       keyReader: () throws -> Data = { try loadKey() }) throws -> String {
+        guard isWrapped(stored) else {
+            guard CursorCredentials.isSafeCookieComponent(stored) else { throw UsageProviderError.needsAuth }
+            return stored
+        }
+        guard stored.hasPrefix(prefix) else { throw UsageProviderError.needsAuth }
+        let encoded = String(stored.dropFirst(prefix.count))
+        guard let payload = Data(base64Encoded: encoded),
+              payload.base64EncodedString() == encoded,
+              payload.starts(with: [0x76, 0x31, 0x30]) else {
+            throw UsageProviderError.needsAuth
+        }
+        let ciphertext = Data(payload.dropFirst(3))
+        guard !ciphertext.isEmpty, ciphertext.count % kCCBlockSizeAES128 == 0 else {
+            throw UsageProviderError.needsAuth
+        }
+        let key = try keyReader()
+        guard key.count == kCCKeySizeAES128 else { throw UsageProviderError.needsAuth }
+        let iv = Data(repeating: 0x20, count: kCCBlockSizeAES128)
+        let capacity = ciphertext.count + kCCBlockSizeAES128
+        var plaintext = Data(count: capacity)
+        var written = 0
+        let status = plaintext.withUnsafeMutableBytes { output in
+            key.withUnsafeBytes { keyBytes in
+                iv.withUnsafeBytes { ivBytes in
+                    ciphertext.withUnsafeBytes { input in
+                        CCCrypt(CCOperation(kCCDecrypt), CCAlgorithm(kCCAlgorithmAES),
+                                CCOptions(kCCOptionPKCS7Padding),
+                                keyBytes.baseAddress, key.count, ivBytes.baseAddress,
+                                input.baseAddress, ciphertext.count,
+                                output.baseAddress, capacity, &written)
+                    }
+                }
+            }
+        }
+        guard status == kCCSuccess else { throw UsageProviderError.needsAuth }
+        plaintext.count = written
+        guard let token = String(data: plaintext, encoding: .utf8),
+              CursorCredentials.isSafeCookieComponent(token),
+              !isWrapped(token) else { throw UsageProviderError.needsAuth }
+        return token
+    }
+
+    static func deriveKey(password: Data) throws -> Data {
+        guard !password.isEmpty else { throw UsageProviderError.needsAuth }
+        let salt = Data("saltysalt".utf8)
+        var key = Data(count: kCCKeySizeAES128)
+        let status = key.withUnsafeMutableBytes { output in
+            password.withUnsafeBytes { passwordBytes in
+                salt.withUnsafeBytes { saltBytes in
+                    CCKeyDerivationPBKDF(CCPBKDFAlgorithm(kCCPBKDF2),
+                                        passwordBytes.bindMemory(to: Int8.self).baseAddress, password.count,
+                                        saltBytes.bindMemory(to: UInt8.self).baseAddress, salt.count,
+                                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA1), 1003,
+                                        output.bindMemory(to: UInt8.self).baseAddress, kCCKeySizeAES128)
+                }
+            }
+        }
+        guard status == kCCSuccess else { throw UsageProviderError.needsAuth }
+        return key
+    }
+}
+
+/// Shared permission, refusal and cache policy for Cursor's two separate
+/// Keychain items. Initializers take injected readers and no preferences by
+/// default, so tests need neither a Keychain nor the installed app's settings.
+final class CursorKeychainReader<Secret>: @unchecked Sendable {
+    private let cache: CredentialCache<Secret>
+    private let prompt: PromptPermission
+    private let refusal: KeychainRefusal
+    private let itemModifiedAt: () -> Date?
+    private let reader: (_ interactive: Bool) throws -> Secret
+
+    init(refusalKey: String,
+         now: @escaping () -> Date = Date.init,
+         refusals: UserDefaults? = nil,
+         itemModifiedAt: @escaping () -> Date? = { nil },
+         isExpired: @escaping (Secret) -> Bool,
+         reader: @escaping (_ interactive: Bool) throws -> Secret) {
+        self.prompt = PromptPermission(now: now)
+        self.refusal = KeychainRefusal(key: refusalKey, defaults: refusals)
+        self.itemModifiedAt = itemModifiedAt
+        self.reader = reader
+        self.cache = CredentialCache<Secret>(
+            now: now,
+            isPermanentFailure: { if case UsageProviderError.accessDenied = $0 { return true }; return false },
+            isExpired: isExpired
+        )
+    }
+
+    var isRefused: Bool { refusal.isRefused && !prompt.isOwed }
+
+    func load() throws -> Secret {
+        if isRefused { throw UsageProviderError.accessDenied }
+        return try cache.value(itemModifiedAt: itemModifiedAt, reload: { [self] in
+            let interactive = prompt.take()
+            do {
+                let secret = try reader(interactive)
+                if interactive { refusal.set(false) }
+                return secret
+            } catch UsageProviderError.accessDenied where interactive {
+                refusal.set(true)
+                throw UsageProviderError.accessDenied
+            }
+        })
+    }
+
+    var held: Secret? { cache.held }
+    func forgetCached() { cache.forget() }
+    func askAgain() {
+        prompt.grant()
+        cache.forget()
+    }
+
+    static func error(for status: OSStatus) -> UsageProviderError {
+        if ClaudeCredentials.wasTransient(status) { return .credentialExpired }
+        return ClaudeCredentials.wasRefused(status) ? .accessDenied : .needsAuth
     }
 }
 
@@ -250,42 +497,47 @@ enum CursorAgentKeychain {
     static let service = "cursor-access-token"
     static let account = "cursor-user"
 
-    private static let cache = CredentialCache<String> {
-        CursorCredentials.agentTokenIsExpired($0)
-    }
+    private static let keychain = CursorKeychainReader<String>(
+        refusalKey: service,
+        refusals: Runtime.isUnderTest ? nil : .standard,
+        itemModifiedAt: { KeychainItem.modifiedAt(service: service, account: account) },
+        isExpired: { CursorCredentials.agentTokenIsExpired($0) },
+        reader: { try read(interactive: $0) }
+    )
 
     static func load() throws -> String {
-        try cache.value(
-            itemModifiedAt: { KeychainItem.modifiedAt(service: service, account: account) },
-            reload: read
-        )
+        try keychain.load()
     }
 
-    static func forgetCached() { cache.forget() }
+    static func forgetCached() { keychain.forgetCached() }
+    static func askAgain() { keychain.askAgain() }
+    static var isPresent: Bool {
+        keychain.held != nil || KeychainItem.newest(service: service, account: account) != nil
+    }
 
     /// Newest item under this service and account, then a targeted data read.
     /// Same two-step as Claude Code: attributes are free, the secret is not,
     /// and `kSecMatchLimitOne` has no ordering if a rotation left duplicates.
-    static func read() throws -> String {
+    static func read(interactive: Bool = false) throws -> String {
         guard let winner = KeychainItem.newest(service: service, account: account) else {
             Log.usage.error("cursor-agent keychain read failed: no item under \(service, privacy: .public)")
             throw UsageProviderError.needsAuth
         }
 
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching([
-            kSecClass: kSecClassGenericPassword,
-            kSecValuePersistentRef: winner.persistentRef,
-            kSecReturnData: true,
-            kSecMatchLimit: kSecMatchLimitOne
-        ] as CFDictionary, &item)
+        let (status, data) = KeychainSecret.read(
+            query: [
+                kSecClass: kSecClassGenericPassword,
+                kSecValuePersistentRef: winner.persistentRef,
+                kSecReturnData: true,
+                kSecMatchLimit: kSecMatchLimitOne
+            ],
+            interactive: interactive,
+            rescue: nil
+        )
 
-        guard status == errSecSuccess, let data = item as? Data else {
+        guard status == errSecSuccess, let data else {
             Log.usage.error("cursor-agent keychain read failed: OSStatus \(status)")
-            if ClaudeCredentials.wasTransient(status) { throw UsageProviderError.credentialExpired }
-            throw ClaudeCredentials.wasRefused(status)
-                ? UsageProviderError.accessDenied
-                : UsageProviderError.needsAuth
+            throw CursorKeychainReader<String>.error(for: status)
         }
 
         guard let token = String(data: data, encoding: .utf8)?

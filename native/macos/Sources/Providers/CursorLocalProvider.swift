@@ -1,6 +1,5 @@
 import AppKit
 import Foundation
-import os
 
 /// Reads Cursor usage as the account already signed in on this Mac.
 ///
@@ -17,9 +16,24 @@ actor CursorLocalProvider: UsageProvider {
 
     private let endpoint = URL(string: "https://cursor.com/api/usage-summary")!
     private let session: URLSession
+    private let loadCredentials: @Sendable () throws -> CursorCredentials
+    nonisolated private let loadAccount: @Sendable () -> ProviderAccount?
+    nonisolated private let askForAccess: @Sendable () -> Void
+    private let forgetCredentials: @Sendable () -> Void
 
-    init(session: URLSession = .shared) {
+    init(session: URLSession = .shared,
+         loadCredentials: @escaping @Sendable () throws -> CursorCredentials = { try CursorCredentials.load() },
+         loadAccount: @escaping @Sendable () -> ProviderAccount? = { CursorCredentials.account() },
+         askForAccess: @escaping @Sendable () -> Void = {
+             CursorSafeStorage.askAgain()
+             CursorAgentKeychain.askAgain()
+         },
+         forgetCredentials: @escaping @Sendable () -> Void = { CursorCredentials.forgetCachedAgent() }) {
         self.session = session
+        self.loadCredentials = loadCredentials
+        self.loadAccount = loadAccount
+        self.askForAccess = askForAccess
+        self.forgetCredentials = forgetCredentials
     }
 
     nonisolated var signInRoute: SignInRoute {
@@ -32,15 +46,17 @@ actor CursorLocalProvider: UsageProvider {
         return CursorCredentials.signInRoute(editorInstalled: installed)
     }
 
-    nonisolated func account() -> ProviderAccount? { CursorCredentials.account() }
+    nonisolated func account() -> ProviderAccount? { loadAccount() }
 
-    nonisolated func forgetCachedCredential() { CursorCredentials.forgetCachedAgent() }
+    /// UsageStore calls this only for the explicit "Allow access…" action.
+    nonisolated func forgetCachedCredential() { askForAccess() }
 
     func fetchSnapshot() async throws -> ProviderSnapshot {
         // Re-read every time: the editor rotates this, and holding a stale copy
         // would mean signing ourselves out for no reason. The agent token is
         // cached inside `CursorAgentKeychain` so the keychain is not.
-        let credentials = try CursorCredentials.load()
+        let credentials = try loadCredentials()
+        guard credentials.isUsableForRequest else { throw UsageProviderError.needsAuth }
 
         var request = URLRequest(url: endpoint)
         request.setValue(credentials.sessionCookie, forHTTPHeaderField: "Cookie")
@@ -54,8 +70,10 @@ actor CursorLocalProvider: UsageProvider {
             // A rejected token is the one signal the copy in hand is wrong
             // despite not having expired — signing into a different CLI
             // account replaces the keychain item. Drop it so the next read
-            // asks macOS again.
-            CursorCredentials.forgetCachedAgent()
+            // checks again without prompting. A rejected session says nothing
+            // about the editor's AES key: retain that key until its Keychain
+            // item changes or the person explicitly asks for access again.
+            forgetCredentials()
             throw UsageProviderError.needsAuth
         }
         guard (200..<300).contains(status) else {
@@ -63,8 +81,6 @@ actor CursorLocalProvider: UsageProvider {
         }
 
         let body = String(data: data, encoding: .utf8) ?? ""
-        Log.usage.debug("cursor usage -> \(body.prefix(900), privacy: .public)")
-
         let windows = try CursorUsage.windows(fromJSON: body)
         return ProviderSnapshot(
             id: id,

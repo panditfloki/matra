@@ -1994,12 +1994,21 @@ private struct AccountRow: View {
             // one — the credential is there, it is simply too old to use. Put
             // inside, this warning would be swallowed by the very row that
             // makes everything look fine.
-            if isConnected, provider.needsSignInRenewal {
-                Text(L10n.settings("\(provider.name) usage needs its sign-in renewed — run `claude` once in a terminal."))
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .padding(.leading, 48)
-                    .fixedSize(horizontal: false, vertical: true)
+            if isConnected, provider.needsSignInRenewal, !provider.wasRefusedAccess {
+                HStack(spacing: 8) {
+                    Text(provider.id == "cursor"
+                         ? L10n.settings("Cursor's saved login needs renewing.") + " " + provider.signIn.explanation
+                         : L10n.settings("\(provider.name) usage needs its sign-in renewed — run `claude` once in a terminal."))
+                        .fixedSize(horizontal: false, vertical: true)
+                    if provider.id == "cursor", canOpenSignIn,
+                       let title = provider.signIn.actionTitle {
+                        Button(title) { _ = signIn(provider.id) }
+                            .controlSize(.small)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .padding(.leading, 48)
             }
         }
         // The whole row is the drop target, handle or not: a 12pt strip is a
@@ -2352,6 +2361,13 @@ private struct AccountRow: View {
         } else if !isConnected {
             Text(L10n.settings("Signed out — nothing is read, and no readings are kept."))
                 .foregroundStyle(.tertiary)
+        } else if provider.wasRefusedAccess {
+            // Not a sign-in problem, so do not send them off to sign in. The
+            // credential is right there and macOS is the one saying no — the
+            // remedy is the button on this same row.
+            Text(L10n.settingsBranded("Matra is not reading \(provider.name)'s saved login. Choose Allow access… above and answer Allow."))
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
         } else if let account = provider.account {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 8) {
@@ -2370,13 +2386,6 @@ private struct AccountRow: View {
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-        } else if provider.wasRefusedAccess {
-            // Not a sign-in problem, so do not send them off to sign in. The
-            // credential is right there and macOS is the one saying no — the
-            // remedy is the button on this same row.
-            Text(L10n.settingsBranded("Matra is not reading \(provider.name)'s saved login. Choose Allow access… above and answer Allow."))
-                .foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
         } else {
             HStack(spacing: 8) {
                 Text(provider.signIn.explanation)

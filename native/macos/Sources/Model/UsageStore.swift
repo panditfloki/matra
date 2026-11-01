@@ -714,7 +714,9 @@ final class UsageStore: ObservableObject {
 
         // Already holding a usable credential: connecting is the whole job, and
         // throwing up a sign-in window over a signed-in account is just noise.
-        if provider.account() != nil {
+        if provider.account() != nil,
+           snapshots.first(where: { $0.id == providerID })?.status != .needsAuth,
+           !needsRenewal.contains(providerID) {
             refresh(providerID: providerID)
             return true
         }
@@ -748,6 +750,7 @@ final class UsageStore: ObservableObject {
     func reportRenewalFailed(providerID: String) {
         guard !needsRenewal.contains(providerID) else { return }
         needsRenewal.insert(providerID)
+        providerAccountRevision &+= 1
         Log.usage.notice("\(providerID, privacy: .public): saved login needs renewing by hand")
     }
 
@@ -831,11 +834,13 @@ final class UsageStore: ObservableObject {
                 lastGood[provider.id] = (fresh, Date())
                 archive.save(lastGood)
             }
+            let authStateChanged = refusedAccess.contains(provider.id) || needsRenewal.contains(provider.id)
             refusedAccess.remove(provider.id)
             // A reading that actually came back is proof the credential works,
             // whatever was thought a moment ago. The only way this clears —
             // there is no timer and nothing retries.
             needsRenewal.remove(provider.id)
+            if authStateChanged { providerAccountRevision &+= 1 }
             Log.usage.debug("\(provider.id, privacy: .public): \(fresh.windows.count) window(s)")
             return fresh
         } catch {
@@ -872,11 +877,22 @@ final class UsageStore: ObservableObject {
         // keeps the old reading and its status. That deliberately loses the one
         // fact the settings row needs: whether macOS let us in last time. Two
         // different questions, so two different places to keep the answer.
+        // Cursor can retain its cached identity after its session is rejected.
+        // Carry recovery separately so the open account row does not look healthy.
+        if provider.id == "cursor",
+           let failure = error as? UsageProviderError {
+            switch failure {
+            case .needsAuth, .credentialExpired: reportRenewalFailed(providerID: provider.id)
+            default: break
+            }
+        }
+        let wasRefused = refusedAccess.contains(provider.id)
         if case .accessDenied = status {
             refusedAccess.insert(provider.id)
         } else {
             refusedAccess.remove(provider.id)
         }
+        if wasRefused != refusedAccess.contains(provider.id) { providerAccountRevision &+= 1 }
 
         // Some failures are statements about the account rather than a hiccup:
         // signed out, or a plan that meters nothing. Re-showing an old reading

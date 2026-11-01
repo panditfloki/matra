@@ -1112,11 +1112,13 @@ final class SignOutCaveatTests: XCTestCase {
 @MainActor
 final class SignInRoutingTests: XCTestCase {
     private final class Stub: UsageProvider, @unchecked Sendable {
-        let id = "a"
+        let id: String
+        init(id: String = "a") { self.id = id }
         let displayName = "Stub"
         let glyph = ProviderGlyph.claude
         var route: SignInRoute = .modal(name: "Stub")
         var stubAccount: ProviderAccount?
+        var error: UsageProviderError?
         private(set) var presented = 0
         private(set) var fetches = 0
 
@@ -1126,6 +1128,7 @@ final class SignInRoutingTests: XCTestCase {
 
         func fetchSnapshot() async throws -> ProviderSnapshot {
             fetches += 1
+            if let error { throw error }
             return ProviderSnapshot(id: id, displayName: displayName, glyph: glyph,
                                     fidelity: .official, status: .ok, windows: [])
         }
@@ -1162,6 +1165,52 @@ final class SignInRoutingTests: XCTestCase {
         stub.route = .guidance("Run Claude Code once.")
         XCTAssertFalse(store(stub).signIn(providerID: "a"))
         XCTAssertEqual(stub.presented, 0)
+    }
+
+    func testRejectedCredentialDoesNotLetCachedIdentitySuppressSignIn() async {
+        let stub = Stub()
+        stub.stubAccount = ProviderAccount(label: "cached@example.com", plan: "pro",
+                                           source: "Stub", manageURL: nil)
+        stub.error = .needsAuth
+        let model = store(stub)
+        await model.refresh()
+        XCTAssertTrue(model.signIn(providerID: "a"))
+        XCTAssertEqual(stub.presented, 1)
+    }
+
+    func testOpenSettingsSeesAccessRefusalAndRecovery() async {
+        let stub = Stub()
+        stub.stubAccount = ProviderAccount(label: "cached@example.com", plan: "pro",
+                                           source: "Stub", manageURL: nil)
+        let model = store(stub)
+        let before = model.providerAccountRevision
+        stub.error = .accessDenied
+        await model.refresh()
+        XCTAssertTrue(model.providerSummaries[0].wasRefusedAccess)
+        XCTAssertGreaterThan(model.providerAccountRevision, before)
+        let denied = model.providerAccountRevision
+        stub.error = nil
+        await model.refresh()
+        XCTAssertFalse(model.providerSummaries[0].wasRefusedAccess)
+        XCTAssertGreaterThan(model.providerAccountRevision, denied)
+    }
+
+    func testCursorRejectionAndRecoveryUpdateTheOpenAccountRow() async {
+        let stub = Stub(id: "cursor")
+        stub.stubAccount = ProviderAccount(label: "cached@example.com", plan: "pro",
+                                           source: "Cursor", manageURL: nil)
+        let model = store(stub)
+        await model.refresh()
+        let before = model.providerAccountRevision
+        stub.error = .needsAuth
+        await model.refresh()
+        XCTAssertTrue(model.providerSummaries[0].needsSignInRenewal)
+        XCTAssertGreaterThan(model.providerAccountRevision, before)
+        let rejected = model.providerAccountRevision
+        stub.error = nil
+        await model.refresh()
+        XCTAssertFalse(model.providerSummaries[0].needsSignInRenewal)
+        XCTAssertGreaterThan(model.providerAccountRevision, rejected)
     }
 
     func testItReportsWhenTheOwningAppIsNotInstalled() {

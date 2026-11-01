@@ -369,3 +369,507 @@ final class CursorEnterpriseUsageTests: XCTestCase {
         XCTAssertEqual(CursorUsage.headlineID(in: windows), "included")
     }
 }
+
+/// Fixed values produced independently with Python hashlib PBKDF2 and
+/// OpenSSL AES-128-CBC. They contain only invented credentials.
+private enum CursorProtectedFixtures {
+    static let password = Data("matra-synthetic-password".utf8)
+    static let key = Data([0xb1, 0xa1, 0x74, 0x8d, 0x17, 0xe9, 0xc6, 0xf1,
+                           0xb1, 0x2c, 0x5e, 0x7c, 0x91, 0x99, 0xf4, 0xbf])
+    static let plaintext = "synthetic-token"
+    static let wrapped = "cursor-safe-storage:v1:djEw8XMfUKD6qXuz8A0AEOD5Jw=="
+    static let jwt = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJhdXRoMHxzeW50aGV0aWMtZWRpdG9yIiwiZXhwIjo0MTAyNDQ0ODAwfQ.sig"
+    static let wrappedJWT = "cursor-safe-storage:v1:djEwaxzrrphpEqxqP7Yc+aaqPvEfSq3InJv0Vr9bhLBEmJKyzSaEsA2RMzxf6VoI+i4McSQltNvDr7RZpujRO7E4yOxln3xTubdDgtY+/apNazOCIVA9y+qDuhM7hI8m7Ims"
+    static let expiredJWT = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJhdXRoMHxzeW50aGV0aWMtZWRpdG9yIiwiZXhwIjoxfQ.sig"
+    static let wrappedExpiredJWT = "cursor-safe-storage:v1:djEwaxzrrphpEqxqP7Yc+aaqPvEfSq3InJv0Vr9bhLBEmJKyzSaEsA2RMzxf6VoI+i4McSQltNvDr7RZpujRO7E4yO+/K9fwyNmW1eKmRKzTRAc="
+    static let now = Date(timeIntervalSince1970: 1_800_000_000)
+}
+
+final class CursorSafeStorageTests: XCTestCase {
+    func testPlaintextIsUnchangedAndDoesNotReadAKey() throws {
+        let plaintext = "legacy-token-preserved-exactly"
+        XCTAssertEqual(try CursorSafeStorage.decode(plaintext, keyReader: {
+            XCTFail("a plaintext token has no Keychain dependency")
+            throw UsageProviderError.needsAuth
+        }), plaintext)
+    }
+
+    func testPBKDF2MatchesTheIndependentVector() throws {
+        XCTAssertEqual(try CursorSafeStorage.deriveKey(password: CursorProtectedFixtures.password),
+                       CursorProtectedFixtures.key)
+    }
+
+    func testDecryptsTheIndependentSafeStorageVector() throws {
+        XCTAssertEqual(try CursorSafeStorage.decode(CursorProtectedFixtures.wrapped, keyReader: {
+            CursorProtectedFixtures.key
+        }), CursorProtectedFixtures.plaintext)
+    }
+
+    func testUnsupportedAndMalformedWrappersFailBeforeReadingAKey() {
+        let invalid = [
+            "cursor-safe-storage:v2:djEw8XMfUKD6qXuz8A0AEOD5Jw==",
+            "CURSOR-SAFE-STORAGE:v1:djEw8XMfUKD6qXuz8A0AEOD5Jw==",
+            " cursor-safe-storage:v1:djEw8XMfUKD6qXuz8A0AEOD5Jw==",
+            "cursor-safe-storage:v1:",
+            "cursor-safe-storage:v1:not base64!",
+            "cursor-safe-storage:v1:djEw8XMfUKD6qXuz8A0AEOD5Jw==\n",
+            "cursor-safe-storage:v1:" + Data("v11".utf8).base64EncodedString(),
+            "cursor-safe-storage:v1:" + Data("v10".utf8).base64EncodedString(),
+            "cursor-safe-storage:v1:" + Data("v10bad-block".utf8).base64EncodedString()
+        ]
+        for token in invalid {
+            XCTAssertThrowsError(try CursorSafeStorage.decode(token, keyReader: {
+                XCTFail("invalid envelopes must not consult the Keychain")
+                return CursorProtectedFixtures.key
+            }), token) { error in
+                guard case UsageProviderError.needsAuth = error else { return XCTFail("\(error)") }
+            }
+        }
+    }
+
+    func testWrongLengthKeyAndInvalidPaddingFailClosed() {
+        XCTAssertThrowsError(try CursorSafeStorage.decode(CursorProtectedFixtures.wrapped, keyReader: {
+            Data(repeating: 0, count: 15)
+        }))
+        XCTAssertThrowsError(try CursorSafeStorage.decode(CursorProtectedFixtures.wrapped, keyReader: {
+            Data(repeating: 0, count: 16)
+        }))
+    }
+
+    func testKeyRefusalIsPreservedAsAccessDenied() {
+        XCTAssertThrowsError(try CursorSafeStorage.decode(CursorProtectedFixtures.wrapped, keyReader: {
+            throw UsageProviderError.accessDenied
+        })) { error in
+            guard case UsageProviderError.accessDenied = error else { return XCTFail("\(error)") }
+        }
+    }
+
+    func testPlaintextHeaderControlsAndCookieDelimitersFailClosed() {
+        for token in ["token\r\nInjected:yes", "token\0", "token;another=cookie", "token,other", "token\\other"] {
+            XCTAssertThrowsError(try CursorSafeStorage.decode(token, keyReader: {
+                XCTFail("invalid plaintext must not consult the Keychain")
+                return CursorProtectedFixtures.key
+            }))
+        }
+    }
+
+    func testAgentCannotSendAProtectedWrapperAsItsToken() {
+        let missing = MatraTestFiles.temporaryDirectory.appendingPathComponent("missing-\(UUID()).json")
+        XCTAssertThrowsError(try CursorCredentials.session(
+            fromAgentToken: CursorProtectedFixtures.wrapped, configURL: missing
+        ))
+    }
+}
+
+final class CursorProtectedCredentialsTests: XCTestCase {
+    private var directory: URL!
+
+    override func setUpWithError() throws {
+        directory = MatraTestFiles.temporaryDirectory.appendingPathComponent("cursor-protected-\(UUID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try FileManager.default.removeItem(at: directory)
+    }
+
+    func testEncryptedEditorIsDecodedBeforeSubjectAndCookieAreRead() throws {
+        let store = try editor(token: CursorProtectedFixtures.wrappedJWT, account: nil, email: "editor@example.invalid")
+        let credentials = try CursorCredentials.load(
+            editorStore: store, agentConfig: try agent(), now: CursorProtectedFixtures.now,
+            keyReader: { CursorProtectedFixtures.key }, agentToken: {
+                XCTFail("the editor must win over the agent")
+                return "agent-token"
+            }
+        )
+        XCTAssertEqual(credentials.accessToken, CursorProtectedFixtures.jwt)
+        XCTAssertEqual(credentials.accountID, "auth0|synthetic-editor")
+        XCTAssertEqual(credentials.sessionCookie,
+                       "WorkosCursorSessionToken=auth0|synthetic-editor::\(CursorProtectedFixtures.jwt)")
+    }
+
+    func testRefusedEncryptedEditorCannotFallThroughToAgent() throws {
+        let store = try editor(token: CursorProtectedFixtures.wrappedJWT, account: "editor", email: nil)
+        let config = try agent()
+        XCTAssertThrowsError(try CursorCredentials.load(
+            editorStore: store, agentConfig: config,
+            keyReader: { throw UsageProviderError.accessDenied }, agentToken: {
+                XCTFail("a refused editor session is not permission to change accounts")
+                return "agent-token"
+            }
+        )) { error in
+            guard case UsageProviderError.accessDenied = error else { return XCTFail("\(error)") }
+        }
+    }
+
+    func testMalformedEditorCannotFallThroughToAgent() throws {
+        for token in ["cursor-safe-storage:v2:anything", "cursor-safe-storage:v1:invalid"] {
+            let store = try editor(token: token, account: "editor", email: nil)
+            XCTAssertThrowsError(try CursorCredentials.load(
+                editorStore: store, agentConfig: try agent(),
+                keyReader: { XCTFail("bad wrappers must not need a key"); return CursorProtectedFixtures.key },
+                agentToken: { XCTFail("bad wrappers must not select the agent"); return "agent-token" }
+            ))
+        }
+    }
+
+    func testPlaintextAndEncryptedEditorExpiryMatchAgentExpiry() throws {
+        for token in [CursorProtectedFixtures.expiredJWT, CursorProtectedFixtures.wrappedExpiredJWT] {
+            let store = try editor(token: token, account: "editor", email: nil)
+            XCTAssertThrowsError(try CursorCredentials.load(
+                editorStore: store, agentConfig: try agent(), now: CursorProtectedFixtures.now,
+                keyReader: { CursorProtectedFixtures.key }, agentToken: {
+                    XCTFail("an expired editor session still selects the editor's account")
+                    return CursorProtectedFixtures.jwt
+                }
+            )) { error in
+                guard case UsageProviderError.credentialExpired = error else { return XCTFail("\(error)") }
+            }
+        }
+    }
+
+    func testStaleEditorEmailDoesNotSelectTheEditorWithoutItsToken() throws {
+        let store = try editor(token: nil, account: "stale-editor", email: "stale@example.invalid")
+        let config = try agent()
+        let credentials = try CursorCredentials.load(editorStore: store, agentToken: CursorProtectedFixtures.jwt,
+                                                     agentConfig: config, now: CursorProtectedFixtures.now)
+        let account = CursorCredentials.account(editorStore: store, agentConfig: config, agentTokenPresent: true)
+        XCTAssertEqual(credentials.accountID, "auth0|synthetic-agent")
+        XCTAssertEqual(account?.source, "cursor-agent")
+        XCTAssertEqual(account?.label, "agent@example.invalid")
+        XCTAssertNil(CursorCredentials.account(editorStore: store, agentConfig: config, agentTokenPresent: false))
+    }
+
+    func testEncryptedEditorIdentityDoesNotRequireDecryptionOrAnEmail() throws {
+        let config = try agent()
+        let withoutEmail = try editor(token: CursorProtectedFixtures.wrappedJWT, account: nil, email: nil)
+        let account = CursorCredentials.account(editorStore: withoutEmail, agentConfig: config,
+                                                 agentTokenPresent: true)
+        XCTAssertEqual(account?.source, "Cursor")
+        XCTAssertNil(account?.label)
+
+        let withEmail = try editor(token: CursorProtectedFixtures.wrappedJWT, account: nil,
+                                   email: "editor@example.invalid")
+        XCTAssertEqual(CursorCredentials.account(editorStore: withEmail, agentConfig: config,
+                                                  agentTokenPresent: true)?.label,
+                       "editor@example.invalid")
+    }
+
+    func testCorruptOrUnexpectedEditorStoreDoesNotSelectAgentCredentialsOrIdentity() throws {
+        let corrupt = directory.appendingPathComponent("corrupt.vscdb")
+        try Data("not a SQLite database".utf8).write(to: corrupt)
+        let unexpected = directory.appendingPathComponent("no-item-table.vscdb")
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(unexpected.path, &db), SQLITE_OK)
+        XCTAssertEqual(sqlite3_exec(db, "CREATE TABLE unrelated (value TEXT)", nil, nil, nil), SQLITE_OK)
+        sqlite3_close(db)
+        let config = try agent()
+        for store in [corrupt, unexpected] {
+            XCTAssertThrowsError(try CursorCredentials.load(
+                editorStore: store, agentConfig: config,
+                keyReader: { XCTFail("unreadable stores must not need the Keychain"); return CursorProtectedFixtures.key },
+                agentToken: { XCTFail("unreadable stores must not select another account"); return CursorProtectedFixtures.jwt }
+            ))
+            XCTAssertNil(CursorCredentials.account(editorStore: store, agentConfig: config,
+                                                    agentTokenPresent: true))
+        }
+    }
+
+    func testAnEmptyEditorTokenAllowsTheAgentFallback() throws {
+        let store = try editor(token: "", account: "old-editor", email: "old@example.invalid")
+        let config = try agent()
+        let credentials = try CursorCredentials.load(
+            editorStore: store, agentConfig: config, now: CursorProtectedFixtures.now,
+            keyReader: { XCTFail("an empty token has nothing to decrypt"); return CursorProtectedFixtures.key },
+            agentToken: { CursorProtectedFixtures.jwt }
+        )
+        XCTAssertEqual(credentials.accountID, "auth0|synthetic-agent")
+        XCTAssertEqual(CursorCredentials.account(editorStore: store, agentConfig: config,
+                                                  agentTokenPresent: true)?.source, "cursor-agent")
+    }
+
+    private func editor(token: String?, account: String?, email: String?) throws -> URL {
+        let url = directory.appendingPathComponent("editor-\(UUID()).vscdb")
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(url.path, &db), SQLITE_OK)
+        defer { sqlite3_close(db) }
+        XCTAssertEqual(sqlite3_exec(db, "CREATE TABLE ItemTable (key TEXT, value TEXT)", nil, nil, nil), SQLITE_OK)
+        let rows: [(String, String?)] = [
+            ("cursorAuth/accessToken", token), ("cursorAuth/stripeMembershipAuthId", account),
+            ("cursorAuth/cachedEmail", email), ("cursorAuth/stripeMembershipType", "pro")
+        ]
+        for (key, value) in rows {
+            guard let value else { continue }
+            var statement: OpaquePointer?
+            XCTAssertEqual(sqlite3_prepare_v2(db, "INSERT INTO ItemTable VALUES (?, ?)", -1, &statement, nil), SQLITE_OK)
+            let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+            sqlite3_bind_text(statement, 1, key, -1, transient)
+            sqlite3_bind_text(statement, 2, value, -1, transient)
+            XCTAssertEqual(sqlite3_step(statement), SQLITE_DONE)
+            sqlite3_finalize(statement)
+        }
+        return url
+    }
+
+    private func agent() throws -> URL {
+        let url = directory.appendingPathComponent("agent-\(UUID()).json")
+        try JSONSerialization.data(withJSONObject: ["authInfo": [
+            "authId": "auth0|synthetic-agent", "email": "agent@example.invalid", "userId": 99
+        ]]).write(to: url)
+        return url
+    }
+}
+
+/// This test double persists a refusal across reader instances entirely in
+/// memory. It never writes a system preferences domain.
+private final class CursorRefusalDefaults: UserDefaults, @unchecked Sendable {
+    private var flags: [String: Bool] = [:]
+    private let flagLock = NSLock()
+
+    override func bool(forKey defaultName: String) -> Bool {
+        flagLock.lock(); defer { flagLock.unlock() }
+        return flags[defaultName] ?? false
+    }
+
+    override func set(_ value: Any?, forKey defaultName: String) {
+        flagLock.lock(); defer { flagLock.unlock() }
+        flags[defaultName] = value as? Bool
+    }
+
+    override func set(_ value: Bool, forKey defaultName: String) {
+        flagLock.lock(); defer { flagLock.unlock() }
+        flags[defaultName] = value
+    }
+
+    override func removeObject(forKey defaultName: String) {
+        flagLock.lock(); defer { flagLock.unlock() }
+        flags.removeValue(forKey: defaultName)
+    }
+}
+
+final class CursorKeychainPermissionTests: XCTestCase {
+    private final class Reads {
+        var modes: [Bool] = []
+        var deny = false
+        var now = Date(timeIntervalSince1970: 1_000)
+        var stamp = Date(timeIntervalSince1970: 1_000)
+        var key = CursorProtectedFixtures.key
+    }
+
+    private func keychain(_ reads: Reads, refusals: UserDefaults? = nil) -> CursorKeychainReader<Data> {
+        CursorKeychainReader(refusalKey: "cursor-test", now: { reads.now }, refusals: refusals,
+                             itemModifiedAt: { reads.stamp }, isExpired: { _ in true }, reader: { interactive in
+            reads.modes.append(interactive)
+            if reads.deny { throw UsageProviderError.accessDenied }
+            return reads.key
+        })
+    }
+
+    func testBackgroundReadAndSilentCacheInvalidationNeverPrompt() throws {
+        let reads = Reads(), keychain = keychain(reads)
+        _ = try keychain.load()
+        _ = try keychain.load()
+        keychain.forgetCached()
+        _ = try keychain.load()
+        XCTAssertEqual(reads.modes, [false, false])
+    }
+
+    func testExplicitAccessGrantsExactlyOneInteractiveRead() throws {
+        let reads = Reads(), keychain = keychain(reads)
+        keychain.askAgain()
+        _ = try keychain.load()
+        keychain.forgetCached()
+        _ = try keychain.load()
+        XCTAssertEqual(reads.modes, [true, false])
+    }
+
+    func testExplicitDenyStopsReadsAcrossRotationAndRelaunchUntilAskedAgain() throws {
+        let defaults = CursorRefusalDefaults()
+        let reads = Reads(), first = keychain(reads, refusals: defaults)
+        reads.deny = true
+        first.askAgain()
+        XCTAssertThrowsError(try first.load())
+        XCTAssertTrue(first.isRefused)
+        reads.deny = false
+        reads.stamp = reads.stamp.addingTimeInterval(1)
+        let relaunched = keychain(reads, refusals: defaults)
+        relaunched.forgetCached()
+        XCTAssertThrowsError(try relaunched.load())
+        XCTAssertEqual(reads.modes, [true])
+        relaunched.askAgain()
+        XCTAssertEqual(try relaunched.load(), CursorProtectedFixtures.key)
+        XCTAssertFalse(relaunched.isRefused)
+        relaunched.forgetCached()
+        _ = try relaunched.load()
+        XCTAssertEqual(reads.modes, [true, true, false])
+    }
+
+    func testBackgroundRefusalDoesNotRecordAnExplicitDeny() {
+        let reads = Reads(), keychain = keychain(reads)
+        reads.deny = true
+        XCTAssertThrowsError(try keychain.load())
+        XCTAssertFalse(keychain.isRefused)
+    }
+
+    func testAnUnspentInteractivePermissionExpires() throws {
+        let reads = Reads(), keychain = keychain(reads)
+        keychain.askAgain()
+        reads.now = reads.now.addingTimeInterval(PromptPermission.window + 1)
+        _ = try keychain.load()
+        XCTAssertEqual(reads.modes, [false])
+    }
+
+    func testCachedSafeStorageKeyIsReusedUntilItsItemRotates() throws {
+        let reads = Reads(), keychain = keychain(reads)
+        XCTAssertEqual(try keychain.load(), CursorProtectedFixtures.key)
+        reads.key = Data(repeating: 0x55, count: 16)
+        XCTAssertEqual(try keychain.load(), CursorProtectedFixtures.key)
+        reads.stamp = reads.stamp.addingTimeInterval(1)
+        XCTAssertEqual(try keychain.load(), reads.key)
+        XCTAssertEqual(reads.modes, [false, false])
+    }
+}
+
+private final class CursorProviderCalls: @unchecked Sendable {
+    private let lock = NSLock()
+    private var accessCount = 0
+    private var forgottenCount = 0
+    func ask() { lock.lock(); defer { lock.unlock() }; accessCount += 1 }
+    func forget() { lock.lock(); defer { lock.unlock() }; forgottenCount += 1 }
+    var counts: (access: Int, forgotten: Int) {
+        lock.lock(); defer { lock.unlock() }
+        return (accessCount, forgottenCount)
+    }
+}
+
+final class CursorLocalProviderProtectedTests: XCTestCase {
+    private var session: URLSession!
+
+    override func setUp() {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [CursorProtectedEndpoint.self]
+        config.httpCookieStorage = nil
+        session = URLSession(configuration: config)
+        CursorProtectedEndpoint.reset(status: 200)
+    }
+
+    override func tearDown() {
+        session.invalidateAndCancel()
+    }
+
+    func testOnlyDecodedEditorTokenReachesTheExistingCookieEndpoint() async throws {
+        let token = try CursorSafeStorage.decode(CursorProtectedFixtures.wrappedJWT,
+                                                 keyReader: { CursorProtectedFixtures.key })
+        let provider = CursorLocalProvider(session: session, loadCredentials: {
+            CursorCredentials(accountID: "auth0|synthetic-editor", accessToken: token)
+        }, loadAccount: { nil }, askForAccess: {}, forgetCredentials: {})
+        _ = try await provider.fetchSnapshot()
+        let request = try XCTUnwrap(CursorProtectedEndpoint.requests.last)
+        XCTAssertEqual(request.url?.absoluteString, "https://cursor.com/api/usage-summary")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Cookie"),
+                       "WorkosCursorSessionToken=auth0|synthetic-editor::\(CursorProtectedFixtures.jwt)")
+        XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+    }
+
+    func testRefusedCredentialDoesNotSendAnyHTTPRequest() async {
+        let provider = CursorLocalProvider(session: session, loadCredentials: {
+            throw UsageProviderError.accessDenied
+        }, loadAccount: { nil }, askForAccess: {}, forgetCredentials: {})
+        do {
+            _ = try await provider.fetchSnapshot()
+            XCTFail("expected accessDenied")
+        } catch UsageProviderError.accessDenied {
+        } catch { XCTFail("\(error)") }
+        XCTAssertTrue(CursorProtectedEndpoint.requests.isEmpty)
+    }
+
+    func testAProtectedWrapperCannotBecomeAnHTTPRequestEvenFromAnInjectedLoader() async {
+        let provider = CursorLocalProvider(session: session, loadCredentials: {
+            CursorCredentials(accountID: "account", accessToken: CursorProtectedFixtures.wrapped)
+        }, loadAccount: { nil }, askForAccess: {}, forgetCredentials: {})
+        do {
+            _ = try await provider.fetchSnapshot()
+            XCTFail("expected needsAuth")
+        } catch UsageProviderError.needsAuth {
+        } catch { XCTFail("\(error)") }
+        XCTAssertTrue(CursorProtectedEndpoint.requests.isEmpty)
+    }
+
+    func testServerRejectionForgetsSilentlyAndNeverGrantsPromptPermission() async {
+        let calls = CursorProviderCalls()
+        let provider = CursorLocalProvider(session: session, loadCredentials: {
+            CursorCredentials(accountID: "account", accessToken: "synthetic-token")
+        }, loadAccount: { nil }, askForAccess: { calls.ask() }, forgetCredentials: { calls.forget() })
+        for status in [401, 403] {
+            CursorProtectedEndpoint.reset(status: status)
+            do {
+                _ = try await provider.fetchSnapshot()
+                XCTFail("expected needsAuth")
+            } catch UsageProviderError.needsAuth {
+            } catch { XCTFail("\(error)") }
+        }
+        XCTAssertEqual(calls.counts.forgotten, 2)
+        XCTAssertEqual(calls.counts.access, 0)
+        provider.forgetCachedCredential()
+        XCTAssertEqual(calls.counts.access, 1)
+    }
+
+    func testHTTPRejectionDoesNotRequireAnotherReadOfAnUnchangedSafeStorageKey() async throws {
+        let reads = CursorProviderCalls()
+        let keychain = CursorKeychainReader<Data>(
+            refusalKey: "synthetic-http-key", itemModifiedAt: { CursorProtectedFixtures.now },
+            isExpired: { _ in true }, reader: { interactive in
+                XCTAssertTrue(interactive, "a second read after Allow once would be refused")
+                reads.ask()
+                return CursorProtectedFixtures.key
+            }
+        )
+        keychain.askAgain()
+        _ = try keychain.load()
+        let provider = CursorLocalProvider(session: session, loadCredentials: {
+            let token = try CursorSafeStorage.decode(CursorProtectedFixtures.wrappedJWT,
+                                                     keyReader: { try keychain.load() })
+            return CursorCredentials(accountID: "auth0|synthetic-editor", accessToken: token)
+        }, loadAccount: { nil }, askForAccess: {})
+        CursorProtectedEndpoint.reset(status: 401)
+        do {
+            _ = try await provider.fetchSnapshot()
+            XCTFail("expected needsAuth")
+        } catch UsageProviderError.needsAuth {
+        }
+        CursorProtectedEndpoint.reset(status: 200)
+        _ = try await provider.fetchSnapshot()
+        XCTAssertEqual(reads.counts.access, 1, "HTTP rejection must not discard the safe-storage key")
+    }
+}
+
+private final class CursorProtectedEndpoint: URLProtocol {
+    private static let lock = NSLock()
+    private static var status = 200
+    private static var recorded: [URLRequest] = []
+    static var requests: [URLRequest] {
+        lock.lock(); defer { lock.unlock() }
+        return recorded
+    }
+
+    static func reset(status: Int) {
+        lock.lock(); defer { lock.unlock() }
+        self.status = status
+        recorded = []
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.lock.lock()
+        Self.recorded.append(request)
+        let status = Self.status
+        Self.lock.unlock()
+        let response = HTTPURLResponse(url: request.url!, statusCode: status,
+                                       httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"membershipType":"pro","individualUsage":{"plan":{"autoPercentUsed":19}}}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
