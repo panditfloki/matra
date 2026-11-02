@@ -1,10 +1,13 @@
 # Mātrā for macOS
 
-Native Swift/AppKit app. Version **1.8.5**, build **186**, published as
-**v1.8.5-macos-beta.2**. Source is on `main` under `native/macos`.
+Native Swift/AppKit app. Current release: **1.9.0 Beta 6**, build **1906**,
+published as **v1.9.0-beta.6**. The release source is under `native/macos`
+on [that tag](https://github.com/panditfloki/matra/tree/v1.9.0-beta.6/native/macos).
+`main` carries current documentation and the update feed alongside an older
+application baseline; use the release tag to reproduce Beta 6.
 
-[Download the Mac beta](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.2).
-This is the Apple Silicon developer build tested locally. It uses ad-hoc signing;
+[Download the Mac beta](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.6).
+The DMG contains universal Apple Silicon and Intel code. It uses ad-hoc signing;
 Developer ID signing and Apple notarization are pending. Read [INSTALL-MAC.md](INSTALL-MAC.md).
 
 ## Build
@@ -15,7 +18,8 @@ The verified toolchain is Xcode 27 beta and XcodeGen 2.44.1. Dependencies are
 pinned in Package.resolved; preserve those versions when reproducing the beta.
 
 ```sh
-cd native/macos
+git clone --branch v1.9.0-beta.6 --single-branch https://github.com/panditfloki/matra.git matra-beta6
+cd matra-beta6/native/macos
 make build
 make test
 make preview
@@ -37,9 +41,9 @@ To package the tested developer configuration, run:
 Scripts/package-local.sh /absolute/output/directory /absolute/package/cache
 ```
 
-This produces a local arm64 DMG and checksum. It does not install the app or
-publish a release. The signed and notarized public Release configuration has not
-been accepted; this beta ships the configuration verified locally.
+The release tag's helper produces a local arm64 DMG and checksum. It does not
+reproduce the published universal DMG or install/publish the app. Preserve the
+pinned dependencies and record the architecture and signing mode of local builds.
 
 ## Included in this beta
 
@@ -53,9 +57,13 @@ been accepted; this beta ships the configuration verified locally.
   Default Watch/Critical thresholds are 50%/70%; both can be adjusted.
 - Provider quota cards, supported agent activity, ring placement and visibility.
 - Start at login and phone linking remain explicit opt-ins.
-- The automatic-install preference persists and controls automatic acceptance.
-  A published signed update feed and the complete downloaded-update transition
-  remain pending, so install beta releases manually.
+- Grok Bot account matching and Cursor protected-credential support. Cursor
+  access is requested explicitly through Settings when needed.
+- Claude weekly-only readings when the account has no session cap, plus the
+  hover-only drag handle and earlier launch/updater corrections.
+- The published signed feed offers Beta 6 to builds 1904 and newer through
+  **Check for updates**. Older builds require one manual replacement. See
+  [installation and recovery](INSTALL-MAC.md) and [feed delivery](../../updates/macos/README.md).
 
 User-owned data uses `Application Support/Matra`, the bundle identifier
 `com.dydxfx.matra.mac`, and the app's associated Keychain services. Vendor sessions
@@ -64,9 +72,12 @@ part of this source tree or installer.
 
 ## Release boundaries
 
-The arm64 beta has been checked on the development Mac. Intel packaging, a wider
-hardware matrix, long-duration stability, phone-client compatibility and the
-complete automatic-upgrade journey are separate acceptance gates. The Windows
-app is developed and released separately. See the root README for both channels.
+The universal package has passed ARM and Rosetta launch checks on the development
+Mac. Rosetta checks do not establish physical Intel Mac acceptance. A wider
+hardware matrix, live Cursor access after permission approval, long-duration
+stability, phone-client compatibility and the complete installed update/relaunch
+remain separate acceptance checks. The Windows app is released separately.
+See the [root README](../../README.md) for both channels and the
+[maintenance backlog](../../docs/MAINTENANCE-BACKLOG.md) for proposed work.
 
 © 2026 dydxfx · https://dydxfx.com

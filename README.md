@@ -18,19 +18,19 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/panditfloki/matra/releases/download/v1.8.5-macos-beta.2/Matra-1.8.5-macOS-arm64-beta.2.dmg"><img src="docs/readme/download-mac.svg" width="294" height="76" alt="Download Mātrā for Mac, Apple Silicon, version 1.8.5 Beta 2"></a>
+  <a href="https://github.com/panditfloki/matra/releases/download/v1.9.0-beta.6/Matra-1.9.0-beta.6-macOS-universal.dmg"><img src="docs/readme/download-mac.svg" width="294" height="76" alt="Download Mātrā for Mac, Apple Silicon and Intel, version 1.9.0 Beta 6"></a>
   &nbsp;
   <a href="https://github.com/panditfloki/matra/releases/download/v1.8.6/Matra-Setup.exe"><img src="docs/readme/download-windows.svg" width="294" height="76" alt="Download Mātrā for Windows x64, version 1.8.6 Stable"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.2">Mac release notes</a> ·
+  <a href="https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.6">Mac release notes</a> ·
   <a href="https://github.com/panditfloki/matra/releases/tag/v1.8.6">Windows release notes</a> ·
   <a href="#install">Installation</a> ·
   <a href="LICENSE">MIT licence</a>
 </p>
 
-<p align="center"><sub>Mac: Apple Silicon, macOS 15+, beta, not notarized. Windows: x64, stable, unsigned installer. Separate release channels; manual updates.</sub></p>
+<p align="center"><sub>Mac: universal Apple Silicon and Intel, macOS 15+, beta, not notarized. Windows: x64, stable, unsigned installer. Mac builds 1904+ can check for updates; older Mac builds and Windows use manual installation.</sub></p>
 
 <p align="center">
   <a href="#how-it-works">How it works</a> ·
@@ -121,18 +121,18 @@ Watch and Critical thresholds are adjustable. Red takes priority from 90%. Windo
 
 | | macOS | Windows |
 | --- | --- | --- |
-| **Version** | **1.8.5 Beta 2**, build 186 | **1.8.6 Stable** |
-| **Platform** | Apple Silicon · macOS 15+ | Windows x64 |
-| **Package** | [Download DMG](https://github.com/panditfloki/matra/releases/download/v1.8.5-macos-beta.2/Matra-1.8.5-macOS-arm64-beta.2.dmg) | [Download Setup.exe](https://github.com/panditfloki/matra/releases/download/v1.8.6/Matra-Setup.exe) |
-| **Integrity** | [SHA256SUMS.txt](https://github.com/panditfloki/matra/releases/download/v1.8.5-macos-beta.2/SHA256SUMS.txt) | [SHA256SUMS.txt](https://github.com/panditfloki/matra/releases/download/v1.8.6/SHA256SUMS.txt) |
+| **Version** | **1.9.0 Beta 6**, build 1906 | **1.8.6 Stable** |
+| **Platform** | Universal: Apple Silicon and Intel · macOS 15+ | Windows x64 |
+| **Package** | [Download DMG](https://github.com/panditfloki/matra/releases/download/v1.9.0-beta.6/Matra-1.9.0-beta.6-macOS-universal.dmg) | [Download Setup.exe](https://github.com/panditfloki/matra/releases/download/v1.8.6/Matra-Setup.exe) |
+| **Integrity** | [SHA256SUMS.txt](https://github.com/panditfloki/matra/releases/download/v1.9.0-beta.6/SHA256SUMS.txt) | [SHA256SUMS.txt](https://github.com/panditfloki/matra/releases/download/v1.8.6/SHA256SUMS.txt) |
 | **Signing** | Ad-hoc signed; not Apple notarized | Not publisher-signed |
-| **Updates** | Manual beta installation | Run the newer installer |
+| **Updates** | Check for updates from build 1904 onward; one manual replacement for older builds | Run the newer installer |
 
-Download versions checked on **30 October 2026**. Mac and Windows are released separately; Mac screenshots do not establish Windows feature parity.
+Download versions checked on **2 November 2026**. Mac and Windows are released separately; Mac screenshots do not establish Windows feature parity. Windows 1.9 remains a [separate preview](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.1); 1.8.6 is the stable Windows download.
 
 ### In the current releases
 
-**Mac Beta 2:** menu-bar Overview and provider tabs; a side detail panel on hover or pin; optional provider brand colours; local Claude/Codex token counts and USD API-price estimates through an installed `ccusage`. Unknown readings stay neutral. [Mac release notes](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.2).
+**Mac Beta 6:** corrects Grok Bot account matching and adds support for Cursor's protected credentials. When needed, choose **Settings → AI sources → Cursor → Allow access…** to request access. It retains the Claude weekly-only reading, hover-only drag handle and earlier updater corrections. [Mac release notes](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.6).
 
 **Windows 1.8.6:** the notch keeps its topmost position while preserving focus; settings and drag controls reveal below the capsule; dated Claude readings stay visible when the first refresh is rate-limited. Codex statistics, reset credits and the 30-day graph are retained. [Windows release notes](https://github.com/panditfloki/matra/releases/tag/v1.8.6).
 
@@ -140,19 +140,21 @@ Download versions checked on **30 October 2026**. Mac and Windows are released s
 
 ### Mac
 
-1. Download the **DMG** and its **SHA256SUMS.txt** from the [Mac beta release](https://github.com/panditfloki/matra/releases/tag/v1.8.5-macos-beta.2).
+1. Download the **DMG** and its **SHA256SUMS.txt** from the [Mac beta release](https://github.com/panditfloki/matra/releases/tag/v1.9.0-beta.6).
 2. Quit Mātrā, open the DMG and drag **Matra.app** into **Applications**.
 3. Eject the disk image and launch Mātrā from Applications.
 
-The beta requires an Apple Silicon Mac with macOS 15 or later. An Intel installer is not included. It uses an ad-hoc signed developer build; Developer ID signing and Apple notarization remain pending. If macOS blocks it, stop and review the warning with protections enabled.
+The universal beta contains Apple Silicon and Intel code and requires macOS 15 or later. It is ad-hoc signed; Developer ID signing and Apple notarization remain pending. If macOS blocks it, stop and review the warning with protections enabled.
 
-Existing preferences and provider sign-ins are retained when replacing the app. Install beta updates manually: the automatic-install preference is present, but a published signed update feed and complete downloaded-upgrade test are still pending.
+Existing preferences and provider sign-ins are retained when replacing the app. **Builds 1904 and newer can use Check for updates** through the published signed feed. **Earlier builds need one manual replacement with this DMG** because their installed updater cannot complete the recovery. Use **Settings → View releases on GitHub** or the download above. See the [Mac installation and update guide](native/macos/INSTALL-MAC.md).
+
+Feed, package and signature checks have passed. A complete installed update/relaunch and live Cursor access after permission approval remain to be confirmed; these checks do not establish Apple notarization or physical Intel Mac acceptance.
 
 <details>
 <summary><strong>Check the Mac download</strong></summary>
 
 ```sh
-shasum -a 256 ~/Downloads/Matra-1.8.5-macOS-arm64-beta.2.dmg
+shasum -a 256 ~/Downloads/Matra-1.9.0-beta.6-macOS-universal.dmg
 ```
 
 Compare the result with the checksum supplied in the same release. A matching hash checks file integrity; it does not establish Apple notarization.
@@ -198,10 +200,12 @@ The desktop apps have separate native implementations. The older Electron experi
 | **macOS** | Swift / AppKit | [Mac build notes and pinned dependencies](native/macos/README.md) |
 | **Windows** | Rust / Tauri 2 / WebView2 | [Native build notes](native/README.md) · [Windows CI](.github/workflows/windows.yml) |
 
+Use the source tag for the release you want to reproduce: [Mac Beta 6](https://github.com/panditfloki/matra/tree/v1.9.0-beta.6) or [Windows 1.8.6](https://github.com/panditfloki/matra/tree/v1.8.6). The Mac beta source is on its release tag; `main` carries the current documentation and update feed alongside an older application baseline.
+
 <details>
 <summary><strong>Build commands</strong></summary>
 
-With the documented platform prerequisites installed:
+From a clean checkout of the appropriate release tag, with the documented platform prerequisites installed:
 
 **macOS**
 
@@ -222,6 +226,10 @@ npm run native:bundle
 Keep changes scoped to the relevant platform and preserve dependency pins. A local build is separate from a signed installer or a verified installed update.
 
 </details>
+
+Maintained by [Pandit Floki](https://github.com/panditfloki). The [maintenance backlog](docs/MAINTENANCE-BACKLOG.md) sets out proposed parser regressions, account-isolation tests and maintainer automation, with acceptance criteria and links to existing test evidence. These items are planned work, not completed features.
+
+For bug reports, use [Issues](https://github.com/panditfloki/matra/issues) and include your platform, app version/build and reproduction steps. Remove credentials and personal session content from any logs you share.
 
 **Using the original IDE extension or localhost dashboard?** The existing VS Code-compatible extension and `localhost:4317` dashboard remain in the repository. Their installation, currency settings and architecture are in the [legacy guide](docs/LEGACY-DASHBOARD.md).
 
