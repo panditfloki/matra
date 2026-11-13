@@ -15,6 +15,9 @@ fs.mkdirSync(task, { recursive: true });
 assert.ok(fs.realpathSync(task) === taskRoot || fs.realpathSync(task).startsWith(taskRoot + path.sep), 'Browser workspace must stay inside this task');
 for (const name of ['tmp', 'cache']) fs.mkdirSync(path.join(task, name), { recursive: true });
 const baseline = process.argv.includes('--baseline');
+const shardCount = Number(process.env.MATRA_BROWSER_SHARDS || 1);
+const shardIndex = Number(process.env.MATRA_BROWSER_SHARD || 0);
+assert.ok(Number.isInteger(shardCount) && shardCount > 0 && Number.isInteger(shardIndex) && shardIndex >= 0 && shardIndex < shardCount);
 const out = path.join(task, 'evidence', baseline ? 'browser-baseline' : 'browser-current');
 const review = path.join(task, 'artifacts', baseline ? 'baseline-notch-review' : 'notch-review');
 fs.mkdirSync(out, { recursive: true });
@@ -45,7 +48,9 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
       return request.continue();
     });
     await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+    let caseIndex = 0;
     for (const scale of baseline ? [1] : [.8, 1, 1.25]) for (const dpr of baseline ? [1] : [1, 1.5]) for (const edge of ['right', 'left', 'top', 'bottom']) for (const count of [1, 3, 6]) {
+      if (caseIndex++ % shardCount !== shardIndex) continue;
       const vertical = edge === 'right' || edge === 'left';
       await page.setViewport({ width: vertical ? 460 : 650, height: 650, deviceScaleFactor: dpr * scale });
       await page.goto(pathToFileURL(path.join(review, 'windows-notch-component.html')).href + '?scale=' + scale);
@@ -73,6 +78,13 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
       await page.click('.cell');
       assert.ok(await page.evaluate(() => window.__matraSample.calls.some(c => c.name === 'refresh_ring' && c.args.provider === 'claude')), 'Provider click reaches the native refresh command boundary');
       checks.push({ edge, count, dpr, scale, geometry, card });
+    }
+    if (shardIndex !== shardCount - 1) {
+      assert.deepEqual(errors, []); assert.deepEqual(network, []);
+      const result = { passed: true, browser: await browser.version(), shardIndex, shardCount, checks, stressChecks, reviewChecks, errors, network, nativeAcceptance: false };
+      fs.writeFileSync(path.join(out, 'result.json'), JSON.stringify(result, null, 2) + '\n');
+      console.log(JSON.stringify({ passed: true, shardIndex, cases: checks.length, evidence: out }));
+      return;
     }
     if (!baseline) for (const scale of [.8, 1, 1.25]) for (const edge of ['right', 'left', 'top', 'bottom']) {
       const vertical = ['right', 'left'].includes(edge);
