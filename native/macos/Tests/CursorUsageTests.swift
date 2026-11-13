@@ -620,33 +620,6 @@ final class CursorProtectedCredentialsTests: XCTestCase {
     }
 }
 
-/// This test double persists a refusal across reader instances entirely in
-/// memory. It never writes a system preferences domain.
-private final class CursorRefusalDefaults: MatraDefaults, @unchecked Sendable {
-    private var flags: [String: Bool] = [:]
-    private let flagLock = NSLock()
-
-    override func bool(forKey defaultName: String) -> Bool {
-        flagLock.lock(); defer { flagLock.unlock() }
-        return flags[defaultName] ?? false
-    }
-
-    override func set(_ value: Any?, forKey defaultName: String) {
-        flagLock.lock(); defer { flagLock.unlock() }
-        flags[defaultName] = value as? Bool
-    }
-
-    override func set(_ value: Bool, forKey defaultName: String) {
-        flagLock.lock(); defer { flagLock.unlock() }
-        flags[defaultName] = value
-    }
-
-    override func removeObject(forKey defaultName: String) {
-        flagLock.lock(); defer { flagLock.unlock() }
-        flags.removeValue(forKey: defaultName)
-    }
-}
-
 final class CursorKeychainPermissionTests: XCTestCase {
     private final class Reads {
         var modes: [Bool] = []
@@ -684,7 +657,7 @@ final class CursorKeychainPermissionTests: XCTestCase {
     }
 
     func testExplicitDenyStopsReadsAcrossRotationAndRelaunchUntilAskedAgain() throws {
-        let defaults = CursorRefusalDefaults()
+        let defaults = MatraDefaults(inMemorySuite: "cursor-refusal-fixture", database: MatraMemoryDefaults())
         let reads = Reads(), first = keychain(reads, refusals: defaults)
         reads.deny = true
         first.askAgain()
