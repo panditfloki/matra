@@ -41,16 +41,21 @@ public static class MatraCarryNative {
  [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int key);
  [DllImport("user32.dll",SetLastError=true)] static extern uint SendInput(uint count,Input[] input,int size);
  [DllImport("user32.dll",SetLastError=true)] static extern IntPtr SendMessageTimeout(IntPtr h,uint msg,UIntPtr w,IntPtr l,uint flags,uint timeout,out UIntPtr result);
- public static IntPtr Window(uint owner,bool overlay) {
-  var found=new List<IntPtr>();
+ // Every top-level HWND owned by the fixture process, with the metadata needed
+ // to identify it. Tao's thread event target is also visible and nonactivating,
+ // so style alone never identifies the notch; selection happens in the script.
+ public sealed class TopLevel { public IntPtr Handle; public string Class, Title; public bool Visible; public int Style, ExStyle; public Rect Bounds; }
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder text, int count);
+ public static List<TopLevel> Windows(uint owner) {
+  var found=new List<TopLevel>();
   EnumWindows((h,p)=> { uint id;GetWindowThreadProcessId(h,out id);if(id!=owner)return true;
    var text=new StringBuilder(256);GetWindowText(h,text,text.Capacity);
-   bool isOverlay=text.ToString()=="Matra carry";
-   if(overlay ? isOverlay : (!isOverlay && IsWindowVisible(h) && (GetWindowLong(h,-20)&0x08000000)!=0))found.Add(h);
+   var cls=new StringBuilder(256);GetClassName(h,cls,cls.Capacity);
+   Rect r;if(!GetWindowRect(h,out r))r=new Rect();
+   found.Add(new TopLevel{Handle=h,Class=cls.ToString(),Title=text.ToString(),Visible=IsWindowVisible(h),Style=GetWindowLong(h,-16),ExStyle=GetWindowLong(h,-20),Bounds=r});
    return true;
   },IntPtr.Zero);
-  if(found.Count>1 || (!overlay && found.Count!=1))throw new Exception("Expected one native notch/overlay; found "+found.Count);
-  return found.Count==0?IntPtr.Zero:found[0];
+  return found;
  }
  public static Rect Bounds(IntPtr h){Rect r;if(!GetWindowRect(h,out r))throw new Exception("GetWindowRect failed");return r;}
  public static Rect Work(IntPtr h){var info=new MonitorInfo();info.Size=(uint)Marshal.SizeOf(typeof(MonitorInfo));
@@ -96,6 +101,45 @@ function Placement {
 function Is-SameRect($A, $B) {
     return [Math]::Abs($A.Left-$B.Left) -le 1 -and [Math]::Abs($A.Top-$B.Top) -le 1 -and [Math]::Abs($A.Right-$B.Right) -le 1 -and [Math]::Abs($A.Bottom-$B.Bottom) -le 1
 }
+# Tauri registers every app window under this class (tauri-runtime-wry). The
+# carry overlay is the only one titled 'Matra carry' (dropzones.rs).
+$tauriClass = 'Tauri Window'
+$overlayTitle = 'Matra carry'
+$windowDiagnostics = $null
+function Describe-Windows {
+    return @([MatraCarryNative]::Windows($AppProcessId) | ForEach-Object {
+        [ordered]@{handle=('0x{0:X}' -f $_.Handle.ToInt64());'class'=$_.Class;title=$_.Title;visible=$_.Visible
+            style=('0x{0:X8}' -f $_.Style);exStyle=('0x{0:X8}' -f $_.ExStyle)
+            bounds=[ordered]@{left=$_.Bounds.Left;top=$_.Bounds.Top;right=$_.Bounds.Right;bottom=$_.Bounds.Bottom}}
+    })
+}
+function Fail-Lookup([string]$Message, $Reported) {
+    # Lookup failures carry every candidate so CI shows which HWNDs competed.
+    $script:windowDiagnostics = [ordered]@{reason=$Message;reported=$Reported;windows=@(Describe-Windows)}
+    throw "$Message; candidates: $($script:windowDiagnostics | ConvertTo-Json -Depth 6 -Compress)"
+}
+function Find-Notch {
+    # Positive identity: the notch webview reports its own label and physical
+    # outer rectangle; exactly one visible nonactivating Tauri HWND of this PID
+    # must occupy that rectangle. Retry briefly while an edge change settles.
+    $deadline = [DateTime]::UtcNow.AddSeconds(4)
+    do {
+        $reported = Query "(async()=>{const w=window.__TAURI__.window.getCurrentWindow();const p=await w.outerPosition(),s=await w.outerSize();return {label:w.label,left:p.x,top:p.y,right:p.x+s.width,bottom:p.y+s.height}})()"
+        $candidates = @([MatraCarryNative]::Windows($AppProcessId) | Where-Object {
+            $_.Class -eq $tauriClass -and $_.Title -ne $overlayTitle -and $_.Visible -and ($_.ExStyle -band 0x08000000) -ne 0 -and (Is-SameRect $_.Bounds $reported)
+        })
+        if ($reported.label -eq 'notch' -and $candidates.Count -eq 1) { return $candidates[0].Handle }
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+    Fail-Lookup "Expected exactly one visible nonactivating '$tauriClass' notch HWND at the notch webview's reported rectangle; found $($candidates.Count)" $reported
+}
+function Find-Overlay {
+    # Zero while no carry is presented; more than one is always a defect.
+    $found = @([MatraCarryNative]::Windows($AppProcessId) | Where-Object { $_.Class -eq $tauriClass -and $_.Title -eq $overlayTitle })
+    if ($found.Count -gt 1) { Fail-Lookup "Expected at most one '$overlayTitle' overlay HWND; found $($found.Count)" $null }
+    if ($found.Count -eq 0) { return [IntPtr]::Zero }
+    return $found[0].Handle
+}
 $repo = Split-Path $PSScriptRoot -Parent
 $output = Join-Path $repo '.build\development-lifecycle\native-carry.json'
 $results = [System.Collections.Generic.List[object]]::new()
@@ -120,7 +164,7 @@ function Begin-PhysicalCarry([bool]$Grip = $true) {
     if (!$Grip) { Move-Native ($point.x+12*$point.dpr) ($point.y+12*$point.dpr) }
     Wait-Native { Query "carrying && document.body.classList.contains('carry-hidden')" } 'Actual pointer press did not present the native carry overlay'
     Assert-Native ([MatraCarryNative]::Capture($notch) -eq $notch) 'The owning UI thread captured the ordinary notch HWND'
-    $overlay = [MatraCarryNative]::Window($AppProcessId,$true)
+    $overlay = Find-Overlay
     Assert-Native ($overlay -ne [IntPtr]::Zero -and [MatraCarryNative]::IsWindowVisible($overlay)) 'A native carry overlay is visible'
     Assert-Native (Is-SameRect ([MatraCarryNative]::Bounds($overlay)) $work) 'Carry overlay occupies the actual monitor work area'
     Assert-Native (([MatraCarryNative]::GetWindowLong($overlay,-20) -band 0x20) -ne 0) 'Overlay is native click-through'
@@ -135,7 +179,7 @@ function End-PhysicalCarry([long]$Id, [string]$Status) {
     [MatraCarryNative]::Mouse($false)
     [MatraCarryNative]::Key(0x12,$false)
     Wait-Native { Query "!carrying && !dragging && !document.body.classList.contains('carry-hidden') && window.__nativeCarryEvents.some(e=>e.id===$Id)" } 'Carry did not restore the normal body' 12
-    Wait-Native { [MatraCarryNative]::Window($AppProcessId,$true) -eq [IntPtr]::Zero } 'Carry overlay survived terminal cleanup'
+    Wait-Native { (Find-Overlay) -eq [IntPtr]::Zero } 'Carry overlay survived terminal cleanup'
     Assert-Native ([MatraCarryNative]::Capture($notch) -eq [IntPtr]::Zero) 'Native pointer capture is released after terminal cleanup'
     $terminal = Query "window.__nativeCarryEvents.filter(e=>e.id===$Id)"
     Assert-Native (@($terminal).Count -eq 1 -and $terminal[0].status -eq $Status) "One native carry terminal event reports $Status"
@@ -153,7 +197,7 @@ try {
     $listenerInstalled = $true
     Query "(async()=>{window.__nativeCarryEvents=[];window.__nativeCarryStop=await window.__TAURI__.event.listen('carry_end',e=>window.__nativeCarryEvents.push(e.payload));await invoke('set_move_handle',{on:true});await invoke('set_notch_edge',{edge:'left'});return true})()" | Out-Null
     Start-Sleep -Milliseconds 650
-    $notch = [MatraCarryNative]::Window($AppProcessId,$false)
+    $notch = Find-Notch
     $work = [MatraCarryNative]::Work($notch)
     $before = Placement
     $scene = Begin-PhysicalCarry
@@ -236,7 +280,7 @@ try {
     if (!(Test-Path $output)) {
         $failureText = if ($primaryError) { "$primaryError" } else { $null }
         Invoke-Cleanup 'partial receipt' {
-            [ordered]@{passed=$false;error=$failureText;cleanupErrors=$cleanupErrors;results=$results} |
+            [ordered]@{passed=$false;error=$failureText;cleanupErrors=$cleanupErrors;windows=$windowDiagnostics;results=$results} |
                 ConvertTo-Json -Depth 10 | Set-Content -LiteralPath ($output+'.partial') -Encoding utf8NoBOM
         }
     }

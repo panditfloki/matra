@@ -62,8 +62,23 @@ export XDG_SESSION_TYPE=x11 GDK_BACKEND=x11
 # without changing the application's desktop defaults or disabling WebKit.
 export LIBGL_ALWAYS_SOFTWARE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
 unset WAYLAND_DISPLAY
-printf '%s\n' '{"theme":"light","notch_edge":"left","scale":0.8,"glm_notch_fixed":true,"notch_on_hover":false}' > "$work/profile/config.json"
-app='' wm=''
+seed_config='{"theme":"light","notch_edge":"left","scale":0.8,"glm_notch_fixed":true,"notch_on_hover":false}'
+printf '%s\n' "$seed_config" > "$work/profile/config.json"
+# app is always the real application PID. tracer is set only during the post-failure
+# diagnostic reproductions, where the app is the debugger's child and not this shell's.
+app='' wm='' tracer='' phase=''
+# kill 0/-1 and negative PIDs address process groups (this CI shell's included). Only a
+# plain decimal PID above 1 that is not this shell may ever be signalled or polled.
+valid_pid(){ [[ "${1-}" =~ ^[1-9][0-9]{0,9}$ ]] && (( $1 > 1 && $1 != $$ )); }
+stop_app(){
+  [[ -n "$app" ]] || return 0
+  valid_pid "$app" || { app=''; return 0; }
+  kill "$app" 2>/dev/null
+  for i in $(seq 1 50); do kill -0 "$app" 2>/dev/null || break; sleep 0.1; done
+  kill -KILL "$app" 2>/dev/null
+  [[ -n "$tracer" ]] || wait "$app" 2>/dev/null
+  app=''
+}
 cleanup(){
   local status=$?
   set +e
@@ -76,14 +91,28 @@ cleanup(){
       [[ ! -f "$work/$log" ]] || { printf '\nDiagnostic: %s\n' "$log"; tail -100 "$work/$log"; }
     done
   fi
-  [[ -z "$app" ]] || kill "$app" 2>/dev/null
+  stop_app
+  # The first failure above is already recorded. Diagnostics run afterwards in their own
+  # profile and directory and never change this job's status.
+  if (( status != 0 )) && [[ -n "$phase" && "${MATRA_NATIVE_TRACE:-1}" != 0 ]]; then
+    native_trace
+  fi
   [[ -z "$wm" ]] || kill "$wm" 2>/dev/null
   return "$status"
 }
 trap cleanup EXIT
 check_app(){
+  if ! valid_pid "$app"; then
+    printf 'Invalid application PID %q phase=%s; nothing signalled or polled\n' "$app" "$phase" >&2
+    return 1
+  fi
   if kill -0 "$app" 2>/dev/null; then return; fi
   local status
+  if [[ -n "$tracer" ]]; then
+    # Diagnostic reproduction: the tracer reaped the app; it records the status itself.
+    printf 'PID=%s ended phase=%s (status in the tracer record)\n' "$app" "$phase" | tee -a "$work/native-trace/process-exit.txt"
+    return 1
+  fi
   if wait "$app"; then status=0; else status=$?; fi
   printf 'PID=%s exit=%s phase=%s\n' "$app" "$status" "$phase" | tee -a "$work/process-exit.txt"
   if command -v coredumpctl >/dev/null; then
@@ -107,7 +136,7 @@ printf '%s\n' "GDK_BACKEND=$GDK_BACKEND" "LIBGL_ALWAYS_SOFTWARE=$LIBGL_ALWAYS_SO
 wait_settings(){
   local window='' previous='' stable=0 candidate deviation width height crop_x crop_y crop_w crop_h
   for i in $(seq 1 120); do
-    check_app
+    check_app || return 1
     window=''
     while IFS= read -r candidate; do
       if [[ "$(xdotool getwindowpid "$candidate" 2>/dev/null || true)" == "$app" ]] &&
@@ -135,7 +164,7 @@ import sys
 sys.exit(0 if float(sys.argv[1]) > 0.01 else 1)
 PY_PAINT
         then
-          check_app
+          check_app || return 1
           xdotool getwindowgeometry --shell "$window" > "$work/$phase-geometry.txt"
           import -window root "$work/screenshots/x11-development-$phase.png"
           printf 'PID=%s XID=%s content_crop=%sx%s+%s+%s content_standard_deviation=%s\n' "$app" "$window" "$crop_w" "$crop_h" "$crop_x" "$crop_y" "$deviation" > "$work/$phase-paint.txt"
@@ -147,6 +176,77 @@ PY_PAINT
   done
   echo "Native GTK/WebKit settings did not remain visible and paint ($phase)" >&2
   return 1
+}
+# DIAGNOSTIC ONLY, after an application phase has already failed. Two isolated, time-bounded
+# reproductions of the extracted Debian binary in fresh fixture profiles (preview mode, so no
+# provider, hook, credential or update service starts): gdb records native stacks at
+# termination and X11 connection-failure entry points; strace records the syscall timeline
+# including X11 socket I/O. The same wait_settings gate observes the real application PID.
+# A traced pass is reported as such and never replaces the failure above.
+native_trace(){
+  local trace="$work/native-trace" failed_phase="$phase" outcome candidate
+  mkdir -p "$trace/gdb-profile" "$trace/strace-profile"
+  {
+    echo "DIAGNOSTIC ONLY: traced reproductions after phase '$failed_phase' failed. Not acceptance evidence; the job keeps its original failure."
+    echo "binary=$exe"
+    command -v gdb && gdb --version | head -1
+    command -v strace && strace -V | head -1
+  } > "$trace/README.txt" 2>&1
+  if command -v gdb >/dev/null; then
+    printf '%s\n' "$seed_config" > "$trace/gdb-profile/config.json"
+    MATRA_DATA_DIR="$trace/gdb-profile" MATRA_TRACE_DIR="$trace" \
+      timeout --kill-after=10 150 gdb -nx -q -batch -x "$repo/scripts/linux-native-trace-gdb.py" --args "$exe" --silent \
+      < /dev/null > "$trace/gdb.log" 2>&1 & tracer=$!
+    for i in $(seq 1 300); do [[ -s "$trace/gdb-app.pid" ]] && break; kill -0 "$tracer" 2>/dev/null || break; sleep 0.1; done
+    candidate=''
+    [[ ! -s "$trace/gdb-app.pid" ]] || IFS= read -r candidate < "$trace/gdb-app.pid" || true
+    if valid_pid "$candidate"; then
+      app="$candidate" phase=diagnostic-gdb
+      if wait_settings; then outcome='traced app stayed up and painted Settings'; else outcome='traced app ended or did not paint'; fi
+      # A still-running app gets SIGSTOP through ptrace: gdb then dumps every thread and ends it.
+      valid_pid "$app" && kill -0 "$app" 2>/dev/null && kill -STOP "$app" 2>/dev/null
+    else
+      outcome="gdb did not start the application (pid file: '${candidate}')"
+      # No application to observe: end the timeout wrapper now instead of waiting it out.
+      valid_pid "$tracer" && kill -0 "$tracer" 2>/dev/null && kill -TERM "$tracer" 2>/dev/null
+    fi
+    wait "$tracer"; printf '%s; gdb wrapper status=%s\n' "$outcome" "$?" > "$trace/gdb-outcome.txt"
+    tracer='' app=''
+    # Build IDs of every object named in a stack, for offline symbolisation by build ID.
+    grep -o 'from /[^ ]*' "$trace/gdb-stops.txt" 2>/dev/null | sort -u | cut -c6- | while read -r object; do
+      printf '%s ' "$object"; readelf -n "$object" 2>/dev/null | awk '/Build ID/ {print $3}'
+    done > "$trace/build-ids.txt"
+    printf '%s ' "$exe" >> "$trace/build-ids.txt"; readelf -n "$exe" 2>/dev/null | awk '/Build ID/ {print $3}' >> "$trace/build-ids.txt"
+  else
+    echo 'gdb is not installed on this runner' > "$trace/gdb-outcome.txt"
+  fi
+  if command -v strace >/dev/null; then
+    printf '%s\n' "$seed_config" > "$trace/strace-profile/config.json"
+    MATRA_DATA_DIR="$trace/strace-profile" \
+      timeout --kill-after=10 150 strace -f -tt -T -yy -s 96 -e 'trace=!futex' -o "$trace/strace.txt" "$exe" --silent \
+      < /dev/null > "$trace/strace-app-stdout.log" 2> "$trace/strace-app-stderr.log" & tracer=$!
+    for i in $(seq 1 300); do [[ -s "$trace/strace.txt" ]] && break; kill -0 "$tracer" 2>/dev/null || break; sleep 0.1; done
+    candidate="$(awk 'NR==1 {print $1; exit}' "$trace/strace.txt" 2>/dev/null)"
+    if valid_pid "$candidate"; then
+      app="$candidate" phase=diagnostic-strace
+      if wait_settings; then outcome='traced app stayed up and painted Settings'; else outcome='traced app ended or did not paint'; fi
+      valid_pid "$app" && kill -0 "$app" 2>/dev/null && kill -TERM "$app" 2>/dev/null
+    else
+      outcome="strace did not start the application (first field: '${candidate}')"
+      valid_pid "$tracer" && kill -0 "$tracer" 2>/dev/null && kill -TERM "$tracer" 2>/dev/null
+    fi
+    wait "$tracer"; printf '%s; strace wrapper status=%s\n' "$outcome" "$?" > "$trace/strace-outcome.txt"
+    tracer='' app=''
+    [[ ! -f "$trace/strace.txt" ]] || python3 -I "$repo/scripts/linux-native-trace-summary.py" "$trace/strace.txt" "$trace/strace-summary.txt" 2>> "$trace/strace-outcome.txt"
+  else
+    echo 'strace is not installed on this runner' > "$trace/strace-outcome.txt"
+  fi
+  phase="$failed_phase"
+  for log in gdb-outcome.txt strace-outcome.txt gdb-exit.json; do
+    [[ ! -f "$trace/$log" ]] || { printf '\nDiagnostic trace: %s\n' "$log"; cat "$trace/$log"; }
+  done
+  [[ ! -f "$trace/gdb-stops.txt" ]] || { printf '\nDiagnostic trace: first full stop\n'; awk '/FULL STOP #1:/,/--- shared libraries/' "$trace/gdb-stops.txt" | head -150; }
+  [[ ! -f "$trace/strace-summary.txt" ]] || { printf '\nDiagnostic trace: strace summary head\n'; head -60 "$trace/strace-summary.txt"; }
 }
 phase=settings
 "$exe" --silent > "$work/stdout.log" 2> "$work/stderr.log" & app=$!
