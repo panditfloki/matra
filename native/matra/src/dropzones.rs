@@ -120,7 +120,7 @@ pub fn show(
             .map_err(|e| e.to_string());
     }
     let (ax, ay, aw, ah) = screen.area();
-    let w = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("dropzones.html".into()))
+    let builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("dropzones.html".into()))
         .title("Matra carry")
         .position(ax as f64 / screen.scale, ay as f64 / screen.scale)
         .inner_size(aw as f64 / screen.scale, ah as f64 / screen.scale)
@@ -131,13 +131,23 @@ pub fn show(
         .skip_taskbar(true)
         .focused(false)
         .focusable(false)
-        .resizable(false)
-        .build()
-        .map_err(|e| e.to_string())?;
+        .resizable(false);
+    // Linux keys WebKit contexts by data directory, and its custom schemes (tauri:, ipc:) belong to
+    // the context. Left unset, this overlay shares the default key with the incognito notch, whose
+    // schemes were registered on a throwaway ephemeral context, so the page never loads. One stable,
+    // app-owned, non-incognito context is reused by every carry for the life of the app.
+    #[cfg(target_os = "linux")]
+    let builder = builder.data_directory(web_context_dir());
+    let w = builder.build().map_err(|e| e.to_string())?;
     pin(&w, screen)?;
     w.set_ignore_cursor_events(true)
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+/// The carry overlay's own WebKit data directory: fixed (never per carry) and inside the app's cache.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn web_context_dir() -> std::path::PathBuf {
+    crate::config::cache_dir().join("webview").join(LABEL)
 }
 fn pin(w: &tauri::WebviewWindow, screen: &crate::Screen) -> Result<(), String> {
     let (ax, ay, aw, ah) = screen.area();
@@ -239,8 +249,19 @@ pub fn get_zones() -> Option<Scene> {
 
 #[cfg(test)]
 mod tests {
-    use super::{clean, Progress, MAX_MARKS, MAX_TEXT};
+    use super::{clean, web_context_dir, Progress, MAX_MARKS, MAX_TEXT};
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn the_overlay_web_context_is_one_stable_app_owned_directory() {
+        let dir = web_context_dir();
+        // Same key every carry: one retained context, schemes registered once, nothing leaked.
+        assert_eq!(dir, web_context_dir());
+        assert!(dir.starts_with(crate::config::cache_dir()));
+        assert!(dir.ends_with("webview/dropzones"));
+        // Its own context, never the settings window's.
+        assert_ne!(dir, crate::config::cache_dir().join("webview").join("settings"));
+    }
 
     #[test]
     fn stages_are_timed_from_show_and_summarised_in_order() {
