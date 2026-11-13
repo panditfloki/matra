@@ -9,7 +9,11 @@ const { probeHandles, assertHandles } = require('../../scripts/native-handle-tes
 const puppeteer = require(process.env.MATRA_PUPPETEER_PATH || 'puppeteer');
 
 const repo = path.resolve(__dirname, '../..');
-const task = path.resolve(repo, '..');
+const task = path.resolve(process.env.MATRA_BROWSER_WORKSPACE || path.resolve(repo, '..'));
+const taskRoot = fs.realpathSync(path.resolve(repo, '..'));
+fs.mkdirSync(task, { recursive: true });
+assert.ok(fs.realpathSync(task) === taskRoot || fs.realpathSync(task).startsWith(taskRoot + path.sep), 'Browser workspace must stay inside this task');
+for (const name of ['tmp', 'cache']) fs.mkdirSync(path.join(task, name), { recursive: true });
 const baseline = process.argv.includes('--baseline');
 const out = path.join(task, 'evidence', baseline ? 'browser-baseline' : 'browser-current');
 const review = path.join(task, 'artifacts', baseline ? 'baseline-notch-review' : 'notch-review');
@@ -27,6 +31,9 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     env: { ...process.env, TMPDIR: path.join(task, 'tmp') },
     args: ['--disable-background-networking', '--disable-component-update', '--no-first-run', '--no-default-browser-check', '--disable-crash-reporter', '--disable-breakpad', '--disable-sync', '--disable-features=MediaRouter']
   });
+  const processEvents = [];
+  browser.process()?.stderr?.on('data', chunk => fs.appendFileSync(path.join(out, 'chromium.log'), chunk));
+  browser.process()?.on('exit', (code, signal) => processEvents.push({ code, signal }));
   const checks = [], stressChecks = [], reviewChecks = [], errors = [], network = [];
   try {
     const page = await browser.newPage();
@@ -179,7 +186,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     fs.writeFileSync(path.join(out, 'result.json'), JSON.stringify({ passed: true, browser: await browser.version(), baseline, sampleData: true, nativeAcceptance: false, checks, stressChecks, reviewChecks, errors, network }, null, 2) + '\n');
     console.log(JSON.stringify({ passed: true, cases: checks.length, stressCases: stressChecks.length, reviewCases: reviewChecks.length, evidence: out, nativeAcceptance: false }));
   } catch (error) {
-    fs.writeFileSync(path.join(out, 'failure.json'), JSON.stringify({ message: error.message, stack: error.stack, checks, stressChecks, errors, network }, null, 2) + '\n');
+    fs.writeFileSync(path.join(out, 'failure.json'), JSON.stringify({ message: error.message, stack: error.stack, checks, stressChecks, errors, network, processEvents }, null, 2) + '\n');
     throw error;
   } finally { await browser.close(); }
 })().catch(error => { console.error(error.stack); process.exitCode = 1; });

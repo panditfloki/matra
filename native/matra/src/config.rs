@@ -383,7 +383,14 @@ mod tests {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).canonicalize().unwrap();
         let desired = root.join(".isolated-profile-fixture");
         assert_eq!(super::resolve_data_dir(desired.as_os_str()).unwrap(), desired);
-        assert!(super::resolve_data_dir(root.join("../escape").as_os_str()).is_err());
+        // Windows PathBuf::push normalizes parent segments after a verbatim
+        // prefix. Preserve the raw user input so this exercises the validator.
+        let mut traversal = root.as_os_str().to_owned();
+        traversal.push(std::path::MAIN_SEPARATOR_STR);
+        traversal.push("..");
+        traversal.push(std::path::MAIN_SEPARATOR_STR);
+        traversal.push("escape");
+        assert!(super::resolve_data_dir(&traversal).is_err());
         assert!(super::resolve_data_dir(root.join("Cargo.toml").as_os_str()).is_err());
     }
 
