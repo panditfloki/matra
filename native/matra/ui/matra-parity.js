@@ -8,7 +8,10 @@
   const defaults = Object.freeze({
     shows_remaining: false, ring_order: 'manual', hide_depleted: false, shut_rings_when_spent: true,
     shows_notch_readings: true, menu_bar_reading: 'both', menu_bar_click_action: 'menu',
-    menu_bar_activity_style: 'pulse', shows_limits_in_tray: false, tray_providers: Object.freeze([])
+    menu_bar_activity_style: 'pulse', shows_limits_in_tray: false, tray_providers: Object.freeze([]),
+    weekly_headline:false, claude_daily_pace:false, show_usage_pace:false, asks_provider_on_look:false,
+    show_codex_extra_limits:true, weekly_ring_dashed:false, weekly_reading:false, folds_for_fullscreen:true,
+    uses_custom_scale:false, custom_scale:1, account_nicknames:Object.freeze({}), account_order:Object.freeze([])
   });
   const HOUR = 3600000, DAY = 24 * HOUR;
   const flag = (v, fallback) => (typeof v === 'boolean' ? v : fallback);
@@ -18,6 +21,10 @@
     const v = value && typeof value === 'object' ? value : {};
     return {
       ...v,
+      ...Object.fromEntries(['weekly_headline','claude_daily_pace','show_usage_pace','asks_provider_on_look','show_codex_extra_limits','weekly_ring_dashed','weekly_reading','folds_for_fullscreen','uses_custom_scale'].map(k=>[k,flag(v[k],defaults[k])])),
+      custom_scale:Number.isFinite(v.custom_scale)?Math.min(1.5,Math.max(.5,v.custom_scale)):1,
+      account_nicknames:v.account_nicknames && typeof v.account_nicknames==='object' && !Array.isArray(v.account_nicknames) ? {...v.account_nicknames} : {},
+      account_order:Array.isArray(v.account_order)?v.account_order.filter(x=>typeof x==='string'):[],
       shows_remaining: flag(v.shows_remaining, defaults.shows_remaining),
       ring_order: pick(v.ring_order, ORDERS, defaults.ring_order),
       hide_depleted: flag(v.hide_depleted, defaults.hide_depleted),
@@ -40,8 +47,8 @@
     return showsRemaining ? Math.max(0, 1 - used) : used;
   }
 
-  /* The Windows window type has no duration field, so a clock is only inferred from a name that
-     states one. Anything else has no clock, and so no burn figure, rather than a guessed one. */
+  /* Prefer the source duration. Older stored readings may carry an explicit cycle in their
+     label or known window ID; other readings have no clock and therefore no pace figure. */
   function durationMs(w) {
     if (!w) return null;
     if (Number.isFinite(w.duration_ms) && w.duration_ms > 0) return w.duration_ms;
@@ -75,6 +82,49 @@
       if (burn !== null && (best === null || burn > best)) best = burn;
     }
     return best;
+  }
+
+  // Native DailyPace: cumulative sevenths, with days anchored to the vendor's weekly reset.
+  // No duration: a pace reading is not itself a cycle against which to measure another pace.
+  function dailyPace(weekly, now=Date.now()) {
+    if(!metered(weekly)||!Number.isFinite(weekly.resets_at)) return null;
+    const start=weekly.resets_at-7*DAY, elapsed=Math.min(7*DAY,Math.max(0,now-start));
+    const day=Math.min(6,Math.floor(elapsed/DAY)),allowed=(day+1)/7;
+    return {id:'daily_pace',label:'Daily pace',used:weekly.used/allowed,resets_at:day===6?weekly.resets_at:start+(day+1)*DAY,duration_ms:null};
+  }
+  function pace(w,now=Date.now(),remaining=false) {
+    const burn=burnPoints(w,now); if(burn===null) return null;
+    const points=-burn, magnitude=Math.abs(points), rounded=Math.round(magnitude*10)/10;
+    const value=rounded===0&&magnitude>0?'<0.1':String(rounded);
+    const elapsed=1-Math.min((w.resets_at-now)/durationMs(w),1);
+    return {points,marker:remaining?1-elapsed:elapsed,text:`${value}% ${points>0?'deficit':'reserved'}`};
+  }
+  function display(cell,settings,adapter,now=Date.now()) {
+    const s=normalize(settings),snap={...cell.snap,windows:[...(cell.snap?.windows||[])]};
+    if(cell.base==='codex'&&!s.show_codex_extra_limits) snap.windows=snap.windows.filter(w=>!String(w.id).startsWith('spark')&&!String(w.id).startsWith('code-review'));
+    const item={...cell,snap,name:typeof s.account_nicknames[cell.id]==='string'&&s.account_nicknames[cell.id].trim()?s.account_nicknames[cell.id].trim():cell.name};
+    let head=adapter.headline(item),second=adapter.weekly(item);
+    const length=durationMs(second),headLength=durationMs(head);
+    if(s.weekly_headline&&second&&second.id!==head?.id&&length>=6*DAY&&length<=8*DAY&&(!headLength||headLength<length)) [head,second]=[second,head];
+    if(s.claude_daily_pace&&cell.base==='claude'&&!snap.windows.some(w=>w.id==='daily_pace')) {
+      const weekly=snap.windows.find(w=>['weekly_all','seven_day','weekly'].includes(w.id));
+      const daily=dailyPace(weekly,now);
+      if(daily){snap.windows.unshift(daily);head=daily;second=snap.windows.find(w=>['session','five_hour'].includes(w.id))||null;}
+    }
+    snap.presentation_headline=head?.id??null;snap.presentation_secondary=second?.id??null;
+    return item;
+  }
+  function customGlyph(cell,glyphs){
+    if(!String(cell.base||cell.id).startsWith('custom:'))return glyphs?.[cell.base||cell.id];
+    const detail=cell.snap?.details||{},url=detail.custom_icon_data_url;
+    if(typeof url==='string'&&url.length<=350022&&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(url))return {kind:'png',url};
+    const key=({'openai':'codex','ollama-local':'ollama','gemini-spark':'gemini-api'})[detail.icon_preset]||detail.icon_preset;
+    return glyphs?.[key];
+  }
+  function readingText(head,second,settings,weeklyOn,format) {
+    const s=normalize(settings);if(!metered(head))return null;
+    const first=`${head.derived?'~':''}${format(shown(head.used,s.shows_remaining))}%`;
+    return s.weekly_reading&&weeklyOn&&metered(second)?`${first}/${format(shown(second.used,s.shows_remaining))}%`:first;
   }
 
   function usedOf(w) { return metered(w) ? w.used : null; }
@@ -170,6 +220,6 @@
 
   root.MatraParity = { defaults, ORDERS, READINGS, CLICKS, ACTIVITY, normalize, merge, metered, shown, durationMs,
     burnPoints, maxBurn, arrange, order, isDepleted, present, holdOrder, isShut, shutColor, gripShown, gripPress,
-    storeSlots, moved };
+    storeSlots, moved, dailyPace, pace, display, readingText, customGlyph };
   if (typeof module !== 'undefined') module.exports = root.MatraParity;
 })(typeof window === 'undefined' ? globalThis : window);

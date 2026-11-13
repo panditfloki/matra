@@ -91,7 +91,7 @@ fn resolved_lang(raw: &str) -> String {
 pub fn ui_scale(app: &AppHandle) -> f64 {
     let st = app.state::<AppState>();
     let c = st.cfg.lock().unwrap();
-    config::snap_scale(c.scale)
+    if c.parity.uses_custom_scale && c.parity.custom_scale.is_finite() { c.parity.custom_scale.clamp(0.5,1.5) } else { config::snap_scale(c.scale) }
 }
 
 pub fn broadcast(app: &AppHandle) {
@@ -991,9 +991,11 @@ fn set_scale(app: AppHandle, scale: f64) -> f64 {
         let st = app.state::<AppState>();
         let mut c = st.cfg.lock().unwrap();
         c.scale = config::snap_scale(scale);
+        c.parity.uses_custom_scale = false;
         config::save(&c);
         c.scale
     };
+    let _ = app.emit("parity_settings", parity::settings(&app));
     place_notch(&app);
     value
 }
@@ -1047,13 +1049,13 @@ pub(crate) fn ring_window<'a>(
 ) -> Option<&'a usage::LimitWindow> {
     let by_id = |id: &str| windows.iter().find(|w| w.id == id);
     match provider {
-        "claude" => windows.iter()
+        "claude" => by_id("daily_pace").or_else(|| windows.iter()
             .filter_map(|window| {
                 let rank = matra_core::claude_headline_rank(&window.id, false);
                 (rank != u32::MAX).then_some((rank, window))
             })
             .min_by_key(|(rank, _)| *rank)
-            .map(|(_, window)| window),
+            .map(|(_, window)| window)),
         "codex" => by_id("primary"),
         "cursor" => by_id("included").or_else(|| by_id("api")),
         "grok" => by_id("credits").or_else(|| windows.first()),
@@ -1139,7 +1141,8 @@ pub(crate) fn snapshot_of(app: &AppHandle, id: &str) -> usage::UsageSnapshot {
 /// A provider's ring as a whole percentage, for the tray icon and the settings picker. A count
 /// window has no percentage to draw, so it is a dash.
 pub(crate) fn ring_fraction(app: &AppHandle, provider: &str) -> Option<f64> {
-    let snap = snapshot_of(app, provider);
+    let mut snap = snapshot_of(app, provider);
+    parity::apply_daily_pace(provider, &mut snap, parity::settings(app).claude_daily_pace, now_ms());
     if snap.status == "absent" {
         return None;
     }
@@ -1154,18 +1157,7 @@ pub(crate) fn ring_fraction(app: &AppHandle, provider: &str) -> Option<f64> {
 }
 
 pub(crate) fn ring_pct(app: &AppHandle, provider: &str) -> Option<u32> {
-    let snap = snapshot_of(app, provider);
-    if snap.status == "absent" {
-        return None;
-    }
-    let (limit, model) = {
-        let st = app.state::<AppState>();
-        let c = st.cfg.lock().unwrap();
-        (c.antigravity_limit.clone(), c.antigravity_model.clone())
-    };
-    ring_window(provider, &snap.windows, &limit, &model)
-        .filter(|w| w.count.is_none())
-        .map(|w| (w.used * 100.0).round().clamp(0.0, 100.0) as u32)
+    ring_fraction(app, provider).map(|used| (used * 100.0).round().clamp(0.0, 100.0) as u32)
 }
 
 /// One provider and its ring's current number, for the settings window's picker.
@@ -1234,10 +1226,12 @@ fn get_notch_slots(app: AppHandle) -> Vec<config::TraySlot> {
 
 #[tauri::command]
 fn set_notch_slots(app: AppHandle, slots: Vec<config::TraySlot>) {
+    let providers = if slots.is_empty() { provider_ids() } else { slots.iter().map(|s| s.provider.clone()).collect() };
     let list = {
         let st = app.state::<AppState>();
         let mut c = st.cfg.lock().unwrap();
         c.notch_slots = slots;
+        c.parity.reorder_provider_groups(&providers);
         // Kept in step so an older build reading this file still shows the right providers
         c.notch_providers = c.notch_slots.iter().map(|s| s.provider.clone()).collect();
         config::save(&c);
@@ -1245,6 +1239,7 @@ fn set_notch_slots(app: AppHandle, slots: Vec<config::TraySlot>) {
     };
     // The notch is a separate window and draws its own cells, so it has to be told.
     let _ = app.emit("notch_slots", list);
+    let _ = app.emit("parity_settings", parity::settings(&app));
 }
 
 /// The application's own icon, so the settings window shows what the taskbar shows.
@@ -1746,16 +1741,22 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             platform::get_platform_info,
+            platform::fullscreen::get_fullscreen_state,
             parity::get_parity_settings,
             parity::set_parity_settings,
             parity::refresh_on_look,
             parity::open_activity,
             parity::open_dashboard,
             alerts::get_alert_settings,
+            alerts::acknowledge_notch_alert,
             alerts::set_alert_settings,
             alerts::get_alert_status,
             alerts::send_test_alert,
             providers_plus::get_parity_usage,
+            providers_plus::get_local_history_settings,
+            providers_plus::get_ollama_relay_status,
+            providers_plus::set_ollama_relay,
+            providers_plus::set_local_history_settings,
             providers_plus::get_provider_registry,
             providers_plus::set_parity_provider,
             providers_plus::set_parity_endpoint,

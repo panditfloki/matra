@@ -11,6 +11,8 @@ pub mod grokbot;
 pub mod fixed;
 pub mod higgsfield;
 pub mod local;
+pub mod local_history;
+pub mod ollama_relay;
 pub mod metrics;
 pub mod model;
 pub mod net;
@@ -81,6 +83,24 @@ pub fn start(app: AppHandle) {
 #[tauri::command]
 pub fn get_parity_usage() -> BTreeMap<String, ParitySnapshot> {
     engine().usage_map()
+}
+
+#[tauri::command]
+pub fn get_local_history_settings() -> BTreeMap<String, local_history::Options> { engine().history_options() }
+
+#[tauri::command]
+pub fn get_ollama_relay_status() -> ollama_relay::Status { engine().relay_status() }
+
+#[tauri::command]
+pub fn set_ollama_relay(enabled: bool) -> Result<ollama_relay::Status, String> {
+    crate::platform::require_live("Starting the Ollama relay")?;
+    engine().set_relay(enabled)
+}
+
+#[tauri::command]
+pub fn set_local_history_settings(id: String, options: local_history::Options) -> Result<BTreeMap<String, local_history::Options>, String> {
+    crate::platform::require_live("Reading runtime server logs")?;
+    engine().set_history_options(&id, options)
 }
 
 #[tauri::command]

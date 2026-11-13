@@ -4,43 +4,66 @@
   "source_commit": "8909f221d1515955fc843808032bdc5d62209c96",
   "inputs": [
     {
-      "platform": "linux", "file": "AppRun-x86_64", "published": "2025-07-20T20:48:48Z",
+      "platform": "linux",
+      "file": "AppRun-x86_64",
+      "published": "2025-07-20T20:48:48Z",
       "url": "https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64",
       "asset_id": 274691722,
       "sha256": "f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f"
     },
     {
-      "platform": "linux", "file": "linuxdeploy-x86_64.AppImage", "published": "2024-07-29T11:09:51Z",
+      "platform": "linux",
+      "file": "linuxdeploy-x86_64.AppImage",
+      "published": "2024-07-29T11:09:51Z",
       "url": "https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage",
       "asset_id": 182515537,
       "sha256": "e762bea85c8eb0d4b3508d46e5c1f037f717d0f9303ae3b4aafc8b04991fa1ef"
     },
     {
-      "platform": "linux", "file": "linuxdeploy-plugin-gtk.sh", "published": "2026-08-26T14:19:01Z",
+      "platform": "linux",
+      "file": "linuxdeploy-plugin-gtk.sh",
+      "published": "2026-08-26T14:19:01Z",
       "url": "https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/596310ad881b83cabe8cb47b032232a250ebe5ec/linuxdeploy-plugin-gtk.sh",
       "commit": "596310ad881b83cabe8cb47b032232a250ebe5ec",
       "sha256": "7804c9eef13e59bf2783aad9882ef9db8f3f3f9e8d631874b1d348d550a3693f"
     },
     {
-      "platform": "linux", "file": "linuxdeploy-plugin-gstreamer.sh", "published": "2024-03-01T22:12:17Z",
+      "platform": "linux",
+      "file": "linuxdeploy-plugin-gstreamer.sh",
+      "published": "2024-03-01T22:12:17Z",
       "url": "https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gstreamer/2a2e67491c32995a3f279ad0ecbe77abd512b42a/linuxdeploy-plugin-gstreamer.sh",
       "commit": "2a2e67491c32995a3f279ad0ecbe77abd512b42a",
       "sha256": "c107b49d84edbffc6ab226ed1007e0626a4f7aa2c3a36b7782bef62351d49e94"
     },
     {
-      "platform": "linux", "file": "linuxdeploy-plugin-appimage.AppImage", "published": "2026-10-01T04:30:37Z",
+      "platform": "linux",
+      "file": "linuxdeploy-plugin-appimage.AppImage",
+      "published": "2026-10-01T04:30:37Z",
       "url": "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage",
       "asset_id": 602435573,
       "sha256": "49d6a17160675a6bd1781699aae6bdf7692d98552e02a3671d2183d10547842e"
     },
     {
-      "platform": "windows", "file": "nsis-3.11.zip", "published": "2025-11-16T12:28:53Z",
+      "platform": "linux",
+      "file": "runtime-x86_64",
+      "published": "2026-10-19T20:37:12Z",
+      "url": "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64",
+      "asset_id": 657374641,
+      "sha256": "617aa77314d57c8b8e4fae9c3f0b35af7b30d5529cb69e98f64f92510ed98a46",
+      "purpose": "Explicit LDAI_RUNTIME_FILE prevents appimagetool fetching a moving runtime."
+    },
+    {
+      "platform": "windows",
+      "file": "nsis-3.11.zip",
+      "published": "2025-11-16T12:28:53Z",
       "url": "https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip",
       "asset_id": 317051073,
       "sha256": "c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1"
     },
     {
-      "platform": "windows", "file": "nsis_tauri_utils.dll", "published": "2026-01-26T02:39:00Z",
+      "platform": "windows",
+      "file": "nsis_tauri_utils.dll",
+      "published": "2026-01-26T02:39:00Z",
       "url": "https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.3/nsis_tauri_utils.dll",
       "asset_id": 345882097,
       "sha256": "5ba143b5db4a87d32d6e7802e033330aae56cbceabe0d1e3ba41948385ad4709"

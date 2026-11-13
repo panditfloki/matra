@@ -30,3 +30,5 @@ The Windows build also uses the unmodified Grok Bot, Higgsfield, DeepSeek, Ollam
 ## Fixed-provider parity marks
 
 MiniMax, Amp, Apify, Kilo and Devin are byte-for-byte copies of the assets in the native Mac source. Gemini API uses the existing Gemini spark (`gemini-alt.svg`), distinct from Antigravity. Kiro is the native `GlyphOutline.kiro` coordinate sequence represented as an SVG path with the same even-odd fill. The native Mac sources and assets are unchanged. Raster Devin is rendered as an alpha mask, as its native template asset specifies. Black SVG fills are mapped to the current text colour only at rendering time.
+
+Custom endpoint presets also reuse the unmodified Meta, Mistral and Qwen assets from native Mātrā. The existing provider marks supply the other preset choices; the Mac assets remain unchanged.

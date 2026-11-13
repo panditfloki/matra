@@ -40,3 +40,5 @@ Matra Notch/
 # Contained development toolchains, fixtures, logs and package outputs.
 .build/
 .platform-build/
+.runtime-build/
+.presentation-validation/

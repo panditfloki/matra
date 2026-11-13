@@ -624,6 +624,7 @@ fn window_from(
         label: label_for(num(w.get("limit_window_seconds")).map(|s| s / 60.0), fallback),
         used: (pct / 100.0).clamp(0.0, 1.0),
         resets_at: reset_at_ms(w, now, "reset_at", "reset_after_seconds"),
+        duration_ms: num(w.get("limit_window_seconds")).filter(|v|*v>0.0).map(|v|(v*1000.0)as u64),
         group: group.map(str::to_string),
         ..Default::default()
     })

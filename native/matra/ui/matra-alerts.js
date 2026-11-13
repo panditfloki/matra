@@ -3,7 +3,9 @@
    failed save restores what is actually saved. The test button is the only thing here that sends. */
 (root => {
   const DEFAULTS = Object.freeze({ enabled: false, usage_watch: false, usage_critical: false, usage_limit_session: false,
-    usage_limit_weekly: false, usage_reset: false, work_complete: false, attention: false, sound: true, muted_providers: [] });
+    usage_limit_weekly: false, usage_reset: false, work_complete: false, attention: false, sound: true, muted_providers: [],
+    channel: 'system', peek: true, peek_duration: 'standard', event_sounds: {} });
+  const SOUND_CHOICES = [['off','Off'],['default','Default'],['soft','Soft'],['chime','Chime']];
   const SECTIONS = [
     { title: 'Usage', hint: 'Once per crossing, and again only after usage falls back or the window rolls over.', rows: [
       { key: 'usage_watch', label: 'Reaches Watch' },
@@ -21,10 +23,13 @@
   function normalize(value) {
     const out = Object.assign({}, DEFAULTS, value || {});
     for (const key of Object.keys(DEFAULTS)) {
-      if (key !== 'muted_providers') out[key] = out[key] === true;
+      if (typeof DEFAULTS[key] === 'boolean') out[key] = out[key] === true;
     }
     out.muted_providers = Array.isArray(value && value.muted_providers)
       ? [...new Set(value.muted_providers.filter(id => typeof id === 'string' && id))] : [];
+    out.channel = out.channel === 'notch' ? 'notch' : 'system';
+    out.peek_duration = ['brief','standard','long'].includes(out.peek_duration) ? out.peek_duration : 'standard';
+    out.event_sounds = Object.fromEntries(SECTIONS.flatMap(s=>s.rows).map(r=>[r.key, SOUND_CHOICES.some(c=>c[0]===value?.event_sounds?.[r.key]) ? value.event_sounds[r.key] : 'default']));
     return out;
   }
   function toggleMuted(settings, id) {
@@ -39,7 +44,7 @@
   /* Delivered means Windows accepted it. Whether a banner appeared, under Do Not Disturb say, is unknown. */
   function lastDelivery(last, T) {
     if (!last) return '';
-    return last.ok ? T('Windows accepted the last notification.') : `${T('The last notification failed.')} ${last.error || ''}`.trim();
+    return last.ok ? T(last.channel === 'notch' ? 'The notch confirmed the last notification.' : 'The system accepted the last notification.') : `${T('The last notification failed.')} ${last.error || ''}`.trim();
   }
   function reason(error) {
     return typeof error === 'string' && error ? error : 'Unavailable in this build.';
@@ -72,6 +77,13 @@
       return row;
     }
 
+    function selectRow(label, value, choices, disabled, change) {
+      const row = el('div','item'); row.append(el('span','',T(label)));
+      const select = el('select'); select.setAttribute('aria-label',T(label)); select.disabled = disabled;
+      for (const [id,title] of choices) { const option=el('option','',T(title)); option.value=id; select.append(option); }
+      select.value=value; select.addEventListener('change',()=>change(select.value)); row.append(select); return row;
+    }
+
     function render() {
       host.textContent = '';
       if (!loaded) {
@@ -81,10 +93,16 @@
         return;
       }
       const master = el('div', 'group');
-      master.append(switchRow('Windows notifications', saved.enabled, !available(), () => save(Object.assign({}, saved, { enabled: !saved.enabled }))));
+      master.append(switchRow('Notifications', saved.enabled, !available(), () => save(Object.assign({}, saved, { enabled: !saved.enabled }))));
+      master.append(selectRow('Notification channel',saved.channel,[['notch','Notch'],['system','System notifications']],!available(),channel=>save({...saved,channel})));
+      if (saved.channel === 'notch') {
+        master.append(switchRow('Open a notch peek',saved.peek,!available() || !saved.enabled,()=>save({...saved,peek:!saved.peek})));
+        master.append(selectRow('Peek duration',saved.peek_duration,[['brief','3 seconds'],['standard','5 seconds'],['long','10 seconds']],!available() || !saved.enabled || !saved.peek,peek_duration=>save({...saved,peek_duration})));
+      }
       master.append(switchRow('Play a sound', saved.sound, !available() || !saved.enabled,
         () => save(Object.assign({}, saved, { sound: !saved.sound }))));
-      master.append(el('div', 'item cap', status ? T(status.message) : T('Windows notification status is unavailable.')));
+      master.append(el('div', 'item cap', status ? T(status.message) : T('Notification status is unavailable.')));
+      if (status?.sound_note) master.append(el('div','item cap',T(status.sound_note)));
       if (saved.enabled && status && !status.can_deliver) {
         master.append(el('div', 'item cap', T('Nothing can be delivered until this is fixed. Your choices are kept.')));
       }
@@ -92,7 +110,7 @@
       test.append(el('span', 'hint', T('Sends one real notification, even with the switch above off.')));
       const send = el('button', 'btn', T('Send a test'));
       send.type = 'button';
-      send.disabled = busy;
+      send.disabled = busy || (status && status.can_deliver === false);
       send.addEventListener('click', sendTest);
       test.append(send);
       master.append(test);
@@ -110,6 +128,9 @@
         for (const row of section.rows) {
           group.append(switchRow(row.label, saved[row.key], !available() || !saved.enabled,
             () => save(Object.assign({}, saved, { [row.key]: !saved[row.key] }))));
+          group.append(selectRow(`${row.label}: sound`,saved.event_sounds[row.key],SOUND_CHOICES,
+            !available() || !saved.enabled || !saved[row.key] || !saved.sound,
+            sound=>save({...saved,event_sounds:{...saved.event_sounds,[row.key]:sound}})));
         }
         group.append(el('div', 'item cap', T(section.hint)));
         host.append(group);
@@ -153,7 +174,7 @@
       render();
       try {
         status = await invoke('send_test_alert');
-        note = T('Windows accepted the test. If no banner appeared, check Do Not Disturb.');
+        note = status?.channel === 'notch' ? T('The notch confirmed the test. Sound follows the selected output volume.') : T('The system accepted the test. If no banner appeared, check Do Not Disturb.');
       } catch (error) {
         note = `${T('The test was not delivered.')} ${T(reason(error))}`;
         await refreshStatus();

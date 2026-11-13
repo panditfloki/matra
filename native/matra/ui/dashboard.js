@@ -58,6 +58,7 @@
     return limit === 'weekly' ? t.includes('weekly') : ['5h', '5-hour', 'five hour', 'five-hour', 'hourly', 'session'].some(k => t.includes(k));
   }
   function headlineOf(snap, id, ag) {
+    if(Object.hasOwn(snap,'presentation_headline')) return snap.windows.find(w=>w.id===snap.presentation_headline)||null;
     const ws = snap.windows; if (!ws.length) return null;
     const byId = x => ws.find(w => w.id === x) || null;
     if (id === 'claude') return byId('session') || byId('five_hour') || byId('seven_day') || byId('weekly_all') || byId('weekly');
@@ -82,6 +83,7 @@
     return tightestOf(lanes.filter(w => w.used < 1)) || tightestOf(lanes) || lanes[0];
   }
   function weeklyOf(snap, id, ag) {
+    if(Object.hasOwn(snap,'presentation_secondary')) return snap.windows.find(w=>w.id===snap.presentation_secondary)||null;
     const ws = snap.windows.filter(w => w.count == null); if (!ws.length) return null;
     const byId = x => ws.find(w => w.id === x) || null;
     if (id === 'claude') return byId('seven_day') || byId('weekly_all') || byId('weekly');
@@ -105,7 +107,8 @@
     const parity = root.MatraParity;
     if (!parity) return manual;
     const now = opts.now || Date.now();
-    return parity.order(manual, parity.normalize(opts.parity).ring_order, {
+    const display=manual.map(p=>parity.display(p,opts.parity,{headline:p=>headlineOf(p.snap,p.base,opts.ag),weekly:p=>weeklyOf(p.snap,p.base,opts.ag)},now));
+    return parity.order(parity.arrange(display,parity.normalize(opts.parity).account_order,p=>p.id), parity.normalize(opts.parity).ring_order, {
       headline: p => headlineOf(p.snap, p.base, opts.ag),
       weekly: p => weeklyOf(p.snap, p.base, opts.ag),
       fresh: p => p.snap.status === 'ok' && !staleOf(p.snap, now)
@@ -177,7 +180,7 @@
   /* An SVG is drawn as a CSS mask, never as markup: an image cannot run script, whatever a user-dropped
      file contains, and the mask still takes the theme's text colour. */
   function glyphHtml(source, glyphs) {
-    const g = glyphs && glyphs[source.base];
+    const g = root.MatraParity ? root.MatraParity.customGlyph(source,glyphs) : glyphs?.[source.base];
     if (g && g.kind === 'svg' && typeof g.svg === 'string' && /<svg[\s>]/i.test(g.svg)) {
       const svg = /xmlns=/.test(g.svg) ? g.svg : g.svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
       const url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
@@ -203,13 +206,14 @@
     if (!Number.isFinite(w.used) || w.used < 0) return `<div class="dash-win"><div class="dash-win-top">${label}</div><div class="dash-win-value">Not reported</div></div>`;
     const reset = resetText(w.resets_at, ctx.now, ctx.clock24) || 'Reset time not reported';
     const remaining = root.MatraParity ? root.MatraParity.normalize(ctx.parity).shows_remaining : false;
+    const pace=root.MatraParity?.normalize(ctx.parity).show_usage_pace?root.MatraParity.pace(w,ctx.now,remaining):null;
     const shown = remaining ? Math.max(0, 1 - w.used) : w.used;
     const tone = root.MatraQuota ? root.MatraQuota.tone(w.used, ctx.quota) : 'var(--matra-accent)';
     const words = usedText(w);
     const value = texts && (texts.detail || texts.used_text) ? `${words} · ${texts.detail || texts.used_text}` : words;
     return `<div class="dash-win"><div class="dash-win-top">${label}<span class="dash-win-reset">${esc(reset)}</span></div>`
-      + `<div class="dash-track" role="progressbar" aria-label="${esc(w.label || w.id)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(Math.min(shown, 1) * 100)}" aria-valuetext="${esc(words)}"><i style="width:${(Math.min(shown, 1) * 100).toFixed(1)}%;background:${esc(tone)}"></i></div>`
-      + `<div class="dash-win-value">${esc(value)}</div></div>`;
+      + `<div class="dash-track" role="progressbar" aria-label="${esc(w.label || w.id)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(Math.min(shown, 1) * 100)}" aria-valuetext="${esc(words)}"><i style="width:${(Math.min(shown, 1) * 100).toFixed(1)}%;background:${esc(tone)}"></i>${pace?`<span class="dash-pace-mark" style="left:${pace.marker*100}%" aria-hidden="true"></span>`:''}</div>`
+      + `<div class="dash-win-value">${esc(value)}</div>${pace?`<div class="dash-pace">${esc(pace.text)}</div>`:''}</div>`;
   }
   /* Signed out shows no cached windows: a disconnected account's old figures are not a reading. */
   function windowsHtml(source, ctx) {
@@ -430,11 +434,14 @@
     const family = familyOf(source.base);
     const custom = source.snap.details && source.snap.details.usage_history;
     const history = Array.isArray(custom) ? custom.map(b => (b ? { day: b.day, tokens: b.total_tokens } : b)) : null;
+    const runtime = source.snap.details && source.snap.details.local_history;
+    const runtimeHtml = runtime && root.MatraParityCard ? root.MatraParityCard.historyHtml(runtime, esc, true, ctx.range, ctx.now) : '';
     const card = `<article class="dash-card">${cardHeadHtml(source, ctx, 'h2')}${windowsHtml(source, ctx)}${source.base === 'codex' ? codexHtml(source.snap.codex_details, ctx) : ''}${parityDetailsHtml(source)}${history ? historyHtml('custom-history', 'Endpoint tokens by day', history, ctx) : ''}${liveHtml(source, ctx)}</article>`;
     const closing = family
       ? 'Local log totals can include several accounts on this computer. API-price estimates are not subscription bills. Account-wide and local token totals are not added together.'
+      : runtime ? 'Runtime history counts only responses observed in supported server logs. Missing input counts remain unknown. These are not subscription bills.'
       : 'No local token logs are read for this source, so nothing here is a token or cost total from this computer.';
-    return `${card}${family ? detailLocalHtml(family, ctx) : ''}<p class="dash-note">${esc(sourceNote(source))}</p><p class="dash-note">${esc(closing)}</p>`;
+    return `${card}${runtimeHtml}${family ? detailLocalHtml(family, ctx) : ''}<p class="dash-note">${esc(sourceNote(source))}</p><p class="dash-note">${esc(closing)}</p>`;
   }
   function emptyHtml() {
     return '<div class="dash-card"><h2 class="dash-h">No readings to show yet</h2><p class="dash-note">Manage your AI sources in Settings. Connected sources appear here when a reading is published.</p><div><button type="button" class="btn" data-act="settings" data-k="empty:settings">Open Settings</button></div></div>';

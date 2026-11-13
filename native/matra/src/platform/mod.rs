@@ -1,5 +1,6 @@
 //! The shared application's small OS boundary. No shell interpolation or profile mutation.
 pub mod carry;
+pub mod fullscreen;
 use serde::Serialize;
 use std::{ffi::OsStr, process::{Command, Stdio}, time::{Duration, Instant}};
 
@@ -43,6 +44,7 @@ pub struct Capabilities {
     global_pointer: bool,
     absolute_window_placement: bool,
     terminal_focus: bool,
+    fullscreen_detection: bool,
 }
 
 #[derive(Serialize)]
@@ -71,7 +73,7 @@ pub fn get_platform_info() -> PlatformInfo {
     }
     if cfg!(target_os = "linux") {
         if !linux_x11_session() {
-            limitations.push("Wayland restricts global pointer input and absolute window positioning. Perimeter carry, monitor/edge positioning and desktop hover detection require an X11 login session; standard dashboard and settings remain available.".into());
+            limitations.push("Wayland restricts global pointer input, fullscreen-app detection and absolute window positioning. Perimeter carry, monitor/edge positioning and desktop hover detection require an X11 login session; standard dashboard and settings remain available.".into());
         }
         limitations.push("Provider keys use the desktop Secret Service. Locked or unavailable storage remains unavailable; background reads never request unlock.".into());
     }
@@ -92,6 +94,7 @@ pub fn get_platform_info() -> PlatformInfo {
         global_pointer: global,
         absolute_window_placement: global,
         terminal_focus: cfg!(windows),
+        fullscreen_detection: fullscreen::available(),
     }, limitations }
 }
 

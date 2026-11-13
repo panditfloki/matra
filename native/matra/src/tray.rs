@@ -46,7 +46,8 @@ fn menu_lines(app: &AppHandle, lang: &str) -> Vec<(String, String, bool)> {
     let mut lines = Vec::new();
     let prefs = crate::parity::settings(app);
     for id in ordered_providers(app, &prefs) {
-        let snap = crate::snapshot_of(app, &id);
+        let mut snap = crate::snapshot_of(app, &id);
+        crate::parity::apply_daily_pace(&id, &mut snap, prefs.claude_daily_pace, now);
         if snap.status == "absent" {
             continue;
         }
@@ -275,7 +276,8 @@ fn update_reading_icons(app: &AppHandle) {
         drop(app.remove_tray_by_id(&format!("reading:{id}")));
     }
     for id in &ids {
-        let snapshot = crate::snapshot_of(app, id);
+        let mut snapshot = crate::snapshot_of(app, id);
+        crate::parity::apply_daily_pace(id, &mut snapshot, prefs.claude_daily_pace, crate::now_ms());
         let (limit, model, colors) = {
             let state = app.state::<crate::AppState>(); let cfg = state.cfg.lock().unwrap();
             (cfg.antigravity_limit.clone(), cfg.antigravity_model.clone(), cfg.quota_colors.clone())

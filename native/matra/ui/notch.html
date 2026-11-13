@@ -108,6 +108,10 @@
   .c-sub{font-size:11px;color:#808080;margin-bottom:10px}
   .win{margin-top:10px}
   .w-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;flex-wrap:wrap;column-gap:8px}
+  #root .pct.paired{font-size:calc(var(--notch-percent-font) * .74);letter-spacing:-.3px}
+  .pace-mark{position:absolute;top:-2px;bottom:-2px;width:1px;background:currentColor;opacity:.85;pointer-events:none}
+  .w-track{position:relative}
+  .w-pace{font-size:11px;color:var(--matra-muted);margin-top:3px}
   .w-label{color:#e8e8ea;font-weight:600;white-space:nowrap}
   .w-reset{color:#808080;font-size:11px;white-space:nowrap;margin-left:auto} /* wrap as a whole when it does not fit; never break inside a word */
   .w-track{height:4px;border-radius:2px;background:#2d2d2d;margin:6px 0 4px;overflow:hidden}
@@ -356,6 +360,7 @@
 <script src="matra-accounts.js"></script>
 <script src="matra-parity.js"></script>
 <script src="matra-parity-card.js"></script>
+<script src="matra-alert-peek.js"></script>
 <script src="matra-notch-reference.js"></script>
 <script src="matra-carry.js"></script>
 <script>
@@ -1025,7 +1030,7 @@ function workState(id){
   return 'idle';
 }
 function glyphHtml(p,small){
-  const g=glyphs[p.base||p.id];
+  const g=MatraParity.customGlyph(p,glyphs);
   if(g&&g.kind==='template'&&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(g.url||'')) return `<span class="mark" style="background:currentColor;-webkit-mask:url('${g.url}') center/contain no-repeat;mask:url('${g.url}') center/contain no-repeat"></span>`;
   if(g&&g.kind==='svg'&&g.svg) return `<span class="mark">${g.svg}</span>`;
   if(g&&g.url) return `<img class="${g.kind}" src="${g.url}" alt="${esc(p.name)}"${small?' style="width:16px;height:16px;border-radius:4px"':''}>`;
@@ -1085,7 +1090,8 @@ const ringAccess={
 let lastOrder=[];
 function ringsHeld(){ return pointerIn||carrying||dragging||menuOpen||Object.keys(refreshing).length>0; }
 function providers(){
-  const ranked=MatraParity.present(allProviders(),parity,ringAccess);
+  const displayed=allProviders().map(p=>MatraParity.display(p,parity,ringAccess));
+  const ranked=MatraParity.present(MatraParity.arrange(displayed,parity.account_order,p=>p.id),parity,ringAccess);
   const held=MatraParity.holdOrder(ranked,lastOrder,ringsHeld());
   lastOrder=held.map(p=>p.id);
   return held;
@@ -1106,6 +1112,7 @@ function laneIs(w,limit){
 // The window a provider's ring shows: the same rule as ring_window in main.rs, which draws the tray
 // BEGIN TESTABLE HEADLINE SELECTOR
 function headlineOf(snap,id){
+  if(Object.hasOwn(snap,'presentation_headline')) return snap.windows.find(w=>w.id===snap.presentation_headline)||null;
   const ws=snap.windows; if(!ws.length) return null;
   const byId=x=>ws.find(w=>w.id===x)||null;
   if(id==='claude') return byId('session')||byId('five_hour')||byId('seven_day')||byId('weekly_all')||byId('weekly');
@@ -1133,6 +1140,7 @@ function headlineOf(snap,id){
 // Codex calls its second window secondary, and Antigravity has one per model family. Cursor has none.
 // BEGIN TESTABLE WEEKLY SELECTOR
 function weeklyOf(snap,id){
+  if(Object.hasOwn(snap,'presentation_secondary')) return snap.windows.find(w=>w.id===snap.presentation_secondary)||null;
   const ws=snap.windows.filter(w=>w.count==null); if(!ws.length) return null;
   const byId=x=>ws.find(w=>w.id===x)||null;
   if(id==='claude') return byId('seven_day')||byId('weekly_all')||byId('weekly');
@@ -1155,7 +1163,7 @@ function weeklyOf(snap,id){
 function staleOf(snap){ if(snap.status==='stale') return true; return snap.fetched_at>0 && (Date.now()-snap.fetched_at)>15*60*1000; }
 let stateSnap={sessions:[],agg:'idle'};
 const motionTracker = new window.MatraMotionTracker();
-let peekUntil=0, peekStarted=0, peekTimer=null;
+let peekUntil=0, peekStarted=0, peekTimer=null, alertPeekUntil=0;
 const feedbackTimers = new Map(), completionRefresh = new Map();
 function peekReading(){
   if(!onHover || carrying || dragging || menuOpen) return;
@@ -1198,13 +1206,19 @@ function receiveActivity(next){
   }
 }
 
-function svgArc(r,frac,color,width,extra=''){
+function svgArc(r,frac,color,width,extra='',dashed=false){
   // Nothing at all at zero: a zero-length dash still paints a dot once the caps are round, where the
   // Mac's `trim(from: 0, to: 0)` draws nothing. A reading small enough that its two caps meet does
   // draw as a dot, on both platforms — `ProviderRing.sweep` has no floor. Upstream #260 argues that
   // is wrong, for the local model's arc; if it lands, the same floor belongs here.
   if(!(frac>0)) return '';
   const C=2*Math.PI*r;
+  if(dashed){
+    const dash=[4,2].map(v=>v*56/NotchLayout.ringDiameter).join(' ');
+    const f=Math.min(frac,1),a=2*Math.PI*f,x=28+r*Math.sin(a),y=28-r*Math.cos(a);
+    const d=f>=1?`M28 ${28-r} A${r} ${r} 0 1 1 28 ${28+r} A${r} ${r} 0 1 1 28 ${28-r}`:`M28 ${28-r} A${r} ${r} 0 ${f>.5?1:0} 1 ${x} ${y}`;
+    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-dasharray="${dash}" stroke-linecap="butt" ${extra}/>`;
+  }
   return `<circle cx="28" cy="28" r="${r}" fill="none" stroke="${color}" stroke-width="${width}"
     stroke-dasharray="${(C*frac).toFixed(2)} ${C.toFixed(2)}" stroke-linecap="round"
     transform="rotate(-90 28 28)" ${extra}/>`;
@@ -1223,7 +1237,7 @@ function renderRing(){
     pill.dataset.cells=want;
   }
   for(const p of ps){
-    const cell=pill.querySelector(`.cell[data-p="${esc(p.id)}"]`); if(!cell) continue;
+    const cell=Array.from(pill.querySelectorAll('.cell')).find(cell=>cell.dataset.p===p.id); if(!cell) continue;
     const svg=cell.querySelector('svg.ring'), reading=cell.querySelector('svg.reading'), activity=cell.querySelector('svg.activity'), pct=cell.querySelector('.pct'), glyph=cell.querySelector('.glyph'), wrap=cell.querySelector('.ringwrap');
     const h=headlineOf(p.snap,p.base);
     const available=!['needsAuth','none'].includes(p.snap.status)&&metered(h);
@@ -1251,8 +1265,8 @@ function renderRing(){
       const taken=weeklyRing==='inside'&&workState(p.base)!=='idle';
       if(metered(wk)&&!['needsAuth','none'].includes(p.snap.status)&&(!h||wk.id!==h.id)&&!taken){
         const r=weeklyRing==='inside'?ringMetrics.weeklyInside:ringMetrics.weeklyOutside;
-        inner+=`<circle cx="28" cy="28" r="${r}" fill="none" stroke="${TRACK}" stroke-width="${ringMetrics.weeklyStroke}" class="quota-weekly-track"/>`
-          +svgArc(r,sweep(wk.used),ringColor(wk.used),ringMetrics.weeklyStroke,'class="quota-weekly"');
+        inner+=`<circle cx="28" cy="28" r="${r}" fill="none" stroke="${TRACK}" stroke-width="${ringMetrics.weeklyStroke}" class="quota-weekly-track" ${parity.weekly_ring_dashed?`stroke-dasharray="${[4,2].map(v=>v*56/NotchLayout.ringDiameter).join(' ')}"`:''}/>`
+          +svgArc(r,sweep(wk.used),ringColor(wk.used),ringMetrics.weeklyStroke,'class="quota-weekly"',parity.weekly_ring_dashed);
       }
     }
     svg.innerHTML=inner;
@@ -1265,8 +1279,11 @@ function renderRing(){
     }
     if(p.snap.status==='needsAuth'||p.snap.status==='none') pct.textContent='—';
     else if(h && h.count!=null) pct.textContent=p.snap.details?.texts?.[h.id]?.used_text || ((h.derived?'~':p.snap.kind?'':'~')+h.count); // a source that reports its own count is exact
-    else if(available) pct.textContent=(h.derived?'~':'')+pctText(MatraParity.shown(h.used,parity.shows_remaining))+'%';
+    else if(available) pct.textContent=MatraParity.readingText(h,wk,parity,weeklyRing!=='off',pctText);
     else pct.textContent=p.snap.windows.length?'—':'…'; // its declared window is missing: a dash, not a wait
+    pct.classList.toggle('paired',pct.textContent.includes('/'));
+    glyph.innerHTML=glyphHtml(p);
+    glyph.style.color=p.id.startsWith('custom:')&&/^#[0-9a-f]{6}$/i.test(p.snap.details?.accent_color_hex||'')?p.snap.details.accent_color_hex:'';
     glyph.classList.toggle('dim', !!(h && h.used>=1));
     wrap.classList.toggle('stale', staleOf(p.snap)||(!available&&!(h&&h.count!=null)));
   }
@@ -1474,10 +1491,11 @@ function renderCard(){
           <div class="w-used">${counted}${texts?.detail?` · ${esc(texts.detail)}`:''}</div></div>`;
         continue;
       }
+      const pace=parity.show_usage_pace?MatraParity.pace(w,Date.now(),parity.shows_remaining):null;
       html+=`<div class="win">
         <div class="w-row"><span class="w-label">${esc(textCopy(w.label))}</span><span class="w-reset">${resetCopy(w.resets_at)}</span></div>
-        <div class="w-track"><div class="w-fill" style="width:${(Math.min(MatraParity.shown(w.used,parity.shows_remaining),1)*100).toFixed(0)}%;background:${tone(w.used)}"></div></div>
-        <div class="w-used">${esc(usedCopy(w))}</div>
+        <div class="w-track"><div class="w-fill" style="width:${(Math.min(MatraParity.shown(w.used,parity.shows_remaining),1)*100).toFixed(0)}%;background:${tone(w.used)}"></div>${pace?`<i class="pace-mark" style="left:${pace.marker*100}%" aria-hidden="true"></i>`:''}</div>
+        <div class="w-used">${esc(usedCopy(w))}</div>${pace?`<div class="w-pace">${esc(pace.text)}</div>`:''}
       </div>`;
     }
     if(group) html+=`</div>`;
@@ -1568,7 +1586,7 @@ function updateNotchGeometry(){
 }
 function placeCard(){
   updateNotchGeometry();
-  const cell=pill.querySelector(`.cell[data-p="${hoverId}"]`)||pill;
+  const cell=Array.from(pill.querySelectorAll('.cell')).find(cell=>cell.dataset.p===hoverId)||pill;
   const pr=layoutRect(pill),rr=layoutRect(cell.querySelector('.ringwrap')||cell);
   const zoom=parseFloat(document.documentElement.style.zoom)||1,scale=1/notchScale;
   const W=innerWidth/zoom,H=innerHeight/zoom;
@@ -1585,7 +1603,7 @@ function placeCard(){
   cardBridge=geometry.bridge;
 }
 
-function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 /* Hover: stays expanded while either the pill or the card is under the cursor; collapses after a 250 ms grace period (upstream motion rule) */
 const card=document.getElementById('card'), pill=document.getElementById('pill'), tail=document.getElementById('tail');
@@ -1632,6 +1650,8 @@ function reportHot(){
   if(folded){ callq('set_hot',{rects:[wakeRect()],expanded:false}).catch(()=>{}); return; }
   const open=card.classList.contains('show');
   const rects=open?[rectOf(pill),rectOf(tail),rectOf(card)]:[rectOf(pill)];
+  const alertRect=window.matraAlertPeek?.rect();
+  if(alertRect){const k=window.devicePixelRatio||1;rects.push([alertRect.left*k,alertRect.top*k,alertRect.width*k,alertRect.height*k]);}
   if(open&&cardBridge){
     const k=(window.devicePixelRatio||1)*(parseFloat(document.documentElement.style.zoom)||1);
     rects.push([cardBridge.left*k,cardBridge.top*k,cardBridge.width*k,cardBridge.height*k]);
@@ -1649,7 +1669,7 @@ function reportHot(){
     if(moveAt) addHandle(moveHandle);
     addHandle(orb);
   }
-  callq('set_hot',{rects,expanded:open}).catch(()=>{});
+  callq('set_hot',{rects,expanded:open||!!alertRect}).catch(()=>{});
 }
 /* What wakes the folded notch: the resting pill, as long along the edge as the pill and deepened into
    the screen by the Mac's pillHotZone — Design.px(90), 34 here — because the pill is small and the
@@ -1685,7 +1705,7 @@ function reportDpr(settled){
   jslog(`dpr=${window.devicePixelRatio} inner=${innerWidth}x${innerHeight} cssZoom=${z.toFixed(3)}`);
   callq('report_dpr',{dpr:window.devicePixelRatio||1,w:innerWidth,h:innerHeight,settled:settled===true}).catch(()=>{});
   invoke('get_scale').then(value=>{
-    if(!Object.values(Notch.reference.sizes).includes(value)||value===notchScale)return;
+    if(!Number.isFinite(value)||value<.5||value>1.5||value===notchScale)return;
     notchScale=value;notchCSS.setProperty('--notch-card-scale',1/value);
     if(card.classList.contains('show'))placeCard();reportHot();
   }).catch(()=>{});
@@ -1987,7 +2007,9 @@ window.addEventListener('pagehide',()=>releaseCarry(true));
    never folds mid-carry, mid-drag or under the right-click menu, all of which take the pointer off the
    notch on purpose — folding under them is what #239's reviewers caught, so it is ruled out here. */
 const FOLD_GRACE=Notch.reference.interaction.foldGraceSeconds*1000;
-function foldAllowed(){ return onHover&&!pointerIn&&!carrying&&!dragging&&!menuOpen&&Date.now()>=peekUntil; }
+let fullscreenActive=false;
+function wantsFold(){return onHover||(parity.folds_for_fullscreen&&fullscreenActive);}
+function foldAllowed(){ return wantsFold()&&!pointerIn&&!carrying&&!dragging&&!menuOpen&&Date.now()>=Math.max(peekUntil,alertPeekUntil); }
 function setFolded(f){
   if(carrying||dragging)return;
   if(f===folded) return;
@@ -2001,7 +2023,7 @@ function setFolded(f){
 function unfold(){ clearTimeout(foldTimer); setFolded(false); }
 function scheduleFold(){
   clearTimeout(foldTimer);
-  if(!onHover){ setFolded(false); return; }
+  if(!wantsFold()){ setFolded(false); return; }
   if(foldAllowed()) foldTimer=setTimeout(()=>{ if(foldAllowed()) setFolded(true); },FOLD_GRACE+Math.max(0,handleReturnUntil-Date.now()));
 }
 function applyUiFlags(f){ onHover=!!(f&&f.notch_on_hover); scheduleFold(); }
@@ -2010,7 +2032,7 @@ function applyUiFlags(f){ onHover=!!(f&&f.notch_on_hover); scheduleFold(); }
 const LOOK_EVERY=30000;
 let lastLook=0;
 function refreshOnLook(){
-  if(carrying||dragging)return;
+  if(!parity.asks_provider_on_look||carrying||dragging)return;
   const now=Date.now();
   if(now-lastLook<LOOK_EVERY) return;
   lastLook=now;
@@ -2019,6 +2041,16 @@ function refreshOnLook(){
 listen('notch_pointer',e=>{ if(carrying||dragging)return;pointerIn=e.payload===true; if(pointerIn){unfold();setDockActive(true);refreshOnLook();}else{scheduleFold();scheduleDockHide();} }).catch(()=>{});
 listen('ui_flags',e=>applyUiFlags(e.payload)).catch(()=>{});
 invoke('get_ui_flags').then(applyUiFlags).catch(()=>{});
+let fullscreenBusy=false;
+async function checkFullscreen(){
+  if(fullscreenBusy||carrying||dragging)return;
+  if(!parity.folds_for_fullscreen){fullscreenActive=false;scheduleFold();return;}
+  fullscreenBusy=true;
+  try{const next=await invoke('get_fullscreen_state');if(fullscreenActive!==(next===true)){fullscreenActive=next===true;scheduleFold();}}
+  catch{if(fullscreenActive){fullscreenActive=false;scheduleFold();}}
+  finally{fullscreenBusy=false;}
+}
+setInterval(checkFullscreen,1000);
 listen('move_handle',e=>{ showMove=e.payload!==false; reportHot(); }).catch(()=>{});
 invoke('get_move_handle').then(v=>{ showMove=v!==false; reportHot(); }).catch(()=>{});
 
@@ -2057,8 +2089,11 @@ function receiveParity(v){
 listen('parity_usage',e=>receiveParity(e.payload)).catch(()=>{});
 invoke('get_parity_usage').then(receiveParity).catch(()=>{});
 function applyParity(value){
-  parity=MatraParity.normalize(value);
+  const next=MatraParity.normalize(value),scaleChanged=parity.uses_custom_scale!==next.uses_custom_scale||parity.custom_scale!==next.custom_scale;
+  parity=next;
+  if(scaleChanged)reportDpr();
   document.body.classList.toggle('no-readings',!parity.shows_notch_readings);
+  scheduleFold();checkFullscreen();
   renderRing();if(card.classList.contains('show'))renderCard();
 }
 // Registered before loading, so a change made in Settings meanwhile cannot be overwritten by the older answer.
@@ -2091,6 +2126,9 @@ invoke('get_notch_edge').then(e=>{applyEdge(e);reportDpr();}).catch(()=>reportDp
 invoke('get_codex').then(u=>{codexSnap=u||codexSnap;renderRing();}).catch(()=>{});
 invoke('get_usage').then(u=>{usage=u||usage;renderRing();}).catch(e=>notice('get_usage failed: '+e));
 invoke('get_state').then(s=>receiveSessionState(s||stateSnap)).catch(()=>{});
+window.matraAlertPeek=MatraAlertPeek.mount({listen,invoke,anchor:()=>pill.getBoundingClientRect(),edge:()=>document.body.dataset.edge,
+  canShow:()=>!carrying&&!dragging,onGeometry:()=>reportHot(),onChange:(visible,until)=>{alertPeekUntil=until;if(visible)unfold();else scheduleFold();reportHot();}});
+window.addEventListener('pagehide',()=>window.matraAlertPeek?.dispose(),{once:true});
 setInterval(renderRing,30_000); // stale state and reset copy move with time
 setInterval(async()=>{
   if(!claudeAuth.busy&&!(hoverId==='claude'&&card.classList.contains('show'))) return;

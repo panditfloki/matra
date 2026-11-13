@@ -38,4 +38,4 @@ for(const input of bundler.inputs){
   if(!/^[a-f0-9]{64}$/.test(input.sha256)||!Number.isFinite(Date.parse(input.published))||(Date.now()-Date.parse(input.published))/86400000<14)throw new Error(`Unverified bundler helper: ${input.file}`);
   if(input.commit&&!input.url.includes('/'+input.commit+'/'))throw new Error(`Bundler script URL is not pinned: ${input.file}`);
 }
-console.log('PASS: workflow actions and seven bundler helpers have age-eligible pinned receipts.');
+console.log(`PASS: workflow actions and ${bundler.inputs.length} bundler inputs have age-eligible pinned receipts.`);

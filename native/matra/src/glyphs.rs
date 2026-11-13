@@ -26,10 +26,13 @@ pub struct Glyph {
     pub source: String,
 }
 
-pub const IDS: [&str; 19] = ["claude", "codex", "cursor", "grok", "gemini", "grokbot", "higgsfield", "deepseek", "ollama", "lmstudio", "omlx", "llamacpp", "minimax", "devin", "kiro", "amp", "apify", "kilo", "gemini-api"];
+pub const IDS: [&str; 22] = ["claude", "codex", "cursor", "grok", "gemini", "grokbot", "higgsfield", "deepseek", "ollama", "lmstudio", "omlx", "llamacpp", "minimax", "devin", "kiro", "amp", "apify", "kilo", "gemini-api", "meta", "mistral", "qwen"];
 
 /// Built-in artwork (@lobehub/icons-static-svg, MIT): the OpenAI mark for codex (matching upstream's glyph choice), the Antigravity mark for gemini
-const BUILTIN: [(&str, &str); 18] = [
+const BUILTIN: [(&str, &str); 21] = [
+    ("meta", include_str!("../glyphs/meta.svg")),
+    ("mistral", include_str!("../glyphs/mistral.svg")),
+    ("qwen", include_str!("../glyphs/qwen.svg")),
     ("claude", include_str!("../glyphs/claude.svg")),
     ("codex", include_str!("../glyphs/codex.svg")),
     ("cursor", include_str!("../glyphs/cursor.svg")),
@@ -299,7 +302,7 @@ pub fn collect() -> HashMap<String, Glyph> {
             if let Some((_, svg)) = BUILTIN.iter().find(|(k, _)| *k == id) {
                 found = Some(Glyph {
                     kind: "svg".into(),
-                    svg: if matches!(id, "minimax" | "amp" | "apify" | "kilo") {
+                    svg: if matches!(id, "minimax" | "amp" | "apify" | "kilo" | "meta" | "mistral" | "qwen") {
                         sanitize_svg(svg).replace("fill=\"#000000\"", "fill=\"currentColor\"").replace("fill=\"#000\"", "fill=\"currentColor\"")
                     } else { sanitize_svg(svg) },
                     source: "built-in · see PROVIDER-NOTICES.txt".into(),

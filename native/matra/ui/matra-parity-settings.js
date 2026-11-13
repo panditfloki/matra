@@ -7,6 +7,9 @@
   const P = window.MatraParity;
   const t = (key) => (window.matraUi ? window.matraUi(key, key) : key);
   const SWITCHES = { 'sw-show-remaining': 'shows_remaining', 'sw-hide-depleted': 'hide_depleted',
+    'sw-weekly-headline':'weekly_headline','sw-weekly-reading':'weekly_reading','sw-weekly-dashed':'weekly_ring_dashed',
+    'sw-daily-pace':'claude_daily_pace','sw-usage-pace':'show_usage_pace','sw-extra-limits':'show_codex_extra_limits',
+    'sw-refresh-look':'asks_provider_on_look','sw-fullscreen':'folds_for_fullscreen','sw-custom-scale':'uses_custom_scale',
     'sw-shut-rings': 'shut_rings_when_spent', 'sw-readings': 'shows_notch_readings', 'sw-tray-limits': 'shows_limits_in_tray' };
   const SELECTS = { 'menu-reading': 'menu_bar_reading', 'menu-click': 'menu_bar_click_action', 'menu-activity': 'menu_bar_activity_style' };
   const ORDER_WHY = {
@@ -15,13 +18,13 @@
     burnDeficit: 'Quota expiring soonest first: remaining quota minus remaining time. 70% left with 23h of a week left (about 56 to burn) outranks 100% with 6 days left (about 14 to burn).'
   };
   const orderButtons = [...document.querySelectorAll('#seg-ring-order button')];
-  let saved = P.normalize(null), loaded = false, busy = false, sources = [];
+  let saved = P.normalize(null), loaded = false, busy = false, sources = [], accounts=[], fullscreenAvailable=false;
 
   function status(text) { const el = byId('parity-status'); if (el) el.textContent = text; }
   /* The status line lives on Display, so a failure from another pane also uses the window's strip. */
   function failed(text) { status(text); if (window.strip) window.strip(text); }
   function controls() {
-    return [...Object.keys(SWITCHES), ...Object.keys(SELECTS)].map(byId).filter(Boolean).concat(orderButtons);
+    return [...Object.keys(SWITCHES), ...Object.keys(SELECTS)].map(byId).filter(Boolean).concat(orderButtons,byId('custom-scale')).filter(Boolean);
   }
   function sync() {
     for (const [id, key] of Object.entries(SWITCHES)) {
@@ -52,8 +55,32 @@
       }
     }
     for (const el of controls()) el.disabled = !loaded || busy;
+    const scale=byId('custom-scale');if(scale){scale.value=saved.custom_scale;byId('custom-scale-row').hidden=!saved.uses_custom_scale;byId('custom-scale-value').textContent=Math.round(saved.custom_scale*100)+'%';}
+    const full=byId('sw-fullscreen');if(full)full.disabled=!loaded||busy||!fullscreenAvailable;
+    renderAccounts();
     if (window.matraParityChanged) window.matraParityChanged(saved);
   }
+  function accountItems(){
+    const items=[...accounts,...sources.filter(p=>p.id!=='claude').map(p=>({id:p.id,name:p.label||p.id}))];
+    for(const id of [...saved.account_order,...Object.keys(saved.account_nicknames)]) if(!items.some(p=>p.id===id))items.push({id,name:id+' (unavailable)'});
+    return P.arrange(items,saved.account_order,p=>p.id);
+  }
+  function renderAccounts(){
+    const host=byId('account-presentation');if(!host||(host.contains(document.activeElement)&&document.activeElement?.tagName==='INPUT'))return;
+    host.replaceChildren();const items=accountItems();
+    for(const [index,item] of items.entries()){
+      const row=document.createElement('div');row.className='acct-sub';
+      const input=document.createElement('input');input.value=saved.account_nicknames[item.id]||'';input.placeholder=item.name;input.maxLength=80;
+      input.setAttribute('aria-label',item.name+' nickname');input.disabled=!loaded||busy;input.addEventListener('blur',()=>queueMicrotask(renderAccounts));
+      input.addEventListener('change',()=>{const names={...saved.account_nicknames};if(input.value.trim())names[item.id]=input.value.trim();else delete names[item.id];save({account_nicknames:names});});row.append(input);
+      for(const [step,label] of [[-1,'↑'],[1,'↓']]){const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=label;b.setAttribute('aria-label','Move '+item.name+(step<0?' up':' down'));
+        b.disabled=!loaded||busy||saved.ring_order!=='manual'||index+step<0||index+step>=items.length;
+        b.addEventListener('click',()=>save({account_order:P.moved(items.map(p=>p.id),item.id,step)}));row.append(b);}
+      host.append(row);
+    }
+  }
+  byId('custom-scale')?.addEventListener('input',e=>{byId('custom-scale-value').textContent=Math.round(Number(e.target.value)*100)+'%';});
+  byId('custom-scale')?.addEventListener('change',e=>save({custom_scale:Number(e.target.value),uses_custom_scale:true}));
   function apply(value) { saved = P.normalize(value); sync(); }
   async function save(patch) {
     if (!loaded || busy) return;
@@ -95,5 +122,9 @@
       }).catch(() => { sync(); status(t('These settings could not be loaded. Reopen Settings to retry.')); });
     };
     load();
+    const receiveUsage=value=>{accounts=window.MatraAccounts.claude(value).map(p=>({id:p.id,name:p.name}));renderAccounts();};
+    api.event.listen('usage',e=>receiveUsage(e.payload)).catch(()=>{});
+    api.core.invoke('get_usage').then(receiveUsage).catch(()=>{});
+    api.core.invoke('get_platform_info').then(info=>{fullscreenAvailable=info?.capabilities?.fullscreen_detection===true;const cap=byId('fullscreen-cap');if(!fullscreenAvailable&&cap)cap.textContent='Fullscreen detection is unavailable in this session. Wayland keeps other apps’ window state private; hover folding remains available.';sync();}).catch(()=>{});
   } else { status(t('These settings could not be loaded. Reopen Settings to retry.')); }
 })();

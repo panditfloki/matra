@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock, atomic::{AtomicU64, Ordering}, mpsc};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -40,6 +40,26 @@ const MAX_TEXT_CHARS: usize = 180;
 
 // ---- Settings ----
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Channel { Notch, #[default] System }
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PeekDuration { Brief, #[default] Standard, Long }
+impl PeekDuration { fn milliseconds(self) -> u64 { match self { Self::Brief => 3000, Self::Standard => 5000, Self::Long => 10000 } } }
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Sound { Off, #[default] Default, Soft, Chime }
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EventSounds {
+    pub usage_watch: Sound, pub usage_critical: Sound, pub usage_limit_session: Sound,
+    pub usage_limit_weekly: Sound, pub usage_reset: Sound, pub work_complete: Sound, pub attention: Sound,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AlertSettings {
@@ -52,6 +72,10 @@ pub struct AlertSettings {
     pub work_complete: bool,
     pub attention: bool,
     pub sound: bool,
+    pub channel: Channel,
+    pub peek: bool,
+    pub peek_duration: PeekDuration,
+    pub event_sounds: EventSounds,
     pub muted_providers: Vec<String>,
 }
 
@@ -67,6 +91,10 @@ impl Default for AlertSettings {
             work_complete: false,
             attention: false,
             sound: true,
+            channel: Channel::System,
+            peek: true,
+            peek_duration: PeekDuration::Standard,
+            event_sounds: EventSounds::default(),
             muted_providers: Vec::new(),
         }
     }
@@ -108,6 +136,20 @@ impl AlertSettings {
 
     fn is_muted(&self, provider: &str) -> bool {
         self.muted_providers.iter().any(|id| id == provider || provider.strip_prefix(id.as_str()).is_some_and(|tail| tail.starts_with('@')))
+    }
+
+    fn sound_for(&self, kind: AlertKind) -> Sound {
+        if !self.sound { return Sound::Off; }
+        match kind {
+            AlertKind::UsageWatch => self.event_sounds.usage_watch,
+            AlertKind::UsageCritical => self.event_sounds.usage_critical,
+            AlertKind::LimitSession => self.event_sounds.usage_limit_session,
+            AlertKind::LimitWeekly => self.event_sounds.usage_limit_weekly,
+            AlertKind::UsageReset => self.event_sounds.usage_reset,
+            AlertKind::WorkComplete => self.event_sounds.work_complete,
+            AlertKind::Attention => self.event_sounds.attention,
+            AlertKind::Test => Sound::Default,
+        }
     }
 }
 
@@ -395,7 +437,14 @@ impl Engine {
             // still clear all their tracks above.
             let mut current = previous.clone();
             let mut best: Option<AlertEvent> = None;
+            let daily_mode = (provider.id == "claude" || provider.id.starts_with("claude@"))
+                && provider.snapshot.windows.iter().any(|w| w.id == "daily_pace");
             for window in &provider.snapshot.windows {
+                // DailyPace makes the daily share the headline and the session the thin secondary.
+                // Match native watchers: thresholds/resets follow the headline; the secondary only
+                // emits the independently configured secondary-limit event, never threshold noise.
+                let daily_secondary = daily_mode && matches!(window.id.as_str(), "session" | "five_hour");
+                if daily_mode && window.id != "daily_pace" && !daily_secondary { continue; }
                 let Some(fraction) = measurable(window) else { continue };
                 let key = window_key(window);
                 let Some(mut track) = previous.get(&key).cloned() else {
@@ -408,7 +457,7 @@ impl Engine {
                     });
                     continue;
                 };
-                let kind = if is_reset(&track, fraction, window.resets_at, now) {
+                let kind = if !daily_secondary && is_reset(&track, fraction, window.resets_at, now) {
                     track.peak = fraction;
                     track.level = raw_level(fraction, thresholds);
                     track.last_alerted_reset = window.resets_at;
@@ -416,9 +465,11 @@ impl Engine {
                 } else {
                     track.peak = track.peak.max(fraction);
                     let level = held_level(fraction, track.level, thresholds);
-                    let crossed = (level > track.level)
-                        .then(|| crossing_alert(track.level, level, window, settings))
-                        .flatten();
+                    let crossed = if daily_secondary {
+                        (level == 3 && track.level < 3 && settings.allows(AlertKind::LimitWeekly)).then_some(AlertKind::LimitWeekly)
+                    } else {
+                        (level > track.level).then(|| crossing_alert(track.level, level, window, settings)).flatten()
+                    };
                     track.level = level;
                     crossed
                 };
@@ -484,12 +535,15 @@ impl Engine {
 
 // ---- Wording ----
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Toast {
     pub title: String,
     pub body: String,
     pub tag: String,
     pub silent: bool,
+    pub sound: Sound,
+    pub peek: bool,
+    pub duration_ms: u64,
 }
 
 fn resets_clause(event: &AlertEvent, clock: &dyn Fn(u64) -> Option<String>) -> String {
@@ -516,11 +570,12 @@ pub fn toast_for(event: &AlertEvent, settings: &AlertSettings, clock: &dyn Fn(u6
         AlertKind::UsageReset => (format!("{name} has reset"), format!("Its {window} limit is available again.")),
         AlertKind::WorkComplete => ("Work finished".to_string(), name.clone()),
         AlertKind::Attention => ("Waiting on you".to_string(), name.clone()),
-        AlertKind::Test => ("Mātrā test notification".to_string(), "Windows accepted this test.".to_string()),
+        AlertKind::Test => ("Mātrā test notification".to_string(), "Your selected notification channel is being tested.".to_string()),
     };
     let digest = Sha256::digest(format!("{:?}|{}|{}", event.kind, event.subject, event.window_id).as_bytes());
     let tag = digest.iter().take(16).map(|byte| format!("{byte:02x}")).collect();
-    Toast { title, body, tag, silent: !settings.sound }
+    let sound = settings.sound_for(event.kind);
+    Toast { title, body, tag, silent: sound == Sound::Off, sound, peek: settings.peek, duration_ms: settings.peek_duration.milliseconds() }
 }
 
 fn xml_text(text: &str) -> String {
@@ -539,7 +594,10 @@ fn xml_text(text: &str) -> String {
 }
 
 pub fn toast_xml(toast: &Toast) -> String {
-    let audio = if toast.silent { "<audio silent=\"true\"/>" } else { "" };
+    let audio = if toast.silent { "<audio silent=\"true\"/>" } else { match toast.sound {
+        Sound::Soft => "<audio src=\"ms-winsoundevent:Notification.IM\"/>",
+        Sound::Chime => "<audio src=\"ms-winsoundevent:Notification.Reminder\"/>", _ => "",
+    }};
     format!(
         "<toast><visual><binding template=\"ToastGeneric\"><text>{}</text><text>{}</text></binding></visual>{audio}</toast>",
         xml_text(&toast.title),
@@ -718,6 +776,50 @@ impl NotificationSink for PreviewSink {
     }
 }
 
+type PeekReply = mpsc::Sender<Result<(), String>>;
+static PEEKS: OnceLock<Mutex<HashMap<String, PeekReply>>> = OnceLock::new();
+static NEXT_PEEK: AtomicU64 = AtomicU64::new(0);
+fn pending_peeks() -> &'static Mutex<HashMap<String, PeekReply>> { PEEKS.get_or_init(|| Mutex::new(HashMap::new())) }
+
+struct NotchSink { app: AppHandle }
+impl NotificationSink for NotchSink {
+    fn availability(&self) -> Availability {
+        if crate::platform::preview() { return PreviewSink.availability(); }
+        if !crate::platform::global_pointer_available() {
+            return Availability::new("notch_unsupported", false, "Notch alerts require the supported Windows or Linux X11 notch. Choose System notifications on this desktop.");
+        }
+        if !self.app.get_webview_window("notch").is_some_and(|w| w.is_visible().unwrap_or(false)) {
+            return Availability::new("notch_hidden", false, "The notch is hidden. Show it or choose System notifications.");
+        }
+        Availability::new("notch", true, "Notch alerts stay inside Mātrā. They do not enter the system notification centre. Sounds require the webview audio output to be available.")
+    }
+    fn show(&self, toast: &Toast) -> Result<(), String> {
+        let available = self.availability(); if !available.can_deliver { return Err(available.message); }
+        if !toast.peek && toast.silent { return Err("Notch peek and sound are both off.".into()); }
+        let id = format!("{}-{}", crate::now_ms(), NEXT_PEEK.fetch_add(1, Ordering::Relaxed));
+        let (tx, rx) = mpsc::channel(); pending_peeks().lock().unwrap().insert(id.clone(), tx);
+        let result = self.app.get_webview_window("notch").ok_or("The notch closed.")
+            .and_then(|window| window.emit("notch_alert", serde_json::json!({"id":id,"toast":toast})).map_err(|_| "The notch could not receive this alert."));
+        let outcome = match result {
+            Ok(()) => rx.recv_timeout(Duration::from_secs(2)).unwrap_or_else(|_| Err("The notch did not confirm this alert.".into())),
+            Err(error) => Err(error.into()),
+        };
+        pending_peeks().lock().unwrap().remove(&id); outcome
+    }
+}
+
+/// Only the notch window may acknowledge a rendered peek or a started sound.
+#[tauri::command]
+pub fn acknowledge_notch_alert(window: tauri::WebviewWindow, id: String, error: Option<String>) -> bool {
+    if window.label() != "notch" { return false; }
+    complete_peek(&id, error)
+}
+fn complete_peek(id: &str, error: Option<String>) -> bool {
+    let Some(reply) = pending_peeks().lock().unwrap().remove(id) else { return false };
+    let error = error.map(|e| e.chars().filter(|c| !c.is_control()).take(180).collect::<String>());
+    reply.send(error.map_or(Ok(()), Err)).is_ok()
+}
+
 #[cfg(not(windows))]
 struct DesktopSink;
 
@@ -772,7 +874,10 @@ impl NotificationSink for DesktopSink {
         if !available.can_deliver { return Err(available.message); }
         #[cfg(target_os = "macos")]
         {
-            let script = format!("display notification {} with title {}\n", applescript_string(&toast.body), applescript_string(&toast.title));
+            let sound = if toast.silent { String::new() } else {
+                format!(" sound name {}", applescript_string(match toast.sound { Sound::Soft => "Pop", Sound::Chime => "Glass", _ => "Ping" }))
+            };
+            let script = format!("display notification {} with title {}{sound}\n", applescript_string(&toast.body), applescript_string(&toast.title));
             let mut command = std::process::Command::new("/usr/bin/osascript");
             command.arg("-");
             crate::platform::submit(command, Some(script.as_bytes()))
@@ -780,6 +885,10 @@ impl NotificationSink for DesktopSink {
         #[cfg(target_os = "linux")]
         {
             let mut command = std::process::Command::new(notify_send().ok_or("notify-send is unavailable.")?);
+            command.arg(if toast.silent { "--hint=boolean:suppress-sound:true" } else { match toast.sound {
+                Sound::Soft => "--hint=string:sound-name:message-new-instant",
+                Sound::Chime => "--hint=string:sound-name:complete", _ => "--hint=string:sound-name:message",
+            }});
             command.args(["--app-name=Matra Development 0.2.0", "--", &toast.title, &toast.body]);
             crate::platform::submit(command, None)
         }
@@ -801,6 +910,7 @@ fn platform_sink() -> Box<dyn NotificationSink> {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct DeliveryRecord {
     pub kind: AlertKind,
+    pub channel: Channel,
     pub provider: String,
     pub at: u64,
     pub ok: bool,
@@ -840,6 +950,7 @@ pub fn deliver(
     }
     stats.last = Some(DeliveryRecord {
         kind: event.kind,
+        channel: settings.channel,
         provider: subject_for_status(event),
         at: now,
         ok: result.is_ok(),
@@ -854,6 +965,12 @@ struct Runtime {
     settings: Mutex<AlertSettings>,
     stats: Mutex<Stats>,
     sink: Box<dyn NotificationSink>,
+    notch: NotchSink,
+}
+impl Runtime {
+    fn sink_for(&self, channel: Channel) -> &dyn NotificationSink {
+        if channel == Channel::Notch { &self.notch } else { self.sink.as_ref() }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -873,6 +990,10 @@ pub struct AlertStatus {
     pub suppressed: u64,
     pub last: Option<DeliveryRecord>,
     pub providers: Vec<ProviderName>,
+    pub channel: Channel,
+    pub notch_available: bool,
+    pub system_available: bool,
+    pub sound_note: String,
 }
 
 fn clock_text(at_ms: u64) -> Option<String> {
@@ -940,17 +1061,30 @@ fn expand_provider_reading(id: String, name: String, snapshot: UsageSnapshot) ->
 }
 
 fn read_providers(app: &AppHandle) -> Vec<ProviderReading> {
+    let prefs = crate::parity::settings(app);
+    let now = crate::now_ms();
     crate::provider_ids().into_iter().flat_map(|id| {
         let snapshot = crate::snapshot_of(app, &id);
         expand_provider_reading(id.clone(), crate::provider_label(&id).to_string(), snapshot)
+    }).map(|mut reading| {
+        crate::parity::apply_daily_pace(&reading.id, &mut reading.snapshot, prefs.claude_daily_pace, now);
+        if let Some(name) = prefs.account_nicknames.get(&reading.id).filter(|n| !n.trim().is_empty()) { reading.name = name.trim().into(); }
+        reading
     }).collect()
 }
 
 fn status_of(app: &AppHandle, runtime: &Runtime) -> AlertStatus {
     let thresholds = thresholds_of(app);
     let stats = runtime.stats.lock().unwrap().clone();
+    let channel = runtime.settings.lock().unwrap().channel;
     AlertStatus {
-        availability: runtime.sink.availability(),
+        availability: runtime.sink_for(channel).availability(),
+        channel,
+        notch_available: runtime.notch.availability().can_deliver,
+        system_available: runtime.sink.availability().can_deliver,
+        sound_note: if channel == Channel::Notch { "Notch sounds use short Mātrā tones. Browser audio restrictions or a muted output can prevent playback." }
+            else if cfg!(target_os = "linux") { "Sound choices are desktop theme hints. Your notification service may ignore or mute them." }
+            else { "System sound choices use this operating system's notification sounds. Focus and volume remain under system control." }.into(),
         watch: thresholds.watch,
         critical: thresholds.critical,
         delivered: stats.delivered,
@@ -981,6 +1115,7 @@ pub fn start(app: AppHandle) {
         settings: Mutex::new(load_from(&settings_path())),
         stats: Mutex::new(Stats::default()),
         sink: platform_sink(),
+        notch: NotchSink { app: app.clone() },
     });
     if crate::platform::preview() { return; }
     let spawned = std::thread::Builder::new().name("matra-alerts".into()).spawn(move || {
@@ -1008,7 +1143,7 @@ fn tick(app: &AppHandle, engine: &mut Engine) {
     }
     runtime.stats.lock().unwrap().suppressed += observation.suppressed;
     for event in &observation.events {
-        if let Err(error) = deliver(runtime.sink.as_ref(), &runtime.stats, event, &settings, &clock_text, crate::now_ms()) {
+        if let Err(error) = deliver(runtime.sink_for(settings.channel), &runtime.stats, event, &settings, &clock_text, crate::now_ms()) {
             eprintln!("alerts: {:?} not delivered: {error}", event.kind);
         }
     }
@@ -1030,6 +1165,7 @@ pub fn set_alert_settings(app: AppHandle, settings: AlertSettings) -> Result<Ale
         *current = settings.clone();
     }
     let _ = app.emit("alert_settings", &settings);
+    publish_status(&app, &runtime);
     Ok(settings)
 }
 
@@ -1040,9 +1176,16 @@ pub fn get_alert_status(app: AppHandle) -> Result<AlertStatus, String> {
 }
 
 /// The explicit button only. Works with the master switch off, as the Mac's test does.
-#[tauri::command(async)]
-pub fn send_test_alert(app: AppHandle) -> Result<AlertStatus, String> {
+#[tauri::command]
+pub async fn send_test_alert(app: AppHandle) -> Result<AlertStatus, String> {
     crate::platform::require_live("Submitting notifications")?;
+    // NotchSink waits for a separate IPC acknowledgement. Keep that wait, desktop helper I/O and
+    // notification availability checks away from both the UI thread and the async executor.
+    tauri::async_runtime::spawn_blocking(move || send_test_alert_blocking(app))
+        .await.map_err(|_| "The notification test worker stopped unexpectedly.".to_string())?
+}
+
+fn send_test_alert_blocking(app: AppHandle) -> Result<AlertStatus, String> {
     let runtime = runtime(&app)?;
     let settings = runtime.settings.lock().unwrap().clone();
     let event = AlertEvent {
@@ -1054,7 +1197,7 @@ pub fn send_test_alert(app: AppHandle) -> Result<AlertStatus, String> {
         used_percent: 0,
         resets_at: None,
     };
-    let result = deliver(runtime.sink.as_ref(), &runtime.stats, &event, &settings, &clock_text, crate::now_ms());
+    let result = deliver(runtime.sink_for(settings.channel), &runtime.stats, &event, &settings, &clock_text, crate::now_ms());
     let status = publish_status(&app, &runtime);
     result.map(|()| status)
 }
@@ -1078,11 +1221,56 @@ mod tests {
             attention: true,
             sound: true,
             muted_providers: Vec::new(),
+            ..Default::default()
         }
     }
 
+    #[test]
+    fn legacy_alert_preferences_keep_system_delivery_and_new_choices_round_trip() {
+        let legacy: AlertSettings = serde_json::from_str(r#"{"enabled":true,"sound":false,"work_complete":true}"#).unwrap();
+        assert_eq!(legacy.channel,Channel::System); assert_eq!(legacy.peek_duration,PeekDuration::Standard);
+        assert_eq!(legacy.sound_for(AlertKind::WorkComplete),Sound::Off);
+        let mut settings = all_on(); settings.channel=Channel::Notch;settings.peek_duration=PeekDuration::Long;
+        settings.event_sounds.work_complete=Sound::Chime;settings.event_sounds.attention=Sound::Soft;
+        let round: AlertSettings = serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap(); assert_eq!(settings,round);
+        assert!(serde_json::from_str::<AlertSettings>(r#"{"channel":"unknown"}"#).is_err());
+    }
+
+    #[test]
+    fn per_event_sound_and_peek_duration_reach_the_delivery_payload() {
+        let mut settings=all_on();settings.peek=false;settings.peek_duration=PeekDuration::Brief;
+        settings.event_sounds.work_complete=Sound::Chime;settings.event_sounds.attention=Sound::Off;
+        let mut event=AlertEvent{kind:AlertKind::WorkComplete,subject:"sample".into(),name:"Fixture".into(),window_id:String::new(),window_label:String::new(),used_percent:0,resets_at:None};
+        let completed=toast_for(&event,&settings,&|_|None);assert_eq!(completed.duration_ms,3000);assert!(!completed.peek);
+        assert!(toast_xml(&completed).contains("Notification.Reminder"));
+        event.kind=AlertKind::Attention;assert!(toast_for(&event,&settings,&|_|None).silent);
+        settings.sound=false;event.kind=AlertKind::WorkComplete;assert!(toast_for(&event,&settings,&|_|None).silent);
+    }
+
+    #[test]
+    fn notch_acknowledgements_consume_the_pending_delivery_exactly_once() {
+        let id=format!("fixture-{}",NEXT_PEEK.fetch_add(1,Ordering::Relaxed));
+        let (tx,rx)=mpsc::channel();pending_peeks().lock().unwrap().insert(id.clone(),tx);
+        assert!(complete_peek(&id,None));assert_eq!(rx.recv().unwrap(),Ok(()));assert!(!complete_peek(&id,None));
+        let (tx,rx)=mpsc::channel();pending_peeks().lock().unwrap().insert(id.clone(),tx);
+        assert!(complete_peek(&id,Some("Audio blocked".into())));assert_eq!(rx.recv().unwrap(),Err("Audio blocked".into()));
+        assert!(!pending_peeks().lock().unwrap().contains_key(&id));
+    }
+
+    #[test]
+    fn pending_notch_delivery_leaves_the_async_executor_free_to_acknowledge() {
+        tauri::async_runtime::block_on(async {
+            let id=format!("async-fixture-{}",NEXT_PEEK.fetch_add(1,Ordering::Relaxed));
+            let (tx,rx)=mpsc::channel();pending_peeks().lock().unwrap().insert(id.clone(),tx);
+            let waiting=tauri::async_runtime::spawn_blocking(move||rx.recv_timeout(Duration::from_secs(1)));
+            let acknowledged=tauri::async_runtime::spawn(async move{complete_peek(&id,None)});
+            assert!(acknowledged.await.unwrap());
+            assert_eq!(waiting.await.unwrap().unwrap(),Ok(()));
+        });
+    }
+
     fn window(id: &str, label: &str, used: f64, resets_at: Option<u64>) -> LimitWindow {
-        LimitWindow { id: id.into(), label: label.into(), used, resets_at, count: None, derived: false, group: None, ..Default::default() }
+        LimitWindow { id: id.into(), label: label.into(), used, resets_at, ..Default::default() }
     }
 
     fn reading(id: &str, fetched_at: u64, windows: Vec<LimitWindow>) -> ProviderReading {
@@ -1290,6 +1478,17 @@ mod tests {
         assert!(engine.observe(now, &settings, T, &[reading], &[]).events.is_empty());
     }
 
+    #[test]
+    fn paced_accounts_alert_on_daily_headline_and_only_secondary_session_exhaustion() {
+        let mut engine=Engine::new(START);
+        let paced=|time,daily,session,weekly|reading("claude@work",time,vec![window("daily_pace","Daily pace",daily,Some(at(100))),window("session","Session",session,Some(at(100))),window("seven_day","Weekly",weekly,Some(at(200)))]);
+        engine.observe(at(0),&all_on(),T,&[paced(at(0),0.1,0.1,0.1)],&[]);
+        assert!(engine.observe(at(1),&all_on(),T,&[paced(at(1),0.1,0.9,0.9)],&[]).events.is_empty());
+        let events=engine.observe(at(2),&all_on(),T,&[paced(at(2),0.75,0.9,0.9)],&[]).events;
+        assert_eq!(events.len(),1);assert_eq!(events[0].kind,AlertKind::UsageCritical);assert_eq!(events[0].window_label,"Daily pace");assert_eq!(events[0].subject,"claude@work");
+        let events=engine.observe(at(3),&all_on(),T,&[paced(at(3),0.75,1.0,1.0)],&[]).events;
+        assert_eq!(events.len(),1);assert_eq!(events[0].kind,AlertKind::LimitWeekly);assert_eq!(events[0].window_label,"Session");
+    }
     #[test]
     fn a_weekly_limit_answers_to_its_own_switch() {
         let weekly = vec![window("seven_day", "Weekly", 1.0, None)];

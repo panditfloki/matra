@@ -245,6 +245,9 @@ pub struct Engine {
     state: Mutex<State>,
     ollama: Mutex<OllamaCloud>,
     omlx: Mutex<OmlxSession>,
+    history: Mutex<super::local_history::Store>,
+    relay: Mutex<super::ollama_relay::Relay>,
+    relay_last: Mutex<String>,
     /// Bumped when a credential or address changes, so a read already under way cannot restore old state.
     epoch: AtomicU64,
     notify: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
@@ -327,6 +330,9 @@ impl Engine {
             }
         }
         Engine {
+            history: Mutex::new(super::local_history::Store::new(&env.settings_dir)),
+            relay: Mutex::new(super::ollama_relay::Relay::new(&env.settings_dir)),
+            relay_last: Mutex::new(String::new()),
             env,
             state: Mutex::new(State {
                 settings,
@@ -345,6 +351,43 @@ impl Engine {
         *self.notify.lock().unwrap() = Some(notify);
     }
 
+    pub fn history_options(&self) -> BTreeMap<String, super::local_history::Options> {
+        self.history.lock().unwrap().options()
+    }
+    pub fn relay_status(&self) -> super::ollama_relay::Status { self.relay.lock().unwrap().status() }
+    pub fn set_relay(&self, enabled: bool) -> Result<super::ollama_relay::Status, String> {
+        if enabled { self.set_enabled("ollama", true)?; }
+        let settings = self.state.lock().unwrap().settings.clone();
+        let endpoint = self.resolved_endpoint("ollama", &settings).unwrap_or_default();
+        let status = self.relay.lock().unwrap().configure(enabled, &endpoint)?;
+        self.request_refresh("ollama"); self.changed(); Ok(status)
+    }
+    fn sync_relay(&self) {
+        let settings = self.state.lock().unwrap().settings.clone();
+        let endpoint = self.resolved_endpoint("ollama", &settings).unwrap_or_default();
+        let status = {
+            let mut relay = self.relay.lock().unwrap();
+            if settings.enabled.iter().any(|id| id == "ollama") { let _ = relay.sync(&endpoint); } else { relay.pause(); }
+            let status = relay.status(); let records = relay.drain(&endpoint);
+            self.history.lock().unwrap().record_ollama(&endpoint, records, status.ready, status.observation_gaps, now_ms());
+            status
+        };
+        let fingerprint = serde_json::to_string(&status).unwrap_or_default();
+        let changed = { let mut previous = self.relay_last.lock().unwrap(); if *previous == fingerprint { false } else { *previous = fingerprint; true } };
+        if changed { self.changed(); }
+    }
+
+    pub fn set_history_options(&self, id: &str, options: super::local_history::Options) -> Result<BTreeMap<String, super::local_history::Options>, String> {
+        let settings = self.history.lock().unwrap().configure(id, options)?;
+        {
+            let mut state = self.state.lock().unwrap();
+            let enabled = state.settings.enabled.iter().any(|value| value == id);
+            Self::reset_slot(&mut state, id, enabled, fixed_name(id));
+        }
+        self.changed();
+        Ok(settings)
+    }
+
     fn changed(&self) {
         let notify = self.notify.lock().unwrap().clone();
         if let Some(notify) = notify {
@@ -353,8 +396,29 @@ impl Engine {
     }
 
     pub fn usage_map(&self) -> BTreeMap<String, ParitySnapshot> {
-        let state = self.state.lock().unwrap();
-        state.slots.iter().map(|(id, slot)| (id.clone(), slot.snapshot.clone())).collect()
+        let (mut readings, endpoint): (BTreeMap<String, ParitySnapshot>, String) = {
+            let state = self.state.lock().unwrap();
+            (state.slots.iter().map(|(id, slot)| {
+            let mut snapshot = slot.snapshot.clone();
+            if let Some(endpoint) = id.strip_prefix("custom:").and_then(|key| state.settings.custom.iter().find(|e| e.id == key)) {
+                let mut details = snapshot.details.take().filter(|d| d.is_object()).unwrap_or_else(|| serde_json::json!({}));
+                details["icon_preset"] = serde_json::json!(endpoint.icon_preset);
+                details["custom_icon_data_url"] = serde_json::json!(endpoint.custom_icon_data_url);
+                details["accent_color_hex"] = serde_json::json!(endpoint.accent_color_hex);
+                snapshot.details = Some(details);
+            }
+            (id.clone(), snapshot)
+        }).collect(), self.resolved_endpoint("ollama", &state.settings).unwrap_or_default())
+        };
+        if let Some(reading) = readings.get_mut("ollama").filter(|r| r.base.status != "absent") {
+            let relay = self.relay_status();
+            if let Some(local) = &mut reading.local_model { for model in &mut local.models { model.phase = relay.activities.get(&model.name).cloned(); } }
+            let history = super::local_history::project_context(self.history.lock().unwrap().ollama_summary(&endpoint, now_ms()), reading.local_model.as_ref());
+            if let Some(details) = reading.details.get_or_insert_with(|| serde_json::json!({})).as_object_mut() {
+                details.insert("relay".into(), serde_json::to_value(relay).unwrap_or_default()); details.insert("local_history".into(), history);
+            }
+        }
+        readings
     }
 
     pub fn snapshot(&self, id: &str) -> UsageSnapshot {
@@ -490,6 +554,7 @@ impl Engine {
             Self::reset_slot(&mut state, id, on, &name);
             self.info(id, &state.settings).ok_or("Unknown provider.")?
         };
+        if id == "ollama" { self.sync_relay(); }
         self.changed();
         Ok(info)
     }
@@ -498,7 +563,8 @@ impl Engine {
         let parsed = match (id, endpoint.map(str::trim).filter(|e| !e.is_empty())) {
             (_, None) if default_endpoint(id).is_some() => None,
             ("omlx", Some(address)) => Some(net::parse_network(address)?),
-            ("ollama" | "lmstudio" | "llamacpp", Some(address)) => Some(net::parse_loopback(address)?),
+            ("ollama", Some(address)) => Some(super::ollama_relay::validate_endpoint(address, super::ollama_relay::port())?),
+            ("lmstudio" | "llamacpp", Some(address)) => Some(net::parse_loopback(address)?),
             _ => return Err("This provider has no address to set.".into()),
         };
         let info = {
@@ -517,6 +583,7 @@ impl Engine {
             self.epoch.fetch_add(1, Ordering::SeqCst);
             *self.omlx.lock().unwrap() = OmlxSession::default();
         }
+        if id == "ollama" { self.sync_relay(); }
         self.changed();
         Ok(info)
     }
@@ -937,7 +1004,23 @@ impl Engine {
     pub fn run_job(&self, id: &str, generation: u64) {
         let now = now_ms();
         let settings = self.state.lock().unwrap().settings.clone();
-        let result = self.read(id, generation, &settings, now);
+        let mut result = self.read(id, generation, &settings, now);
+        let current = self.state.lock().unwrap().slots.get(id).is_some_and(|slot| slot.generation == generation);
+        if let Some(reading) = result.as_mut().ok().filter(|_| current) {
+            let endpoint = self.resolved_endpoint(id, &settings).unwrap_or_default();
+            if id == "ollama" {
+                let mut relay = self.relay.lock().unwrap();
+                let status = relay.status(); let records = relay.drain(&endpoint);
+                self.history.lock().unwrap().record_ollama(&endpoint, records, status.ready, status.observation_gaps, now);
+                if let Some(local) = &mut reading.local_model {
+                    for model in &mut local.models { if let Some(phase) = status.activities.get(&model.name) { model.phase = Some(phase.clone()); } }
+                }
+                if let Some(details) = reading.details.get_or_insert_with(|| serde_json::json!({})).as_object_mut() {
+                    details.insert("relay".into(), serde_json::to_value(status).unwrap_or_default());
+                }
+            }
+            self.history.lock().unwrap().enrich(id, &endpoint, self.env.home.as_deref(), reading, now);
+        }
         let changed = self.apply(id, generation, result, &settings, now);
         if changed {
             self.changed();
@@ -1038,6 +1121,7 @@ impl Engine {
     }
 
     pub fn tick_and_spawn(self: &Arc<Self>) {
+        self.sync_relay();
         for (id, generation) in self.due(now_ms()) {
             let engine = self.clone();
             std::thread::spawn(move || engine.run_job(&id, generation));
@@ -1110,6 +1194,50 @@ mod tests {
         }
         assert!(value.get("local_model").is_none());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn runtime_review_fresh_ollama_projection_keeps_context_for_new_responses() {
+        use super::super::local_history::Prediction;
+        use super::super::model::{LocalModel, LocalReading};
+        let dir = temp("ollama-fresh-context");
+        let engine = Engine::new(env(&dir, &[]));
+        engine.set_enabled("ollama", true).unwrap();
+        let now = now_ms();
+        let settings = engine.state.lock().unwrap().settings.clone();
+        let endpoint = engine.resolved_endpoint("ollama", &settings).unwrap();
+        let (_, generation) = engine.due(now).into_iter().find(|(id, _)| id == "ollama").unwrap();
+        let first = Prediction {
+            model: "model-a".into(), at: now, input_tokens: Some(1024), output_tokens: Some(10),
+            ..Default::default()
+        };
+        let mut reading = Reading {
+            local_model: Some(LocalReading {
+                models: vec![LocalModel { name: "model-a".into(), context_length: Some(4096), ..Default::default() }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        {
+            let mut history = engine.history.lock().unwrap();
+            history.record_ollama(&endpoint, vec![first.clone()], true, 0, now);
+            history.enrich("ollama", &endpoint, None, &mut reading, now);
+        }
+        assert_eq!(reading.details.as_ref().unwrap()["local_history"]["models"][0]["last_context_fraction"], 0.25);
+        engine.apply("ollama", generation, Ok(reading), &settings, now);
+        // A response can finish between source polls. The UI must use its fresh counts together
+        // with the loaded model's reported context, rather than retaining the old enriched JSON.
+        engine.history.lock().unwrap().record_ollama(&endpoint, vec![Prediction {
+            at: now + 1, input_tokens: Some(2048), output_tokens: Some(20), ..first
+        }], true, 0, now + 1);
+        let projected = engine.usage_map();
+        let history = &projected["ollama"].details.as_ref().unwrap()["local_history"];
+        assert_eq!(history["models"][0]["last"]["input_tokens"], 2048);
+        assert_eq!(history["models"][0]["context_length"], 4096);
+        assert_eq!(history["models"][0]["last_context_fraction"], 0.5);
+        assert_eq!(history["recent"].as_array().unwrap().len(), 2);
+        drop(engine);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

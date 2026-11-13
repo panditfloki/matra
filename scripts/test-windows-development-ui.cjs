@@ -2,17 +2,19 @@
 const assert = require('node:assert/strict');
 const { execFileSync, spawn } = require('node:child_process');
 const path = require('node:path');
+const {listNativeTargets} = require('./native-cdp-targets.cjs');
 const {testNativeHandles} = require('./native-handle-test.js');
 if (process.env.GITHUB_ACTIONS !== 'true' || process.platform !== 'win32') throw new Error('Disposable Windows CI only');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 function evaluate(page, expression, shot) {
-  return JSON.parse(execFileSync(process.execPath, [path.join(__dirname, 'native-inspect.js'), page, expression, ...(shot ? [shot] : [])], {encoding:'utf8', timeout:30000})).value;
+  return JSON.parse(execFileSync(process.execPath, [path.join(__dirname, 'native-inspect.js'), page, expression, ...(shot ? [shot] : [])], {encoding:'utf8', timeout:45000})).value;
 }
 async function ready(page) {
   let diagnostic = 'No response yet';
-  for (let n = 0; n < 120; n++) {
+  const deadline = Date.now() + 60000;
+  while (Date.now() < deadline) {
     try {
-      const targets = await (await fetch('http://127.0.0.1:9337/json/list')).json();
+      const targets = await listNativeTargets({page});
       diagnostic = JSON.stringify(targets.map(({type, title, url}) => ({type, title, url})));
       if (targets.some(target => target.url.endsWith(`/${page}.html`)) &&
           evaluate(page, `document.readyState === 'complete' && !!window.__TAURI__?.core && !!document.querySelector('${page === 'settings' ? '#matra-theme' : '#pill'}')`)) return;
@@ -157,11 +159,39 @@ async function saved(command, predicate) {
     assert.match(alertStatus.message,/reopen it normally/);
   }
   assert.notEqual(alertStatus.os_state,'identity_missing','The installed app has a registered Start Menu notification identity');
-  if(alertStatus.can_deliver){
-    const sent=evaluate('settings',`invoke('send_test_alert')`);
-    assert.equal(sent.delivered,1,'Windows accepted the explicitly requested fixture notification');
+  assert.equal(alertsBefore.channel,'system','Existing notification preferences start on System');
+  // Exercise the real Settings control and native NotchSink/renderer ACK. Sound
+  // is off before selecting the channel, and no system notification is sent.
+  try {
+    evaluate('settings',`invoke('set_alert_settings',{settings:{...${JSON.stringify(alertsBefore)},sound:false,peek:true,peek_duration:'long'}})`);
+    await saved('get_alert_settings',value=>value.channel==='system' && value.sound===false);
+    await pause(100);
+    assert.equal(evaluate('settings',`(()=>{const select=document.querySelector('#alerts-host select[aria-label="Notification channel"]');if(!select||select.disabled)return false;select.value='notch';select.dispatchEvent(new Event('change'));return true})()`),true,'The packaged Notification channel control can select Notch');
+    await saved('get_alert_settings',value=>value.channel==='notch' && value.sound===false && value.peek===true);
+    const notchStatus=evaluate('settings',`invoke('get_alert_status')`);
+    assert.equal(notchStatus.channel,'notch');
+    assert.equal(notchStatus.os_state,'notch');
+    assert.equal(notchStatus.can_deliver,true,'The real native notch is available even when system toasts are blocked by elevation');
+    evaluate('notch',`hideCard();onHover=false;unfold();true`);
+    await pause(100);
+    assert.equal(evaluate('settings',`(()=>{const send=[...document.querySelectorAll('#alerts-host button')].find(button=>button.textContent==='Send a test');if(!send||send.disabled)return false;send.click();return true})()`),true,'The real Settings test button submits the notch notification');
+    const delivered=await saved('get_alert_status',value=>value.delivered===alertStatus.delivered+1 || value.failed>alertStatus.failed);
+    assert.equal(delivered.failed,alertStatus.failed,`Native notch delivery failed: ${delivered.last?.error||''}`);
+    assert.equal(delivered.delivered,alertStatus.delivered+1,'Native delivery increments only after the real notch renderer acknowledges');
+    assert.equal(delivered.last.channel,'notch');
+    assert.equal(delivered.last.ok,true);
+    assert.equal(delivered.last.kind,'test');
+    const peek=evaluate('notch',`(()=>{const panel=document.querySelector('.matra-alert-peek');if(!panel)return null;const r=panel.getBoundingClientRect(),style=getComputedStyle(panel);return {visible:!panel.hidden&&style.display!=='none'&&style.visibility!=='hidden',title:panel.querySelector('strong').textContent,body:panel.querySelector('p').textContent,inside:r.width>0&&r.height>0&&r.left>=0&&r.top>=0&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1,heldOpen:alertPeekUntil>Date.now()}})()`,'windows-development-notch-alert.png');
+    assert.deepEqual(peek,{visible:true,title:'Mātrā test notification',body:'Your selected notification channel is being tested.',inside:true,heldOpen:true},'The acknowledged native peek paints its message inside the real viewport');
+    evaluate('settings','document.title','windows-development-alerts.png');
+    evaluate('notch',`document.querySelector('.matra-alert-peek button').click();true`);
+    assert.equal(evaluate('notch',`document.querySelector('.matra-alert-peek').hidden && alertPeekUntil===0`),true,'Dismiss clears the actual peek and its fold hold');
+    assert.equal(evaluate('settings',`invoke('get_alert_status').then(s=>s.delivered)`),alertStatus.delivered+1,'Dismiss does not count another delivery');
+    console.log('PASS: native System→Notch setting, silent test button, real renderer ACK, painted peek and dismissal');
+  } finally {
+    evaluate('notch',`window.matraAlertPeek?.hide();true`);
+    evaluate('settings',`invoke('set_alert_settings',{settings:${JSON.stringify(alertsBefore)}})`);
   }
-  evaluate('settings','document.title','windows-development-alerts.png');
   evaluate('settings',`invoke('open_activity')`);
   for(let n=0;n<40;n++){
     try {if(evaluate('activity',`!!document.querySelector('#activity-root') && document.readyState==='complete'`))break;}catch{}
@@ -171,7 +201,7 @@ async function saved(command, predicate) {
   evaluate('activity','document.title','windows-development-activity-window.png');
   evaluate('activity',`setTimeout(()=>window.__TAURI__.window.getCurrentWindow().close(),250);true`);
   await pause(500);
-  assert.equal((await (await fetch('http://127.0.0.1:9337/json/list')).json()).some(t=>t.url.endsWith('/activity.html')),false,'Closing Activity closes only that window');
+  assert.equal((await listNativeTargets({refresh:true})).some(t=>t.url.endsWith('/activity.html')),false,'Closing Activity closes only that window');
   evaluate('settings',`document.querySelector('#open-dashboard').click()`);
   for(let n=0;n<50;n++){
     try {if(evaluate('dashboard',`!!window.MatraDashboard?.page?.state.loaded && !window.MatraDashboard.page.state.reportBusy`))break;}catch{}
@@ -203,7 +233,7 @@ async function saved(command, predicate) {
   evaluate('dashboard','document.title','windows-development-dashboard-light.png');
   evaluate('dashboard',`setTimeout(()=>window.__TAURI__.window.getCurrentWindow().close(),250);true`);
   await pause(500);
-  assert.equal((await (await fetch('http://127.0.0.1:9337/json/list')).json()).some(t=>t.url.endsWith('/dashboard.html')),false);
+  assert.equal((await listNativeTargets({refresh:true})).some(t=>t.url.endsWith('/dashboard.html')),false);
   const controls=await testNativeHandles(expression=>evaluate('notch',expression));
   assert.equal(controls.cases,16,'Six/ten provider fixtures fit four native edges with and without bottom/right work insets');
   console.log('PASS: far-end settings/grip pair, always-visible grip, exact native hot payload, disabled grip and usable viewport', JSON.stringify(controls));

@@ -137,3 +137,5 @@ h2.dash-h{margin:0;font-size:16px;font-weight:600}
   .dash-row[aria-current="page"]{outline:2px solid Highlight}
   .dash-glyph.mask{background:CanvasText;forced-color-adjust:none}
 }
+
+.dash-track{position:relative}.dash-pace-mark{position:absolute;top:-2px;bottom:-2px;width:1px;background:currentColor;opacity:.85;pointer-events:none}.dash-pace{font-size:11px;color:var(--matra-muted);margin-top:3px}

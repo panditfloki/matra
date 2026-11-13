@@ -1,12 +1,18 @@
-// Local development only. Launch the native app with WebView2 debugging on 9337.
+// Local development: debugger port 9337. Disposable CI: discover the fixture's
+// independent WebView2 browser environments, each using an ephemeral port.
 const fs = require('node:fs');
 const path = require('node:path');
+const {listNativeTargets} = require('./native-cdp-targets.cjs');
 (async () => {
-  const targets = await (await fetch('http://127.0.0.1:9337/json/list')).json();
+  const targets = await listNativeTargets({page:process.argv[2] || 'notch'});
   const target = targets.find(t => t.url.endsWith(`/${process.argv[2] || 'notch'}.html`));
   if (!target) throw new Error('Native webview not found');
   const ws = new WebSocket(target.webSocketDebuggerUrl);
-  await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { ws.close(); reject(new Error('CDP connection timeout')); }, 10000);
+    ws.onopen = () => { clearTimeout(timer); resolve(); };
+    ws.onerror = error => { clearTimeout(timer); reject(error); };
+  });
   let seq = 0; const pending = new Map();
   ws.onmessage = e => { const m = JSON.parse(e.data); if (pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } };
   const send = (method, params) => new Promise((resolve, reject) => {

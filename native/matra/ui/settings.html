@@ -125,6 +125,7 @@
 <script src="matra-parity-i18n.js"></script>
 <script defer src="matra-quota-settings.js"></script>
 <script defer src="matra-theme.js"></script>
+<script defer src="matra-accounts.js"></script>
 <script defer src="matra-parity-settings.js"></script>
 <script defer src="matra-activity.js"></script>
 <script defer src="matra-providers.js"></script>
@@ -196,8 +197,19 @@
           <div class="item cap">The notch opens from its centre toward the top. This app setting works even when Windows Animation effects are off.</div>
           <div class="item"><span>Size</span><span class="seg" id="seg-size"><button data-v="0.8">Small</button><button data-v="1">Medium</button><button data-v="1.25">Large</button></span></div>
           <div class="item cap" id="cap-size" data-dynamic></div>
+<div class="item"><span>Custom size</span><button class="switch" id="sw-custom-scale" role="switch" aria-checked="false" aria-label="Custom size"></button></div>
+<div class="item" id="custom-scale-row" hidden><label for="custom-scale">Size</label><span><input id="custom-scale" type="range" min="0.5" max="1.5" step="0.01" aria-label="Custom notch size"><output id="custom-scale-value"></output></span></div>
           <div class="item"><span>Weekly ring</span><span class="seg" id="seg-weekly"><button data-v="off">Off</button><button data-v="inside">Inside</button><button data-v="outside">Outside</button></span></div>
           <div class="item cap" id="cap-weekly" data-dynamic></div>
+<div class="item"><span>Weekly limit leads the ring</span><button class="switch" id="sw-weekly-headline" role="switch" aria-checked="false" aria-label="Weekly limit leads the ring"></button></div>
+<div class="item"><span>Show both percentages</span><button class="switch" id="sw-weekly-reading" role="switch" aria-checked="false" aria-label="Show both percentages"></button></div>
+<div class="item"><span>Dashed secondary ring</span><button class="switch" id="sw-weekly-dashed" role="switch" aria-checked="false" aria-label="Dashed secondary ring"></button></div>
+<div class="item"><span>Claude daily pace</span><button class="switch" id="sw-daily-pace" role="switch" aria-checked="false" aria-label="Claude daily pace"></button></div>
+<div class="item cap">Claude’s big ring and usage alerts follow the cumulative daily share of its weekly allowance. The thin ring shows the session; the weekly reading stays in the card.</div><div class="item"><span>Show usage pace</span><button class="switch" id="sw-usage-pace" role="switch" aria-checked="false" aria-label="Show usage pace"></button></div>
+<div class="item cap">Cards show time elapsed against usage: deficit when ahead of pace, reserved when behind it. A window without a reset clock has no pace.</div><div class="item"><span>Show Codex Spark and code-review limits</span><button class="switch" id="sw-extra-limits" role="switch" aria-checked="false" aria-label="Show Codex Spark and code-review limits"></button></div>
+<div class="item"><span>Ask the provider when I look</span><button class="switch" id="sw-refresh-look" role="switch" aria-checked="false" aria-label="Ask the provider when I look"></button></div>
+<div class="item cap">Request a fresh reading on opening the meter or Dashboard, subject to the provider’s retry limits. Automatic polling continues with this off.</div><div class="item"><span>Fold for fullscreen apps</span><button class="switch" id="sw-fullscreen" role="switch" aria-checked="false" aria-label="Fold for fullscreen apps"></button></div>
+<div class="item cap" id="fullscreen-cap">Folds on the notch’s screen while another app is fullscreen. Hover still opens it; moving the notch keeps it open.</div>
           <div class="item"><span>Percentage under each ring</span><button class="switch" id="sw-readings" role="switch" aria-checked="true" aria-label="Percentage under each ring"></button></div>
           <div class="item cap">The figure under each ring. Turn it off for rings alone; the number is still a hover away in the card.</div>
           <div class="item"><span>Show remaining instead of used</span><button class="switch" id="sw-show-remaining" role="switch" aria-checked="false" aria-label="Show remaining instead of used"></button></div>
@@ -206,6 +218,7 @@
           <div class="item cap">When the 5-hour or the weekly window is spent, both rings say shut even where the other window still has room: dark grey where the meter reads what is left, red where it reads what is spent.</div>
           <div class="item"><span>Hide accounts with nothing left to spend</span><button class="switch" id="sw-hide-depleted" role="switch" aria-checked="false" aria-label="Hide accounts with nothing left to spend"></button></div>
           <div class="item cap">When the 5-hour or the weekly window is at 0% remaining, the account leaves the meter until a window resets. Stale readings stay: an old number is not proof the account is empty. If every account is empty, they all stay.</div>
+          <details class="item" style="display:block"><summary>Account names and order</summary><p class="cap">Names and ordering apply to the notch and Dashboard. These arrows place accounts individually; moving a source moves its accounts together. Unavailable accounts keep their choices. Automatic ring ordering takes precedence.</p><div id="account-presentation"></div></details>
           <div class="item cap" id="parity-status" role="status" aria-live="polite" data-dynamic></div>
           <div class="item"><span>Edge</span><span class="seg" id="seg-edge"><button data-v="left">Left</button><button data-v="right">Right</button><button data-v="top">Top</button><button data-v="bottom">Bottom</button></span></div>
           <div class="item cap" id="cap-edge" data-dynamic></div>
@@ -1159,8 +1172,12 @@ let agPrefs = { limit:'automatic', model:'gemini' };
 const HOOKS_WHY = 'Turning this on adds a few lines to your Claude Code settings file so that Claude Code sends Matra a short message when a session starts, when it is working, when it is waiting for your answer, and when it finishes. That is what makes the ring spin and the amber ring pulse.';
 const ONE_STAYS = 'One provider always stays ticked, so the pill is never empty.';
 const NO_RING = 'These have no ring to place. Switch one on and it joins the end of the list above.';
-let ringOrderMode = 'manual';
+let ringOrderMode = 'manual', wasCustomScale=false;
 window.matraParityChanged = saved => {
+  const hadCustomScale=wasCustomScale;
+  wasCustomScale=!!saved.uses_custom_scale;
+  if(saved.uses_custom_scale){notchSize=saved.custom_scale;renderSize();}
+  else if(hadCustomScale)call('get_scale',undefined,null).then(v=>{if(typeof v==='number'){notchSize=v;renderSize();}});
   if(saved.ring_order === ringOrderMode) return;
   ringOrderMode = saved.ring_order;
   renderAccounts();
@@ -1361,7 +1378,7 @@ const SIZE_WHY = {
 let notchSize = 1, sizeBusy = false;
 function renderSize(){
   for(const b of document.querySelectorAll('#seg-size button')){
-    const on = Number(b.dataset.v) === notchSize;
+    const on = !wasCustomScale && Number(b.dataset.v) === notchSize;
     b.classList.toggle('on', on);
     b.setAttribute('aria-pressed', on ? 'true' : 'false');
     b.disabled = sizeBusy;
@@ -1371,7 +1388,7 @@ function renderSize(){
 }
 document.getElementById('seg-size').addEventListener('click', e => {
   const b = e.target.closest('button');
-  if(!b || b.disabled || Number(b.dataset.v) === notchSize) return;
+  if(!b || b.disabled || (!wasCustomScale && Number(b.dataset.v) === notchSize)) return;
   const want = Number(b.dataset.v);
   sizeBusy = true;
   notchSize = want;

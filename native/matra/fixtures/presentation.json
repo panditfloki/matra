@@ -1,0 +1,162 @@
+{
+  "daily_pace": [
+    {
+      "name": "before-start",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": 0.1,
+        "resets_at": 2604800000
+      },
+      "now": 1913600000,
+      "expected": {
+        "used": 0.7000000000000001,
+        "resets_at": 2086400000
+      }
+    },
+    {
+      "name": "first-day",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": 0.1,
+        "resets_at": 2604800000
+      },
+      "now": 2000000000,
+      "expected": {
+        "used": 0.7000000000000001,
+        "resets_at": 2086400000
+      }
+    },
+    {
+      "name": "next-share",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": 0.1,
+        "resets_at": 2604800000
+      },
+      "now": 2086400000,
+      "expected": {
+        "used": 0.35000000000000003,
+        "resets_at": 2172800000
+      }
+    },
+    {
+      "name": "carry-quiet-day",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": 0.3,
+        "resets_at": 2604800000
+      },
+      "now": 2259200001,
+      "expected": {
+        "used": 0.525,
+        "resets_at": 2345600000
+      }
+    },
+    {
+      "name": "last-share",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": 0.7,
+        "resets_at": 2604800000
+      },
+      "now": 2518400000,
+      "expected": {
+        "used": 0.7,
+        "resets_at": 2604800000
+      }
+    },
+    {
+      "name": "after-reset",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": 0.7,
+        "resets_at": 2604800000
+      },
+      "now": 2691200000,
+      "expected": {
+        "used": 0.7,
+        "resets_at": 2604800000
+      }
+    },
+    {
+      "name": "known-zero",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": 0,
+        "resets_at": 2604800000
+      },
+      "now": 2000000000,
+      "expected": {
+        "used": 0.0,
+        "resets_at": 2086400000
+      }
+    },
+    {
+      "name": "over-share",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": 0.4,
+        "resets_at": 2604800000
+      },
+      "now": 2000000000,
+      "expected": {
+        "used": 2.8000000000000003,
+        "resets_at": 2086400000
+      }
+    },
+    {
+      "name": "unknown-reset",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": 0.1,
+        "resets_at": null
+      },
+      "now": 2000000000,
+      "expected": null
+    },
+    {
+      "name": "unknown-use",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": null,
+        "resets_at": 2604800000
+      },
+      "now": 2000000000,
+      "expected": null
+    },
+    {
+      "name": "negative-use",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": -1,
+        "resets_at": 2604800000
+      },
+      "now": 2000000000,
+      "expected": null
+    },
+    {
+      "name": "count-only",
+      "weekly": {
+        "id": "seven_day",
+        "label": "Weekly",
+        "used": 0.1,
+        "resets_at": 2604800000,
+        "count": 5
+      },
+      "now": 2000000000,
+      "expected": null
+    }
+  ],
+  "icon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNwWfXuPwAF7gLcEpIv+wAAAABJRU5ErkJggg=="
+}

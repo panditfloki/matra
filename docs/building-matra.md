@@ -2,6 +2,8 @@
 
 This repository contains the native Mac app, the Windows/Linux desktop adapter, and a shared Rust business library. Mac continues to use its existing SwiftUI/AppKit screens. It does not run the Tauri interface.
 
+See the [platform capability matrix](platform-capabilities.md) for supported behavior and OS-specific boundaries.
+
 | Directory | Role |
 | --- | --- |
 | `native/macos` | Existing native Mac interface and OS integration |

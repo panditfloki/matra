@@ -33,7 +33,7 @@ const cargo=process.platform==='win32'?'cargo.exe':'cargo';
 run(cargo,['+1.97.1','--version']);
 const common=['--locked','--manifest-path',join(root,'native/Cargo.toml'),...(args.includes('--offline')?['--offline']:[])];
 run(cargo,['+1.97.1','build','--release',...common,'-p','matra-hook','--target-dir',owned(join(root,'native/target/hook'))],root,os==='windows'?{RUSTFLAGS:'-C target-feature=+crt-static'}:{});
-const checks=['check-ui-scripts.mjs','test-claude-auth-ui.cjs','test-ko-i18n.cjs','test-matra-interactions.cjs','test-matra-appearance.cjs','test-matra-copy.cjs','test-matra-quota.cjs','test-parity-ui.cjs','test-mac-notch.cjs','test-platform-capabilities.cjs','test-fixed-providers.cjs','test-carry.cjs'];
+const checks=['check-ui-scripts.mjs','test-claude-auth-ui.cjs','test-ko-i18n.cjs','test-matra-interactions.cjs','test-matra-appearance.cjs','test-matra-copy.cjs','test-matra-quota.cjs','test-parity-ui.cjs','test-mac-notch.cjs','test-platform-capabilities.cjs','test-fixed-providers.cjs','test-carry.cjs','test-presentation.cjs'];
 for(const name of checks)run(process.execPath,[join(root,'native/scripts',name)]);
 for(const name of ['test-codex-details.cjs','test-codex-headline.cjs'])run(process.execPath,[join(root,'native',name)]);
 run(cargo,['+1.97.1',modes[0]==='--check'?'check':'test',...common,'--workspace']);
@@ -42,7 +42,7 @@ const cli=value('--tauri-cli')||process.env.MATRA_TAURI_CLI;if(!cli)throw new Er
 const metadata=JSON.parse(readFileSync(join(dirname(resolve(cli)),'package.json')));if(metadata.name!=='@tauri-apps/cli'||metadata.version!=='2.11.4')throw new Error('Packaging CLI must be pinned to 2.11.4.');
 run(process.execPath,[join(root,'scripts/prepare-development-bundler.mjs'),'--platform',os,...(args.includes('--offline')?['--offline']:[])]);
 const started=Date.now();
-run(process.execPath,[resolve(cli),'build','--bundles',os==='windows'?'nsis':'deb,appimage','--','--locked',...(args.includes('--offline')?['--offline']:[])],join(root,'native/matra'),{RUSTUP_TOOLCHAIN:'1.97.1'});
+run(process.execPath,[resolve(cli),'build','--bundles',os==='windows'?'nsis':'deb,appimage','--','--locked',...(args.includes('--offline')?['--offline']:[])],join(root,'native/matra'),{RUSTUP_TOOLCHAIN:'1.97.1',...(os==='linux'?{LDAI_RUNTIME_FILE:owned(join(env.CARGO_TARGET_DIR,'.tauri/runtime-x86_64'))}:{})});
 const out=owned(join(root,'artifacts/development',`${os}-x64`));mkdirSync(out,{recursive:true});
 const packages=[];
 function collect(folder){if(!existsSync(folder))return;for(const e of readdirSync(folder,{withFileTypes:true})){const p=join(folder,e.name);if(e.isDirectory())collect(p);else if(/0\.2\.0.*(setup\.exe|\.deb|\.AppImage)$/.test(e.name)&&statSync(p).mtimeMs>=started-2000){copyFileSync(p,join(out,e.name));packages.push(e.name);}}}

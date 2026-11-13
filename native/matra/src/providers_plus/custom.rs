@@ -72,6 +72,9 @@ pub struct CustomEndpoint {
     pub accent_color_hex: String,
     #[serde(default)]
     pub icon_preset: Option<String>,
+    /// A bounded, decoded PNG. Stored with this endpoint, never an external image URL.
+    #[serde(default)]
+    pub custom_icon_data_url: Option<String>,
     #[serde(default = "default_source")]
     pub usage_source: String,
     #[serde(default)]
@@ -123,8 +126,29 @@ fn amount_ok(value: Option<f64>) -> bool {
     value.is_none_or(|v| v.is_finite() && v >= 0.0)
 }
 
+pub const ICON_PRESETS: &[&str] = &["openai", "claude", "deepseek", "grok", "meta", "mistral", "ollama", "ollama-local", "lmstudio", "llamacpp", "qwen", "gemini-spark"];
+
+fn valid_icon(value: &str) -> bool {
+    let Some(encoded) = value.strip_prefix("data:image/png;base64,") else { return false; };
+    if encoded.is_empty() || encoded.len() > 350_000 || !encoded.bytes().all(|b| b.is_ascii_alphanumeric() || b"+/=".contains(&b)) { return false; }
+    let unpadded = encoded.trim_end_matches('=');
+    if encoded.len() % 4 != 0 || encoded.len() - unpadded.len() > 2 || unpadded.contains('=') { return false; }
+    let Some(bytes) = crate::antigravity::b64_decode(encoded) else { return false; };
+    if bytes.len() > 256 * 1024 { return false; }
+    let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    decoder.set_limits(png::Limits { bytes: 1024 * 1024 });
+    let Ok(mut reader) = decoder.read_info() else { return false; };
+    let info = reader.info();
+    if info.width == 0 || info.height == 0 || info.width > 256 || info.height > 256 || reader.output_buffer_size() > 512 * 1024 { return false; }
+    let mut output = vec![0; reader.output_buffer_size()];
+    reader.next_frame(&mut output).is_ok()
+}
+
 /// Normalises a draft and returns the first problem in words the settings form can show.
 pub fn validate(mut e: CustomEndpoint) -> Result<CustomEndpoint, String> {
+    if e.icon_preset.as_deref().is_some_and(|v| !ICON_PRESETS.contains(&v)) { return Err("Choose a supported endpoint icon.".into()); }
+    if e.custom_icon_data_url.as_deref().is_some_and(|v| !valid_icon(v)) { return Err("Choose a PNG icon of at most 256 pixels and 256 KiB.".into()); }
+    if e.accent_color_hex.len() != 7 || !e.accent_color_hex.starts_with('#') || !e.accent_color_hex[1..].bytes().all(|b| b.is_ascii_hexdigit()) { return Err("Choose a valid endpoint colour.".into()); }
     e.name = e.name.trim().to_string();
     if e.name.is_empty() || e.name.chars().count() > 120 || e.name.chars().any(char::is_control) {
         return Err("Give this endpoint a name of up to 120 characters.".into());
@@ -917,6 +941,14 @@ mod tests {
         serde_json::from_value(json!({"name":"E","base_url":base})).unwrap()
     }
 
+    #[test]
+    fn custom_icon_is_a_bounded_decodable_png_and_preset_colour_is_checked() {
+        let fixture:Value=serde_json::from_str(include_str!("../../fixtures/presentation.json")).unwrap();
+        let mut e=draft("https://example.test");e.custom_icon_data_url=fixture["icon"].as_str().map(str::to_owned);assert!(validate(e.clone()).is_ok());
+        for bad in ["https://example.test/icon.png","data:image/svg+xml,<svg/>","data:image/png;base64,AAAA"]{e.custom_icon_data_url=Some(bad.into());assert!(validate(e.clone()).is_err());}
+        e.custom_icon_data_url=None;e.icon_preset=Some("unknown".into());assert!(validate(e.clone()).is_err());
+        e.icon_preset=Some("meta".into());e.accent_color_hex="url(bad)".into();assert!(validate(e).is_err());
+    }
     #[test]
     fn a_key_in_json_never_reaches_the_record() {
         let e: CustomEndpoint = serde_json::from_value(json!({"name":"E","base_url":"https://x.example","apiKey":"secret","api_key":"secret"})).unwrap();

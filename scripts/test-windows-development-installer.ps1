@@ -106,10 +106,11 @@ if ((Get-ItemProperty -Path $debugKey -Name 'matra.exe' -ErrorAction SilentlyCon
     throw 'Refusing to overwrite existing WebView2 debugger configuration.'
 }
 New-Item -Path $debugKey -Force | Out-Null
-New-ItemProperty -Path $debugKey -Name 'matra.exe' -PropertyType String -Value '--remote-debugging-port=9337' | Out-Null
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9337'
+New-ItemProperty -Path $debugKey -Name 'matra.exe' -PropertyType String -Value '--remote-debugging-port=0' | Out-Null
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=0'
 try {
     $native = Start-Process -FilePath $exe -ArgumentList '--silent' -PassThru -RedirectStandardError (Join-Path $dataDir 'launch-stderr.log')
+    $env:MATRA_NATIVE_APP_PID = [string]$native.Id
     $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
     $elevated = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     Write-Output "Native fixture process inherits administrator elevation: $elevated"
@@ -129,13 +130,14 @@ try {
 } finally {
     Remove-ItemProperty -Path $debugKey -Name 'matra.exe'
     Remove-Item Env:\WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+    Remove-Item Env:\MATRA_NATIVE_APP_PID -ErrorAction SilentlyContinue
 }
 if ($uiFailed) {
     # Keep the failed gate, but collect independent lifecycle evidence in this
     # disposable account before failing the job. Never upload personal logs.
     $native.Refresh()
     Write-Output "UI launch PID=$($native.Id), exited=$($native.HasExited), exit=$($native.ExitCode)"
-    Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(matra|msedgewebview2)\.exe$' } | Select-Object Name, ProcessId, SessionId, CommandLine | Format-List
+    Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(matra|msedgewebview2)\.exe$' } | Select-Object Name, ProcessId, ParentProcessId, SessionId, CommandLine | Format-List
     foreach ($log in @('launch-stderr.log', 'run.log', 'install.log', 'doctor.log')) {
         $logPath = Join-Path $dataDir $log
         if (Test-Path $logPath) { Write-Output "Diagnostic: $log"; Get-Content -LiteralPath $logPath -Tail 80 }
