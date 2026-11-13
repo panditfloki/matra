@@ -26,10 +26,10 @@ pub struct Glyph {
     pub source: String,
 }
 
-pub const IDS: [&str; 12] = ["claude", "codex", "cursor", "grok", "gemini", "grokbot", "higgsfield", "deepseek", "ollama", "lmstudio", "omlx", "llamacpp"];
+pub const IDS: [&str; 19] = ["claude", "codex", "cursor", "grok", "gemini", "grokbot", "higgsfield", "deepseek", "ollama", "lmstudio", "omlx", "llamacpp", "minimax", "devin", "kiro", "amp", "apify", "kilo", "gemini-api"];
 
 /// Built-in artwork (@lobehub/icons-static-svg, MIT): the OpenAI mark for codex (matching upstream's glyph choice), the Antigravity mark for gemini
-const BUILTIN: [(&str, &str); 12] = [
+const BUILTIN: [(&str, &str); 18] = [
     ("claude", include_str!("../glyphs/claude.svg")),
     ("codex", include_str!("../glyphs/codex.svg")),
     ("cursor", include_str!("../glyphs/cursor.svg")),
@@ -42,6 +42,12 @@ const BUILTIN: [(&str, &str); 12] = [
     ("lmstudio", include_str!("../glyphs/lmstudio.svg")),
     ("omlx", include_str!("../glyphs/omlx.svg")),
     ("llamacpp", include_str!("../glyphs/llamacpp.svg")),
+    ("minimax", include_str!("../glyphs/minimax.svg")),
+    ("kiro", include_str!("../glyphs/kiro.svg")),
+    ("amp", include_str!("../glyphs/amp.svg")),
+    ("apify", include_str!("../glyphs/apify.svg")),
+    ("kilo", include_str!("../glyphs/kilo.svg")),
+    ("gemini-api", include_str!("../glyphs/gemini-api.svg")),
 
 ];
 
@@ -293,11 +299,21 @@ pub fn collect() -> HashMap<String, Glyph> {
             if let Some((_, svg)) = BUILTIN.iter().find(|(k, _)| *k == id) {
                 found = Some(Glyph {
                     kind: "svg".into(),
-                    svg: sanitize_svg(svg),
+                    svg: if matches!(id, "minimax" | "amp" | "apify" | "kilo") {
+                        sanitize_svg(svg).replace("fill=\"#000000\"", "fill=\"currentColor\"").replace("fill=\"#000\"", "fill=\"currentColor\"")
+                    } else { sanitize_svg(svg) },
                     source: "built-in · see PROVIDER-NOTICES.txt".into(),
                     ..Default::default()
                 });
             }
+        }
+        if found.is_none() && id == "devin" {
+            found = Some(Glyph {
+                kind: "template".into(),
+                url: format!("data:image/png;base64,{}", b64(include_bytes!("../glyphs/devin.png"))),
+                source: "built-in · preserved native Mac asset".into(),
+                ..Default::default()
+            });
         }
         if found.is_none() {
             for exe in app_candidates(id) {

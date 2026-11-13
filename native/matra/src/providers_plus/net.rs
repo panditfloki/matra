@@ -58,9 +58,13 @@ pub fn send(
         request = request.set(name, value);
     }
     let result = match body {
-        Some(text) => request
-            .set("Content-Type", "application/json")
-            .send_string(text),
+        Some(text) => {
+            // Kiro's AWS JSON protocol requires its declared media type.
+            if !headers.iter().any(|(name, _)| name.eq_ignore_ascii_case("Content-Type")) {
+                request = request.set("Content-Type", "application/json");
+            }
+            request.send_string(text)
+        },
         None => request.call(),
     };
     let response = match result {

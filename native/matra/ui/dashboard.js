@@ -61,6 +61,13 @@
     const ws = snap.windows; if (!ws.length) return null;
     const byId = x => ws.find(w => w.id === x) || null;
     if (id === 'claude') return byId('session') || byId('five_hour') || byId('seven_day') || byId('weekly_all') || byId('weekly');
+    if (id === 'minimax') return byId('session');
+    if (id === 'devin') return byId('daily') || byId('weekly') || byId('overage');
+    if (id === 'kiro') return byId('credits');
+    if (id === 'amp') return byId('agent') || byId('free');
+    if (id === 'apify') return byId('monthly');
+    if (id === 'kilo') return ws[0];
+    if (id === 'gemini-api') return byId('month');
     if (id === 'glm') return byId('session');
     if (id === 'codex') return byId('primary');
     if (id === 'cursor') return byId('included') || byId('api');
@@ -79,6 +86,8 @@
     const byId = x => ws.find(w => w.id === x) || null;
     if (id === 'claude') return byId('seven_day') || byId('weekly_all') || byId('weekly');
     if (id === 'codex') return byId('secondary');
+    if (['kiro','amp','apify','gemini-api'].includes(id)) return null;
+    if(id==='kilo') return ws.length>1 ? ws[1] : null;
     if (id === 'cursor' || id === 'grok' || id === 'copilot') return null;
     if (id === 'glm' || ['opencode', 'commandcode', 'kimi'].includes(id)) return byId('weekly');
     if (id !== 'gemini') return byId('weekly') || byId('seven_day');
@@ -172,6 +181,10 @@
     if (g && g.kind === 'svg' && typeof g.svg === 'string' && /<svg[\s>]/i.test(g.svg)) {
       const svg = /xmlns=/.test(g.svg) ? g.svg : g.svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
       const url = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+      return `<span class="dash-glyph mask" aria-hidden="true" style="${esc(`-webkit-mask-image:${url};mask-image:${url}`)}"></span>`;
+    }
+    if (g && g.kind === 'template' && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(g.url || '')) {
+      const url = `url("${g.url}")`;
       return `<span class="dash-glyph mask" aria-hidden="true" style="${esc(`-webkit-mask-image:${url};mask-image:${url}`)}"></span>`;
     }
     if (g && typeof g.url === 'string' && /^data:image\/[a-z0-9.+-]+[;,]/i.test(g.url)) return `<span class="dash-glyph"><img src="${esc(g.url)}" alt=""></span>`;

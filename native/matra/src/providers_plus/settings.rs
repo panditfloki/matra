@@ -18,6 +18,20 @@ pub struct Settings {
     pub endpoints: BTreeMap<String, String>,
     #[serde(default)]
     pub custom: Vec<CustomEndpoint>,
+    #[serde(default)]
+    pub fixed: BTreeMap<String, FixedOptions>,
+}
+
+/// Non-secret choices only. Credentials remain in the platform's isolated secure vault.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FixedOptions {
+    pub region: String,
+    pub auth: String,
+    pub monthly_token_budget: Option<u64>,
+}
+impl Default for FixedOptions {
+    fn default() -> Self { Self { region: "international".into(), auth: "key".into(), monthly_token_budget: None } }
 }
 
 fn atomic(path: &Path, text: &str) -> std::io::Result<()> {

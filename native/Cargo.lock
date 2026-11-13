@@ -2225,6 +2225,7 @@ dependencies = [
 name = "matra"
 version = "0.2.0"
 dependencies = [
+ "regex",
  "chrono",
  "dirs 5.0.1",
  "matra-core",

@@ -1082,7 +1082,7 @@ mod tests {
     }
 
     fn window(id: &str, label: &str, used: f64, resets_at: Option<u64>) -> LimitWindow {
-        LimitWindow { id: id.into(), label: label.into(), used, resets_at, count: None, derived: false, group: None }
+        LimitWindow { id: id.into(), label: label.into(), used, resets_at, count: None, derived: false, group: None, ..Default::default() }
     }
 
     fn reading(id: &str, fetched_at: u64, windows: Vec<LimitWindow>) -> ProviderReading {

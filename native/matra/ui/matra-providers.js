@@ -28,6 +28,9 @@
     const toggle = `<input type="checkbox" data-source-toggle="${esc(info.id)}" ${info.enabled ? 'checked' : ''} aria-label="Enable ${esc(info.name)}">`;
     let html = `<div class="acct src-form" data-source="${esc(info.id)}"><div class="acct-line"><strong>${esc(info.name)}</strong>${toggle}</div>`;
     if (info.guidance) html += `<p class="cap">${esc(info.guidance)}</p>`;
+    const options=info.options || {};
+    if(info.id==='minimax') html+=`<div class="acct-sub"><label>Region and authentication</label><span class="src-inputs"><select name="region" aria-label="MiniMax region"><option value="international" ${options.region!=='china'?'selected':''}>International</option><option value="china" ${options.region==='china'?'selected':''}>China</option></select><select name="auth" aria-label="MiniMax authentication"><option value="key" ${options.auth!=='cookie'?'selected':''}>Coding Plan key</option><option value="cookie" ${options.auth==='cookie'?'selected':''}>Console cookie</option></select>${button('options','Save choices')}</span></div>`;
+    if(info.id==='gemini-api') html+=`<div class="acct-sub"><label>Personal monthly token budget</label><span class="src-inputs"><input type="number" min="0" max="1000000000000000" step="1" name="monthly_token_budget" value="${esc(options.monthly_token_budget ?? '')}" placeholder="No budget" aria-label="Gemini API monthly token budget">${button('options','Save budget')}</span></div>`;
     if (info.endpoint_scope !== 'none') html += `<div class="acct-sub"><label>Server address</label><span class="src-inputs"><input name="endpoint" value="${esc(info.endpoint)}" aria-label="${esc(info.name)} server address">${button('endpoint','Save address')}</span></div>`;
     if (info.accepts_secret) html += `<div class="acct-sub"><label>${esc(info.secret_label || 'API key')}</label><span class="src-inputs"><input type="password" name="secret" value="" autocomplete="off" placeholder="${info.has_stored_secret ? 'Stored in Windows Credential Manager' : 'Enter a key'}" aria-label="${esc(info.secret_label || 'API key')}">${button('key','Save key')}${info.has_stored_secret ? button('clear-key','Remove key') : ''}</span></div>`;
     if (info.has_env_secret) html += '<div class="cap">A key is available from your environment.</div>';
@@ -35,6 +38,7 @@
     return html;
   }
   function bridgeHtml(status = {}) {
+    status = status || {};
     return `<div class="sec">OpenCode activity bridge</div><div class="group"><div class="item"><span>${status.installed ? 'Bridge installed' : 'Bridge not installed'}</span>${status.installed && status.owned ? button('bridge-remove','Remove') : button('bridge-install','Install')}</div><div class="item cap">Nothing is installed until you press Install. The bridge records activity metadata, without prompts or answers. Restart OpenCode after a change.</div><div class="item cap">${esc(status.location || '')}${status.opencode_found === false ? '<br>OpenCode was not found on this PC.' : ''}</div></div>`;
   }
   function mount(host, {invoke,listen,onChange = () => {}}) {
@@ -119,6 +123,13 @@
       const value=source?.querySelector('[name="endpoint"]')?.value;
       const key=source?.querySelector('[name="secret"]')?.value;
       action(async()=>{
+        if(cmd==='options') {
+          const previous=state.registry.find(i=>i.id===id)?.options || {region:'international',auth:'key',monthly_token_budget:null};
+          const options={...previous};
+          if(id==='minimax'){options.region=source.querySelector('[name="region"]').value;options.auth=source.querySelector('[name="auth"]').value;}
+          if(id==='gemini-api'){const raw=source.querySelector('[name="monthly_token_budget"]').value;options.monthly_token_budget=raw===''?null:Number(raw);if(options.monthly_token_budget!=null&&(!Number.isSafeInteger(options.monthly_token_budget)||options.monthly_token_budget<0||options.monthly_token_budget>1e15))throw new Error('Enter a whole token budget between 0 and 1,000,000,000,000,000.');}
+          await invoke('set_fixed_provider_options',{id,options});
+        }
         if(cmd==='endpoint') await invoke('set_parity_endpoint',{id,endpoint:value || null});
         if(cmd==='key') {if(!key?.trim()) throw new Error('Enter a key first.');await invoke('set_provider_secret',{id,secret:key});}
         if(cmd==='clear-key') await invoke('clear_provider_secret',{id});

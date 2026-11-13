@@ -5,6 +5,7 @@
 use super::bridge;
 use super::custom::{self, CustomEndpoint, Detection, Mapping, Preset, TestResult};
 use super::deepseek;
+use super::fixed;
 use super::grokbot;
 use super::higgsfield;
 use super::local::{self, OllamaCloud, OmlxSession};
@@ -19,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-pub const FIXED_IDS: [&str; 7] = ["grokbot", "higgsfield", "deepseek", "ollama", "lmstudio", "omlx", "llamacpp"];
+pub const FIXED_IDS: [&str; 14] = ["grokbot", "higgsfield", "deepseek", "minimax", "devin", "kiro", "amp", "apify", "kilo", "gemini-api", "ollama", "lmstudio", "omlx", "llamacpp"];
 const MAX_CONCURRENT: usize = 8;
 
 pub const SECRETS_AVAILABLE: bool = super::vault::AVAILABLE;
@@ -39,6 +40,13 @@ pub struct Urls {
     pub ollama_cloud: String,
     pub deepseek: String,
     pub higgsfield: String,
+    pub amp: String,
+    pub apify: String,
+    pub devin: String,
+    pub kilo: String,
+    pub kiro_us: String,
+    pub kiro_eu: String,
+    pub minimax: fixed::minimax::Targets,
 }
 
 impl Default for Urls {
@@ -47,6 +55,13 @@ impl Default for Urls {
             ollama_cloud: local::OLLAMA_CLOUD.into(),
             deepseek: deepseek::BALANCE_URL.into(),
             higgsfield: higgsfield::GATEWAY.into(),
+            amp: fixed::amp::URL.into(),
+            apify: fixed::APIFY_URL.into(),
+            devin: fixed::DEVIN_URL.into(),
+            kilo: fixed::KILO_URL.into(),
+            kiro_us: "https://codewhisperer.us-east-1.amazonaws.com/".into(),
+            kiro_eu: "https://q.eu-central-1.amazonaws.com/".into(),
+            minimax: fixed::minimax::Targets::default(),
         }
     }
 }
@@ -73,6 +88,13 @@ fn fixed_name(id: &str) -> &'static str {
         "grokbot" => "Grok Bot",
         "higgsfield" => "Higgsfield",
         "deepseek" => "DeepSeek",
+        "minimax" => "MiniMax",
+        "devin" => "Devin",
+        "kiro" => "Kiro",
+        "amp" => "Amp",
+        "apify" => "Apify",
+        "kilo" => "Kilo",
+        "gemini-api" => "Gemini API",
         "ollama" => "Ollama",
         "lmstudio" => "LM Studio",
         "omlx" => "oMLX",
@@ -103,6 +125,8 @@ fn env_names(id: &str) -> &'static [&'static str] {
     match id {
         "higgsfield" => &higgsfield::ENV_KEYS,
         "deepseek" => &[deepseek::ENV_KEY],
+        "minimax" => &["MiniMax_CODING_API_KEY", "MINIMAX_CODING_API_KEY", "MINIMAX_API_KEY"],
+        "apify" => &["APIFY_TOKEN"],
         "ollama" => &["OLLAMA_API_KEY"],
         "lmstudio" => &["LM_API_TOKEN"],
         "omlx" => &["OMLX_API_KEY"],
@@ -115,7 +139,9 @@ fn credential_kind(id: &str) -> &'static str {
     match id {
         "grokbot" => "borrowed",
         "higgsfield" => "borrowed",
-        "deepseek" => "required",
+        "deepseek" | "minimax" => "required",
+        "amp" | "kilo" | "kiro" | "devin" => "borrowed",
+        "gemini-api" => "none",
         id if id.starts_with("custom:") => "optional",
         _ => "optional",
     }
@@ -125,6 +151,8 @@ fn secret_label(id: &str) -> Option<&'static str> {
     match id {
         "higgsfield" => Some("Higgsfield API key"),
         "deepseek" => Some("DeepSeek API key"),
+        "minimax" => Some("MiniMax Coding Plan key"),
+        "apify" => Some("Apify API token"),
         "ollama" => Some("Ollama API key"),
         "lmstudio" => Some("LM Studio API token"),
         "omlx" => Some("oMLX API key"),
@@ -135,6 +163,13 @@ fn secret_label(id: &str) -> Option<&'static str> {
 
 fn guidance(id: &str) -> &'static str {
     match id {
+        "minimax" => "Reads Token Plan / Coding Plan remains for the selected region. A console cookie stays on that region; pay-as-you-go keys do not expose plan usage.",
+        "devin" => "Reads Devin Desktop's existing login, then Devin CLI credentials. Run devin auth login if needed. This app never refreshes its token.",
+        "kiro" => "Runs kiro-cli chat --no-interactive /usage. Install Kiro CLI and run kiro-cli login. API enrichment is optional and never replaces a failed CLI reading.",
+        "amp" => "Reads the ampcode.com login in Amp CLI's secrets.json. Run amp login; credentials for other servers are ignored.",
+        "apify" => "Uses APIFY_TOKEN, a token saved here, or the CLI's plaintext auth.json. For a CLI login held in its private keyring, paste a token with account-limit access.",
+        "kilo" => "Reads Kilo CLI's auth.json and selected organization. OAuth coding plans and API-key credit balances remain distinct.",
+        "gemini-api" => "Adds Gemini CLI, OpenCode and Hermes local token histories. No API key is read. An optional monthly budget is your own estimate, not a Google quota.",
         "grokbot" => "Reads the weekly usage Grok Bot keeps on this PC. It only updates while Grok Bot runs.",
         "higgsfield" => "Uses the Higgsfield CLI's sign-in when installed, or a key from HIGGSFIELD_API_KEY.",
         "deepseek" => "Reads your balance with a key from DEEPSEEK_API_KEY. The public API reports no spend or allowance, so there is no percentage.",
@@ -150,7 +185,8 @@ fn poll_ms(id: &str, settings: &Settings) -> u64 {
     match id {
         "lmstudio" | "omlx" | "llamacpp" | "ollama" => 10_000,
         "grokbot" => 60_000,
-        "higgsfield" | "deepseek" => 300_000,
+        "higgsfield" | "deepseek" | "minimax" | "devin" | "kiro" | "amp" | "apify" | "kilo" => 300_000,
+        "gemini-api" => 60_000,
         _ => settings
             .custom
             .iter()
@@ -183,6 +219,7 @@ pub struct ProviderInfo {
     pub has_env_secret: bool,
     pub secret_label: Option<String>,
     pub guidance: String,
+    pub options: settings::FixedOptions,
 }
 
 #[derive(Default)]
@@ -193,6 +230,7 @@ struct Slot {
     generation: u64,
     in_flight: bool,
     rate_limits: u32,
+    credential_scope: Option<String>,
 }
 
 struct State {
@@ -368,6 +406,7 @@ impl Engine {
                 has_env_secret: false,
                 secret_label: Some("API key".into()),
                 guidance: String::new(),
+                options: settings::FixedOptions::default(),
             });
         }
         if !FIXED_IDS.contains(&id) {
@@ -390,9 +429,14 @@ impl Engine {
             credential: credential_kind(id).into(),
             accepts_secret: SECRETS_AVAILABLE && secret_label(id).is_some(),
             has_stored_secret: stored_key(&self.key_id(id, settings)).is_some(),
-            has_env_secret: names.iter().any(|n| self.env.var(n).is_some()),
-            secret_label: secret_label(id).map(str::to_owned),
+            has_env_secret: if id == "minimax" && settings.fixed.get(id).is_some_and(|o|o.auth == "cookie") {
+                ["MINIMAX_COOKIE", "MINIMAX_COOKIE_HEADER"].iter().any(|n|self.env.var(n).is_some())
+            } else { names.iter().any(|n| self.env.var(n).is_some()) },
+            secret_label: if id == "minimax" && settings.fixed.get(id).is_some_and(|o|o.auth == "cookie") {
+                Some("MiniMax console Cookie header".into())
+            } else { secret_label(id).map(str::to_owned) },
             guidance: guidance(id).to_string(),
+            options: settings.fixed.get(id).cloned().unwrap_or_default(),
         })
     }
 
@@ -477,14 +521,41 @@ impl Engine {
         Ok(info)
     }
 
+    pub fn set_fixed_options(&self, id: &str, options: settings::FixedOptions) -> Result<ProviderInfo, String> {
+        if !matches!(id, "minimax" | "gemini-api") { return Err("This provider has no options to set.".into()); }
+        if !matches!(options.region.as_str(), "international" | "china") || !matches!(options.auth.as_str(), "key" | "cookie")
+            || options.monthly_token_budget.is_some_and(|v|v > 1_000_000_000_000_000) {
+            return Err("Choose a supported region, authentication type and finite token budget.".into());
+        }
+        let info = {
+            let mut state = self.state.lock().unwrap();
+            let mut next = state.settings.clone(); next.fixed.insert(id.into(), options);
+            self.persist(&mut state, next)?;
+            let on = state.settings.enabled.iter().any(|e|e == id);
+            Self::reset_slot(&mut state, id, on, fixed_name(id));
+            self.info(id, &state.settings).ok_or("Unknown provider.")?
+        }; self.changed(); Ok(info)
+    }
+
     pub fn set_secret(&self, id: &str, secret: &str) -> Result<ProviderInfo, String> {
         if !is_parity_id(id) {
             return Err("Unknown provider.".into());
         }
-        let secret = net::clean_secret(secret).ok_or("That key is empty or contains invalid characters.")?;
+        let secret = {
+            let state = self.state.lock().unwrap();
+            if custom_id(id).is_none() && secret_label(id).is_none() {
+                return Err("This source uses its own login or local history and accepts no pasted key.".into());
+            }
+            if id == "minimax" && state.settings.fixed.get(id).is_some_and(|o|o.auth == "cookie") {
+                fixed::minimax::cookie(secret).ok_or("Enter a Cookie header or name=value pairs, not a browser cookie file.")?
+            } else { net::clean_secret(secret).ok_or("That key is empty or contains invalid characters.")? }
+        };
         {
             let state = self.state.lock().unwrap();
             self.info(id, &state.settings).ok_or("Unknown provider.")?;
+            let secret = if id == "minimax" && state.settings.fixed.get(id).is_some_and(|o|o.auth == "cookie") {
+                fixed::minimax::cookie(&secret).ok_or("Enter a Cookie header or name=value pairs, not a browser cookie file.")?
+            } else { secret.clone() };
             store_key(&self.key_id(id, &state.settings), &secret)?;
         }
         self.after_secret_change(id)
@@ -722,6 +793,9 @@ impl Engine {
     // MARK: Polling
 
     fn key_id(&self, id: &str, settings: &Settings) -> String {
+        if id == "minimax" { let options = settings.fixed.get(id).cloned().unwrap_or_default();
+            return format!("minimax:{}:{}", options.region, options.auth); }
+
         if let Some(rest) = custom_id(id) {
             if let Some(endpoint) = settings.custom.iter().find(|e| e.id == rest) { return custom_key_id(endpoint); }
         }
@@ -735,7 +809,19 @@ impl Engine {
         env_names(id).iter().find_map(|n| self.env.var(n)).or_else(|| stored_key(&self.key_id(id, settings)))
     }
 
-    fn read(&self, id: &str, settings: &Settings, now: u64) -> Result<Reading, Failure> {
+    /// A borrowed login can rotate between polls. Never keep account A's stale reading after
+    /// a credential/organization change to B. The fingerprint is process-local and contains no token.
+    fn account_scope(&self, id: &str, generation: u64, scope: String) {
+        let mut state = self.state.lock().unwrap();
+        if let Some(slot) = state.slots.get_mut(id) {
+            if slot.generation == generation && slot.credential_scope.as_deref() != Some(scope.as_str()) {
+                slot.snapshot = checking(id, fixed_name(id));
+                slot.credential_scope = Some(scope);
+            }
+        }
+    }
+
+    fn read(&self, id: &str, generation: u64, settings: &Settings, now: u64) -> Result<Reading, Failure> {
         let env = &self.env;
         let endpoint = || self.resolved_endpoint(id, settings).unwrap_or_default();
         match id {
@@ -762,6 +848,24 @@ impl Engine {
                 higgsfield::read(binary, token, &env.urls.higgsfield, None)
             }
             "deepseek" => deepseek::read(&env.urls.deepseek, self.key_for(id, settings), now),
+            "amp" => { let c = fixed::amp_credential(env)?; self.account_scope(id, generation, c.scope()); fixed::amp::read(&env.urls.amp, &c) },
+            "apify" => { let c = fixed::apify_credential(env, self.key_for(id, settings))?; self.account_scope(id, generation, c.scope()); fixed::apify_read(&env.urls.apify, &c) },
+            "devin" => { let c = fixed::devin_credential(env)?; self.account_scope(id, generation, c.scope()); fixed::devin_read(&env.urls.devin, &c) },
+            "kilo" => { let c = fixed::kilo_credential(env)?; self.account_scope(id, generation, c.scope()); fixed::kilo_read(&env.urls.kilo, &c) },
+            "kiro" => { if let Some((token, arn)) = fixed::kiro::credential(env) {
+                self.account_scope(id, generation, fixed::Credential { token, organization: Some(arn), source: "Kiro CLI", plan: None }.scope());
+            } else { self.account_scope(id, generation, "cli-only".into()); }
+                fixed::kiro::read(env, now)
+            },
+            "gemini-api" => fixed::gemini::read(env, settings.fixed.get(id).and_then(|o|o.monthly_token_budget), now),
+            "minimax" => {
+                let options = settings.fixed.get(id).cloned().unwrap_or_default();
+                let key = if options.auth == "key" { self.key_for(id, settings) } else { None };
+                let cookie = ["MINIMAX_COOKIE", "MINIMAX_COOKIE_HEADER"].iter().find_map(|n|self.env.var(n))
+                    .or_else(||stored_key(&format!("minimax:{}:cookie", options.region)));
+                self.account_scope(id, generation, fixed::Credential { token: format!("{}:{}", key.as_deref().unwrap_or(""), cookie.as_deref().unwrap_or("")), organization: Some(options.region.clone()), source: "MiniMax", plan: None }.scope());
+                fixed::minimax::read(&env.urls.minimax, &options.region, key, cookie, now)
+            },
             "ollama" => {
                 let key = self.key_for(id, settings);
                 // Taken out rather than held: a settings change must not wait on this network call.
@@ -833,7 +937,7 @@ impl Engine {
     pub fn run_job(&self, id: &str, generation: u64) {
         let now = now_ms();
         let settings = self.state.lock().unwrap().settings.clone();
-        let result = self.read(id, &settings, now);
+        let result = self.read(id, generation, &settings, now);
         let changed = self.apply(id, generation, result, &settings, now);
         if changed {
             self.changed();
@@ -968,6 +1072,7 @@ mod tests {
                 ollama_cloud: "http://127.0.0.1:1/usage".into(),
                 deepseek: "http://127.0.0.1:1/balance".into(),
                 higgsfield: "http://127.0.0.1:1/ws".into(),
+                ..Default::default()
             },
         }
     }
@@ -1268,5 +1373,93 @@ mod tests {
     #[test]
     fn utc_day_is_a_plain_date() {
         assert_eq!(utc_day(1_792_980_000_000), "2026-10-26");
+    }
+
+    #[test]
+    fn fixed_providers_are_registered_and_options_round_trip_without_secrets() {
+        let dir = temp("fixed-options");
+        let engine = Engine::new(env(&dir, &[("MINIMAX_COOKIE", "session=synthetic-cookie")]));
+        for id in ["minimax", "devin", "kiro", "amp", "apify", "kilo", "gemini-api"] {
+            let info = engine.registry().into_iter().find(|p| p.id == id).unwrap();
+            assert!(!info.enabled);
+            assert_eq!(info.kind, USAGE);
+            assert!(!info.guidance.is_empty());
+        }
+        let options = settings::FixedOptions { region: "china".into(), auth: "cookie".into(), ..Default::default() };
+        let info = engine.set_fixed_options("minimax", options.clone()).unwrap();
+        assert!(info.has_env_secret);
+        assert_eq!(info.secret_label.as_deref(), Some("MiniMax console Cookie header"));
+        assert_eq!(engine.key_id("minimax", &engine.state.lock().unwrap().settings), "minimax:china:cookie");
+        let mut next = options.clone(); next.auth = "key".into();
+        engine.set_fixed_options("minimax", next).unwrap();
+        assert_eq!(engine.key_id("minimax", &engine.state.lock().unwrap().settings), "minimax:china:key");
+        let budget = settings::FixedOptions { monthly_token_budget: Some(12500), ..Default::default() };
+        engine.set_fixed_options("gemini-api", budget.clone()).unwrap();
+        let again = Engine::new(env(&dir, &[]));
+        assert_eq!(again.registry().into_iter().find(|p|p.id=="gemini-api").unwrap().options, budget);
+        assert!(engine.set_fixed_options("amp", options.clone()).is_err());
+        assert!(engine.set_fixed_options("minimax", settings::FixedOptions {region:"unexpected-host".into(),..options}).is_err());
+        for id in ["amp", "devin", "kiro", "kilo", "gemini-api"] { assert!(engine.set_secret(id,"synthetic").is_err()); }
+        let text = std::fs::read_to_string(dir.join("settings/provider-settings.json")).unwrap();
+        assert!(!text.contains("synthetic"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn fixed_readers_are_wired_to_production_polling() {
+        let dir = temp("fixed-poll");
+        let server = testkit::serve(vec![
+            ("/minimax",testkit::ok(r#"{"model_remains":[{"model_name":"general","current_interval_remaining_percent":75}]}"#)),
+            ("/apify",testkit::ok(r#"{"data":{"current":{"monthlyUsageUsd":0},"limits":{"maxMonthlyUsageUsd":5}}}"#)),
+            ("/amp",testkit::ok(r#"{"result":{"displayText":"Amp Free: $5/$10 remaining (replenishes +$1/hour)"}}"#)),
+            ("/devin",testkit::ok(r#"{"userStatus":{"planStatus":{"dailyQuotaRemainingPercent":75}}}"#)),
+            ("listSubscriptions",testkit::ok(r#"{"result":{"data":[]}}"#)),
+            ("/balance",testkit::ok(r#"{"balance":0}"#)),
+        ]);
+        let mut e=env(&dir,&[("MiniMax_CODING_API_KEY","synthetic-plan-key"),("APIFY_TOKEN","synthetic-apify")]);
+        e.urls.minimax.international=vec![format!("{}/minimax",server.base)];
+        e.urls.apify=format!("{}/apify",server.base);e.urls.amp=format!("{}/amp",server.base);
+        e.urls.devin=format!("{}/devin",server.base);e.urls.kilo=server.base.clone();
+        for (path,body) in [
+            ("home/.local/share/amp/secrets.json",r#"{"apiKey@https://ampcode.com/":"synthetic-amp"}"#),
+            ("home/.local/share/kilo/auth.json",r#"{"kilo":{"type":"api","key":"synthetic-kilo"}}"#),
+            ("home/.local/share/devin/credentials.toml","windsurf_api_key = \"synthetic-devin\""),
+            ("home/.gemini/tmp/project/chats/a.jsonl","{\"sessionId\":\"empty\"}"),
+        ] {
+            let path=dir.join(path);std::fs::create_dir_all(path.parent().unwrap()).unwrap();std::fs::write(path,body).unwrap();
+        }
+        let engine=Engine::new(e);
+        for id in ["minimax","apify","amp","devin","kilo","gemini-api"] {
+            engine.set_enabled(id,true).unwrap();run(&engine,id);let snap=engine.snapshot(id);
+            assert_eq!(snap.status,"ok","{id}: {}",snap.note);assert!(!snap.windows.is_empty(),"{id}");
+        }
+        assert_eq!(server.count(),6);
+        let ui=serde_json::to_string(&engine.usage_map()).unwrap();assert!(!ui.contains("synthetic-"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn account_change_clears_old_cached_reading_and_late_jobs_cannot_reenable_a_source() {
+        let dir=temp("fixed-account");
+        let server=testkit::serve(vec![("/",testkit::response("503 Service Unavailable","",""))]);
+        let mut e=env(&dir,&[]);e.urls.amp=server.base;
+        let path=dir.join("home/.local/share/amp/secrets.json");std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path,r#"{"apiKey@https://ampcode.com/":"account-a"}"#).unwrap();
+        let engine=Engine::new(e);engine.set_enabled("amp",true).unwrap();
+        let (_,generation)=engine.due(now_ms()).into_iter().find(|(id,_)|id=="amp").unwrap();
+        let settings=engine.state.lock().unwrap().settings.clone();
+        let _=engine.read("amp",generation,&settings,now_ms());
+        let reading=Reading {windows:vec![super::super::model::fraction_window("free","Free allowance",0.25,None)],..Default::default()};
+        engine.apply("amp",generation,Ok(reading.clone()),&settings,now_ms());
+        let result=engine.read("amp",generation,&settings,now_ms());engine.apply("amp",generation,result,&settings,now_ms());
+        assert_eq!(engine.snapshot("amp").status,"stale");assert_eq!(engine.snapshot("amp").windows.len(),1);
+        std::fs::write(&path,r#"{"apiKey@https://ampcode.com/":"account-b"}"#).unwrap();
+        let result=engine.read("amp",generation,&settings,now_ms());engine.apply("amp",generation,result,&settings,now_ms());
+        assert_eq!(engine.snapshot("amp").status,"error");assert!(engine.snapshot("amp").windows.is_empty());
+        engine.set_enabled("amp",false).unwrap();
+        engine.account_scope("amp",generation,"late-account".into());
+        engine.apply("amp",generation,Ok(reading),&settings,now_ms());
+        assert_eq!(engine.snapshot("amp").status,"absent");
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

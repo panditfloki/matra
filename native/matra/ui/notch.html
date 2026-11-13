@@ -1026,6 +1026,7 @@ function workState(id){
 }
 function glyphHtml(p,small){
   const g=glyphs[p.base||p.id];
+  if(g&&g.kind==='template'&&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(g.url||'')) return `<span class="mark" style="background:currentColor;-webkit-mask:url('${g.url}') center/contain no-repeat;mask:url('${g.url}') center/contain no-repeat"></span>`;
   if(g&&g.kind==='svg'&&g.svg) return `<span class="mark">${g.svg}</span>`;
   if(g&&g.url) return `<img class="${g.kind}" src="${g.url}" alt="${esc(p.name)}"${small?' style="width:16px;height:16px;border-radius:4px"':''}>`;
   return small?'':p.glyph; // fallback letter
@@ -1111,6 +1112,13 @@ function headlineOf(snap,id){
   if(id==='codex') return byId('primary');
   if(id==='cursor') return byId('included')||byId('api');
   if(id==='grok') return byId('credits')||ws[0];
+  if(id==='minimax') return byId('session');
+  if(id==='devin') return byId('daily')||byId('weekly')||byId('overage');
+  if(id==='kiro') return byId('credits');
+  if(id==='amp') return byId('agent')||byId('free');
+  if(id==='apify') return byId('monthly');
+  if(id==='kilo') return ws[0];
+  if(id==='gemini-api') return byId('month');
   if(id==='glm') return byId('session');
   if(id==='copilot') return byId('premium_interactions')||ws[0];
   if(id==='opencode'||id==='kimi') return byId('rolling');
@@ -1129,6 +1137,8 @@ function weeklyOf(snap,id){
   const byId=x=>ws.find(w=>w.id===x)||null;
   if(id==='claude') return byId('seven_day')||byId('weekly_all')||byId('weekly');
   if(id==='codex') return byId('secondary');
+  if(['kiro','amp','apify','gemini-api'].includes(id)) return null;
+  if(id==='kilo') return ws.length>1?ws[1]:null;
   if(id==='cursor') return null;
   if(id==='grok') return null; // the credits window is already the weekly one
   if(id==='glm') return byId('weekly');
@@ -1254,7 +1264,7 @@ function renderRing(){
       else activity.innerHTML='';
     }
     if(p.snap.status==='needsAuth'||p.snap.status==='none') pct.textContent='—';
-    else if(h && h.count!=null) pct.textContent=(p.snap.kind?'':'~')+h.count; // a source that reports its own count is exact
+    else if(h && h.count!=null) pct.textContent=p.snap.details?.texts?.[h.id]?.used_text || ((h.derived?'~':p.snap.kind?'':'~')+h.count); // a source that reports its own count is exact
     else if(available) pct.textContent=(h.derived?'~':'')+pctText(MatraParity.shown(h.used,parity.shows_remaining))+'%';
     else pct.textContent=p.snap.windows.length?'—':'…'; // its declared window is missing: a dash, not a wait
     glyph.classList.toggle('dim', !!(h && h.used>=1));
@@ -1458,9 +1468,10 @@ function renderCard(){
       if(w.count!=null){
         // Only Antigravity's counts are requests today. A source that reports its own kind names the
         // count in its label: models loaded, a balance, tokens.
-        const counted=snap.kind?esc(String(w.count)):w.count>0?`~${w.count} ${textCopy(w.count===1?'request today':'requests today')}`:textCopy('no requests today');
+        const texts=snap.details?.texts?.[w.id];
+        const counted=texts?.used_text?esc(texts.used_text):snap.kind?esc((w.derived?'~':'')+String(w.count)):w.count>0?`~${w.count} ${textCopy(w.count===1?'request today':'requests today')}`:textCopy('no requests today');
         html+=`<div class="win"><div class="w-row"><span class="w-label">${esc(textCopy(w.label))}</span></div>
-          <div class="w-used">${counted}</div></div>`;
+          <div class="w-used">${counted}${texts?.detail?` · ${esc(texts.detail)}`:''}</div></div>`;
         continue;
       }
       html+=`<div class="win">

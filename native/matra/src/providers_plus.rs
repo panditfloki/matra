@@ -8,6 +8,7 @@ pub mod custom;
 pub mod deepseek;
 pub mod engine;
 pub mod grokbot;
+pub mod fixed;
 pub mod higgsfield;
 pub mod local;
 pub mod metrics;
@@ -106,6 +107,11 @@ pub fn set_parity_provider(id: String, on: bool) -> Result<ProviderInfo, String>
 pub fn set_parity_endpoint(id: String, endpoint: Option<String>) -> Result<ProviderInfo, String> {
     crate::platform::require_live("Provider access and integration changes")?;
     engine().set_endpoint(&id, endpoint.as_deref())
+}
+
+#[tauri::command]
+pub fn set_fixed_provider_options(id: String, options: settings::FixedOptions) -> Result<ProviderInfo, String> {
+    engine().set_fixed_options(&id, options)
 }
 
 #[tauri::command]
