@@ -55,7 +55,7 @@ def main():
                CFFIXED_USER_HOME=str(paths['runtime']), XDG_CACHE_HOME=str(paths['package-cache']),
                CLANG_MODULE_CACHE_PATH=str(paths['modules']),
                SWIFTPM_MODULECACHE_OVERRIDE=str(paths['modules']),
-               MATRA_TEST_WORKSPACE=str(workspace))
+               MATRA_TEST_WORKSPACE=str(workspace), MATRA_IN_MEMORY_DEFAULTS="1")
     # Copy before SwiftPM can mutate the cache. Rewrite only copied absolute paths.
     source_packages = args.packages.resolve(strict=True)
     if source_packages != paths['packages'].resolve() and not (paths['packages'] / 'workspace-state.json').exists():
@@ -91,7 +91,7 @@ def main():
     action = document.getroot().find('TestAction')
     action.set('shouldUseLaunchSchemeArgsEnv', 'NO')
     variables = ET.SubElement(action, 'EnvironmentVariables')
-    for key in ['TMPDIR', 'CFFIXED_USER_HOME', 'MATRA_TEST_WORKSPACE']:
+    for key in ['TMPDIR', 'CFFIXED_USER_HOME', 'MATRA_TEST_WORKSPACE', 'MATRA_IN_MEMORY_DEFAULTS']:
         env['TEST_RUNNER_' + key] = env[key]
         for name in (key, 'TEST_RUNNER_' + key):
             ET.SubElement(variables, 'EnvironmentVariable', key=name, value=env[key], isEnabled='YES')
