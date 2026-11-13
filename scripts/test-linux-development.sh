@@ -66,7 +66,18 @@ seed_config='{"theme":"light","notch_edge":"left","scale":0.8,"glm_notch_fixed":
 printf '%s\n' "$seed_config" > "$work/profile/config.json"
 # app is always the real application PID. tracer is set only during the post-failure
 # diagnostic reproductions, where the app is the debugger's child and not this shell's.
-app='' wm='' tracer='' phase=''
+# carry_input is set while the physical carry driver may hold X11 button 1 or Escape.
+app='' wm='' tracer='' phase='' carry_input=''
+# Releases real XTEST input the carry driver may still hold (it was killed, or timed out before its
+# own finally ran). A release of an input that is already up is harmless; failures are ignored here
+# because this runs from the EXIT trap, whose status must stay the original one.
+release_carry_input(){
+  [[ -n "$carry_input" ]] || return 0
+  timeout 5 xdotool mouseup 1 >/dev/null 2>&1
+  timeout 5 xdotool keyup Escape >/dev/null 2>&1
+  carry_input=''
+  return 0
+}
 # kill 0/-1 and negative PIDs address process groups (this CI shell's included). Only a
 # plain decimal PID above 1 that is not this shell may ever be signalled or polled.
 valid_pid(){ [[ "${1-}" =~ ^[1-9][0-9]{0,9}$ ]] && (( $1 > 1 && $1 != $$ )); }
@@ -82,12 +93,13 @@ stop_app(){
 cleanup(){
   local status=$?
   set +e
+  release_carry_input
   [[ ! -f "$work/profile/run.log" ]] || cp "$work/profile/run.log" "$work/run.log"
   ps -eo pid,ppid,stat,comm,args > "$work/processes.log"
   xdotool search --onlyvisible --name '.*' > "$work/visible-windows.txt" 2>&1
   if (( status != 0 )); then
     import -window root "$work/screenshots/x11-failure.png" 2>> "$work/capture-errors.log"
-    for log in run.log stdout.log stderr.log relaunch-stdout.log relaunch-stderr.log appimage-stdout.log appimage-stderr.log process-exit.txt; do
+    for log in run.log stdout.log stderr.log relaunch-stdout.log relaunch-stderr.log appimage-stdout.log appimage-stderr.log carry-stdout.log carry-stderr.log carry-relaunch-stdout.log carry-relaunch-stderr.log native-carry-partial.txt process-exit.txt; do
       [[ ! -f "$work/$log" ]] || { printf '\nDiagnostic: %s\n' "$log"; tail -100 "$work/$log"; }
     done
   fi
@@ -310,4 +322,30 @@ PY
 # The fixture helper must not send events or launch an ordinary profile.
 "$hook" ping </dev/null
 "$appdir/usr/bin/matra-development020-hook" ping </dev/null
-printf '%s\n' 'PASS: Debian and AppImage contents, exact embedded runtime, linked libraries, native X11/WebKit startup/content captures and saved-settings relaunch; AppRun preview launched without a host install.' > "$work/RESULT.txt"
+kill "$app"
+wait "$app" || true
+app=''
+# Physical X11 carry. Real XTEST pointer/button/key input against the real packaged GTK/WebKit
+# process; every assertion is a native observation (XIDs, X geometry, pointer grab, captures, the
+# app's own run.log and config.json). It starts only after the unchanged startup/paint gates above
+# pass again for this process, and it moves the saved notch from the seeded left edge to the top.
+phase=carry
+"$exe" --silent > "$work/carry-stdout.log" 2> "$work/carry-stderr.log" & app=$!
+wait_settings
+check_app
+carry_input=1
+timeout --kill-after=5 240 python3 -I -B "$repo/scripts/linux-native-carry.py" carry "$app" "$work"
+# The driver released its own input; on failure set -e leaves carry_input set for the EXIT trap.
+carry_input=''
+check_app
+kill "$app"
+wait "$app" || true
+app=''
+# A fresh process places the notch from the carried, saved placement.
+phase=carry-relaunch
+log_mark="$(wc -l < "$work/profile/run.log")"
+"$exe" --silent > "$work/carry-relaunch-stdout.log" 2> "$work/carry-relaunch-stderr.log" & app=$!
+wait_settings
+timeout --kill-after=5 60 python3 -I -B "$repo/scripts/linux-native-carry.py" relaunch "$app" "$work" "$((log_mark))"
+check_app
+printf '%s\n' 'PASS: Debian and AppImage contents, exact embedded runtime, linked libraries, native X11/WebKit startup/content captures and saved-settings relaunch; AppRun preview launched without a host install; physical X11 grip carry released onto the top edge and persisted across relaunch, physical Escape cancellation restored the placement, overlay lifecycle and pointer-grab release observed natively.' > "$work/RESULT.txt"

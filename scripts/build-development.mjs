@@ -36,6 +36,7 @@ run(cargo,['+1.97.1','build','--release',...common,'-p','matra-hook','--target-d
 const checks=['check-ui-scripts.mjs','test-claude-auth-ui.cjs','test-ko-i18n.cjs','test-matra-interactions.cjs','test-matra-appearance.cjs','test-matra-copy.cjs','test-matra-quota.cjs','test-parity-ui.cjs','test-mac-notch.cjs','test-platform-capabilities.cjs','test-fixed-providers.cjs','test-carry.cjs','test-presentation.cjs','test-native-scale.cjs'];
 for(const name of checks)run(process.execPath,[join(root,'native/scripts',name)]);
 for(const name of ['test-codex-details.cjs','test-codex-headline.cjs'])run(process.execPath,[join(root,'native',name)]);
+if(os==='linux')run(process.execPath,['--test',join(root,'test/linux-native-carry.test.js'),join(root,'test/linux-native-trace.test.js')]);
 run(cargo,['+1.97.1',modes[0]==='--check'?'check':'test',...common,'--workspace']);
 if(modes[0]!=='--bundle')process.exit(0);
 const cli=value('--tauri-cli')||process.env.MATRA_TAURI_CLI;if(!cli)throw new Error('Supply @tauri-apps/cli 2.11.4 via --tauri-cli.');
