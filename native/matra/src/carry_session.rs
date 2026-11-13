@@ -557,6 +557,10 @@ fn run(session: &mut Session, mut request: Request) -> Result<(), String> {
     let ready_by = Instant::now() + Duration::from_millis(2000);
     while crate::dropzones::ready() != session.id {
         cancelled(session)?;
+        // The page names its own failure (bad scene, undrawable cell, script error); end now with it.
+        if let Some(error) = crate::dropzones::failure(session.id) {
+            return Err(format!("Carry overlay could not draw its scene ({error})"));
+        }
         let p = crate::platform::carry::sample(&app)?;
         match pointer_verdict(&p, RELEASED.load(SeqCst) == session.id) {
             PointerVerdict::Cancelled => {
@@ -569,10 +573,19 @@ fn run(session: &mut Session, mut request: Request) -> Result<(), String> {
             PointerVerdict::Held => {}
         }
         if Instant::now() >= ready_by {
-            return Err("Carry overlay did not paint".into());
+            return Err(format!(
+                "Carry overlay did not paint ({})",
+                crate::dropzones::progress(session.id)
+            ));
         }
         std::thread::sleep(Duration::from_millis(8));
     }
+    // One bounded line per carry: the first-frame timeline that an acceptance run can compare.
+    crate::applog(&format!(
+        "carry overlay {}: painted ({})",
+        session.id,
+        crate::dropzones::progress(session.id)
+    ));
     app.emit_to("notch", "carry_present", session.id)
         .map_err(|e| e.to_string())?;
     let mut mon = start.clone();

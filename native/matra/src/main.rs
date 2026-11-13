@@ -1915,6 +1915,7 @@ fn main() {
             set_move_handle,
             dropzones::get_zones,
             dropzones::carry_overlay_ready,
+            dropzones::carry_overlay_report,
             dropzones::carry_revealed,
             carry_session::carry_pointer_end,
             carry_session::carry_layout_ready,

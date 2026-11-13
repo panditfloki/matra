@@ -9,16 +9,40 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent
 </defs><g id="body"></g><g id="cells" clip-path="url(#body-clip)"></g><g id="grip"></g></svg>
 <script src="matra-notch-reference.js"></script><script src="matra-carry.js"></script><script>
 'use strict';
-const invoke=window.__TAURI__.core.invoke,listen=window.__TAURI__.event.listen,Carry=MatraCarry;
+const invoke=window.__TAURI__.core.invoke,listen=window.__TAURI__.event.listen,Carry=window.MatraCarry;
 const stage=document.getElementById('stage'),body=document.getElementById('body'),cells=document.getElementById('cells'),clip=document.getElementById('body-clip'),grip=document.getElementById('grip');
 const ns='http://www.w3.org/2000/svg';let presentation=null,pending=null,ticking=false,sceneId=0,loadedId=0;
 const node=(tag,attrs)=>{const el=document.createElementNS(ns,tag);for(const[k,v]of Object.entries(attrs))el.setAttribute(k,v);return el;};
+// Progress and failures go to native (carry_overlay_report) so a missing first frame names the stage
+// it stopped at. Only carry_overlay_ready, after two animation frames, acknowledges a painted scene.
+let step='script',failed=false;
+const text=e=>String(e&&e.message||e).slice(0,200);
+const view=()=>`viewport ${innerWidth}x${innerHeight} dpr ${devicePixelRatio} visibility=${document.visibilityState}`;
+const say=(id,at,detail=null,error=null)=>invoke('carry_overlay_report',{id,stage:at,detail,error}).catch(()=>{});
+const fail=(id,error)=>{if(failed)return;failed=true;say(id,step,null,error);};
+window.addEventListener('error',e=>fail(sceneId,'script error: '+text(e.error||e.message)));
+window.addEventListener('unhandledrejection',e=>fail(sceneId,'unhandled rejection: '+text(e.reason)));
+say(0,'script',view());
+if(!Carry||!window.MatraNotchReference)fail(0,'carry scripts did not load');
+// A cell is drawable once its SVG has loaded with a size; an error or an empty image can never paint,
+// so it is named instead of waited on. decode() is then still awaited, but WebKitGTK and WebView2 differ
+// on decode() for vector images, so its rejection after a sized load is reported, not fatal.
+function load(c,i){return new Promise((resolve,reject)=>{const img=new Image();
+  img.onload=()=>img.naturalWidth>0&&img.naturalHeight>0?resolve(img):reject(Error(`cell ${i+1} loaded with no size`));
+  img.onerror=()=>reject(Error(`cell ${i+1} image failed to load (${c.image.length} characters)`));
+  img.src=c.image;});}
 async function install(scene){
-  if(!scene)return;const id=scene.frame.id;sceneId=id;presentation=scene.presentation;pending=scene.frame;
-  const images=await Promise.all(presentation.cells.map(async c=>{const img=new Image();img.src=c.image;await img.decode();return c;}));
-  if(sceneId!==id)return;
-  cells.replaceChildren(...images.map(c=>node('image',{href:c.image,width:c.width*presentation.scale,height:c.height*presentation.scale})));
-  loadedId=id;draw();requestAnimationFrame(()=>requestAnimationFrame(()=>{if(sceneId===id)invoke('carry_overlay_ready',{id}).catch(()=>{});}));
+  if(!scene)return;const id=scene.frame.id;sceneId=id;presentation=scene.presentation;pending=scene.frame;failed=false;
+  try{
+    step='zones';say(id,'zones',view());const notes=[];
+    const images=await Promise.all(presentation.cells.map(async(c,i)=>{const img=await load(c,i);try{await img.decode();}catch(e){notes.push(`cell ${i+1} decode: ${text(e)}`);}return c;}));
+    if(sceneId!==id)return;
+    step='cells';say(id,'cells',notes.length?notes.join('; '):null);
+    cells.replaceChildren(...images.map(c=>node('image',{href:c.image,width:c.width*presentation.scale,height:c.height*presentation.scale})));
+    loadedId=id;draw();step='drawn';say(id,'drawn',view());
+    const late=setTimeout(()=>{if(sceneId===id)say(id,'drawn',`no animation frame after 1000 ms; ${view()}`);},1000);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{clearTimeout(late);if(sceneId===id)invoke('carry_overlay_ready',{id}).catch(e=>fail(id,'ready acknowledgement failed: '+text(e)));}));
+  }catch(e){if(sceneId===id)fail(id,text(e));}
 }
 function queue(frame){if(!frame||frame.id!==sceneId)return;pending=frame;if(!ticking){ticking=true;requestAnimationFrame(draw);}}
 function draw(){
@@ -39,9 +63,10 @@ function draw(){
   grip.replaceChildren(...MatraNotchReference.gripDots(end.edge).map(d=>node('circle',{cx:at[0]+d.x*p.scale,cy:at[1]+d.y*p.scale,r:d.r*p.scale,fill:p.ink})));
 }
 Promise.all([
-  listen('carry_scene',e=>install(e.payload).catch(()=>{})),
+  listen('carry_scene',e=>install(e.payload)),
   listen('carry_frame',e=>queue(e.payload)),
   listen('carry_presentation',e=>{presentation=e.payload;queue(pending);})
-]).then(()=>invoke('get_zones')).then(install).catch(()=>{});
+]).then(()=>invoke('get_zones')).then(scene=>scene?install(scene):fail(0,'no carry scene is waiting for this overlay'))
+  .catch(e=>fail(0,'scene unavailable: '+text(e)));
 window.addEventListener('resize',()=>queue(pending));
 </script></body></html>
