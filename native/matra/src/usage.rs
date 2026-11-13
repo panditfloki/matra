@@ -182,6 +182,19 @@ pub struct CodexDetails {
     pub credits_error: Option<String>,
 }
 
+/// Independent account state. Aggregate status is only a provider summary;
+/// it must never timestamp or authenticate another profile's cached windows.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ClaudeAccountSnapshot {
+    pub id: String,
+    pub display_name: String,
+    pub status: String,
+    pub windows: Vec<LimitWindow>,
+    pub fetched_at: u64,
+    pub note: String,
+    pub backoff_until: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UsageSnapshot {
     /// ok | stale | needsAuth | backoff | error
@@ -194,6 +207,8 @@ pub struct UsageSnapshot {
     /// Account details are optional so old caches and other providers still load.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub codex_details: Option<CodexDetails>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub accounts: Vec<ClaudeAccountSnapshot>,
 }
 
 fn store_path() -> std::path::PathBuf {
@@ -619,12 +634,15 @@ fn cached_accounts(snap: &UsageSnapshot, order: &[Profile]) -> HashMap<String, A
         .into_iter()
         .map(|(account_key, windows)| {
             (
-                account_key,
+                account_key.clone(),
                 Account {
                     windows,
                     // Cache is a previous observation, not a fresh account check.
                     status: "stale".into(),
-                    fetched_at: snap.fetched_at,
+                    fetched_at: snap.accounts.iter().find(|a| {
+                        order.iter().any(|p| key(p) == account_key && a.id == p.slug.as_ref()
+                            .map(|slug| format!("claude@{slug}")).unwrap_or_else(|| "claude".into()))
+                    }).map(|a| a.fetched_at).unwrap_or(snap.fetched_at),
                     ..Default::default()
                 },
             )
@@ -649,6 +667,21 @@ fn aggregate(order: &[Profile], accounts: &HashMap<String, Account>) -> UsageSna
         let Some(a) = accounts.get(&key(p)) else {
             continue;
         };
+        let id = p.slug.as_ref().map(|slug| format!("claude@{slug}")).unwrap_or_else(|| "claude".into());
+        snap.accounts.push(ClaudeAccountSnapshot {
+            id,
+            display_name: a.windows.first().and_then(|w| w.group.clone()).unwrap_or_else(|| p.name()),
+            status: a.status.clone(),
+            windows: a.windows.iter().cloned().map(|mut window| {
+                if let Some(slug) = &p.slug {
+                    if let Some(base) = window.id.strip_suffix(&format!("@{slug}")) { window.id = base.into(); }
+                }
+                window
+            }).collect(),
+            fetched_at: a.fetched_at,
+            note: a.note.clone(),
+            backoff_until: a.backoff_until,
+        });
         snap.windows.extend(a.windows.iter().cloned());
         snap.fetched_at = snap.fetched_at.max(a.fetched_at);
         if !a.status.is_empty() && rank(a.status.as_str()) < best {
@@ -724,9 +757,7 @@ fn poll_account(p: &Profile, acc: &mut Account, group: Option<&str>) {
                 Err(FetchErr::Other(msg)) => {
                     // No reading at all is an error worth showing; a reading we could not refresh is
                     // just a reading, and its own age is what makes it stale.
-                    if acc.windows.is_empty() {
-                        acc.status = "error".into();
-                    }
+                    acc.status = if acc.windows.is_empty() { "error" } else { "stale" }.into();
                     acc.note = msg;
                 }
             }
@@ -938,6 +969,26 @@ mod tests {
         assert_eq!(prof(None).group(Some("max")), "default · max");
         assert_eq!(prof(Some("work")).group(None), "work");
         assert_eq!(prof(Some("work")).group(Some("")), "work", "an empty plan adds no separator");
+    }
+
+    #[test]
+    fn account_metadata_keeps_failure_and_observation_time_separate() {
+        let order = vec![prof(None), prof(Some("work"))];
+        let accounts = HashMap::from([
+            (key(&order[0]), Account { status: "ok".into(), fetched_at: 900,
+                windows: vec![win("session")], ..Default::default() }),
+            (key(&order[1]), Account { status: "needsAuth".into(), fetched_at: 100,
+                note: "Credential rejected".into(), windows: vec![win("session@work")], ..Default::default() }),
+        ]);
+        let snap = aggregate(&order, &accounts);
+        assert_eq!(snap.status, "ok");
+        assert_eq!(snap.accounts[1].id, "claude@work");
+        assert_eq!(snap.accounts[1].status, "needsAuth");
+        assert_eq!(snap.accounts[1].fetched_at, 100);
+        assert_eq!(snap.accounts[1].windows[0].id, "session");
+        let cached = cached_accounts(&snap, &order);
+        assert_eq!(cached[&key(&order[0])].fetched_at, 900);
+        assert_eq!(cached[&key(&order[1])].fetched_at, 100);
     }
 
     #[test]

@@ -114,3 +114,30 @@ test('dashboard history distinguishes an explicitly reported zero from an unrepo
   assert.equal(h.count,1);assert.equal(h.total,0);
   assert.equal(h.days.at(-1).tokens,0);assert.equal(h.days.at(-2).tokens,null);
 });
+
+test('secondary-only Claude account keeps its identity and session headline',()=>{
+  const [source]=Dashboard.buildSources({usage:{status:'ok',fetched_at:30,windows:[{id:'session@work',group:'Work',used:.25}]}});
+  assert.equal(source.id,'claude@work');
+  assert.equal(source.snap.windows[0].id,'session');
+  assert.equal(Dashboard.headlineOf(source.snap,source.base).used,.25);
+});
+
+test('equal display labels do not merge different Claude profiles',()=>{
+  const sources=Dashboard.buildSources({usage:{status:'ok',windows:[{id:'session',group:'Pro',used:.1},{id:'session@work',group:'Pro',used:.9}]}});
+  assert.deepEqual(sources.map(s=>s.id),['claude','claude@work']);
+  assert.deepEqual(sources.map(s=>s.snap.windows[0].used),[.1,.9]);
+});
+
+test('healthy account cannot authenticate or redate another account',()=>{
+  const sources=Dashboard.buildSources({usage:{status:'ok',fetched_at:1000,windows:[],accounts:[
+    {id:'claude',display_name:'Pro',status:'ok',fetched_at:1000,windows:[{id:'session',used:.1}]},
+    {id:'claude@work',display_name:'Pro',status:'needsAuth',fetched_at:100,windows:[{id:'session',used:.9}],note:'Credential rejected'}
+  ]}});
+  assert.equal(sources[1].snap.status,'needsAuth');assert.equal(sources[1].snap.fetched_at,100);
+  const html=Dashboard.detailHtml(sources[1],{now:1100,range:'week',measure:'tokens',glyphs:{},parity:{},sessions:[],activity:[]});
+  assert.match(html,/Credential rejected/);assert.doesNotMatch(html,/90% used/);
+});
+
+test('LM Studio model weights are labeled as model size',()=>{
+  assert.match(Card.html({local_model:{models:[{name:'Fixture',memory_bytes:2147483648}]}},'lmstudio'),/Model size: 2.0 GB/);
+});

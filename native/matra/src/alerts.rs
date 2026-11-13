@@ -102,7 +102,7 @@ impl AlertSettings {
     }
 
     fn is_muted(&self, provider: &str) -> bool {
-        self.muted_providers.iter().any(|id| id == provider)
+        self.muted_providers.iter().any(|id| id == provider || provider.strip_prefix(id.as_str()).is_some_and(|tail| tail.starts_with('@')))
     }
 }
 
@@ -853,15 +853,24 @@ fn read_agents(app: &AppHandle) -> Vec<AgentReading> {
     agents
 }
 
+fn expand_provider_reading(id: String, name: String, snapshot: UsageSnapshot) -> Vec<ProviderReading> {
+    if id != "claude" || snapshot.accounts.is_empty() {
+        return vec![ProviderReading { id, name, snapshot }];
+    }
+    snapshot.accounts.into_iter().map(|account| ProviderReading {
+        id: account.id,
+        name: if account.display_name == "default" { name.clone() } else { format!("{name} · {}", account.display_name) },
+        snapshot: UsageSnapshot { status: account.status, windows: account.windows,
+            fetched_at: account.fetched_at, note: account.note, backoff_until: account.backoff_until,
+            ..Default::default() },
+    }).collect()
+}
+
 fn read_providers(app: &AppHandle) -> Vec<ProviderReading> {
-    crate::provider_ids()
-        .into_iter()
-        .map(|id| ProviderReading {
-            snapshot: crate::snapshot_of(app, &id),
-            name: crate::provider_label(&id).to_string(),
-            id,
-        })
-        .collect()
+    crate::provider_ids().into_iter().flat_map(|id| {
+        let snapshot = crate::snapshot_of(app, &id);
+        expand_provider_reading(id.clone(), crate::provider_label(&id).to_string(), snapshot)
+    }).collect()
 }
 
 fn status_of(app: &AppHandle, runtime: &Runtime) -> AlertStatus {

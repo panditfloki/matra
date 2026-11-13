@@ -10,8 +10,8 @@
     return gb >= 1 ? `${gb.toFixed(1)} GB` : `${Math.round(n / 1048576)} MB`;
   }
   const num = n => (Number.isFinite(n) ? n.toLocaleString('en-US') : null);
-  function modelLine(m) {
-    return [m.quantization, bytes(m.memory_bytes), Number.isFinite(m.context_length) ? `${num(m.context_length)} context` : null,
+  function modelLine(m, id) {
+    return [m.quantization, bytes(m.memory_bytes) && `${id === 'lmstudio' ? 'Model size' : 'Memory'}: ${bytes(m.memory_bytes)}`, Number.isFinite(m.context_length) ? `${num(m.context_length)} context` : null,
       Number.isFinite(m.tokens_per_second) ? `${m.tokens_per_second.toFixed(1)} tok/s` : null,
       m.phase === 'generating' ? 'Generating' : m.phase === 'processingPrompt' ? 'Reading prompt' : null,
       Number.isFinite(m.queued) && m.queued > 0 ? `${m.queued} queued` : null].filter(Boolean).join(' · ');
@@ -50,7 +50,7 @@
     if (snap.plan) rows.push(`<div class="c-note">${esc(snap.plan)}</div>`);
     const local = snap.local_model && Array.isArray(snap.local_model.models) ? snap.local_model.models : [];
     for (const m of local.slice(0, 6)) {
-      const line = modelLine(m);
+      const line = modelLine(m, id);
       rows.push(`<div class="win"><div class="w-row"><span class="w-label">${esc(m.name || m.model_key || 'Model')}</span></div>${line ? `<div class="w-used">${esc(line)}</div>` : ''}</div>`);
     }
     if (local.length > 6) rows.push(`<div class="s-more">and ${local.length - 6} more</div>`);

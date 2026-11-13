@@ -26,17 +26,8 @@
   /* One cell per Claude account, as notch.html claudeCells: each account's windows carry its heading in
      `group` and, past the default account, an `@slug` id. */
   function claudeCells(usage) {
-    if (absent(usage)) return [];
-    const snap = withWindows(usage), accounts = [];
-    for (const w of snap.windows) {
-      const g = w.group || '';
-      if (!accounts.some(a => a.g === g)) accounts.push({ g, slug: String(w.id).split('@')[1] || '' });
-    }
-    if (accounts.length < 2) return [{ id: 'claude', base: 'claude', name: 'Claude', letter: 'C', snap }];
-    return accounts.map(a => ({
-      id: a.slug ? `claude@${a.slug}` : 'claude', base: 'claude', name: a.g || 'Claude', letter: 'C',
-      snap: { ...snap, windows: snap.windows.filter(w => (w.group || '') === a.g).map(w => ({ ...w, id: String(w.id).split('@')[0] })) }
-    }));
+    const accounts = root.MatraAccounts || (typeof require === 'function' ? require('./matra-accounts.js') : null);
+    return accounts ? accounts.claude(usage) : [];
   }
   /* A parity id reaches markup from a saved endpoint, so it is checked rather than trusted. */
   function parityCells(map) {

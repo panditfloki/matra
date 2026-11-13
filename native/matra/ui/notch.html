@@ -346,6 +346,7 @@
 </div>
 <script src="matra-motion.js"></script>
 <script src="matra-quota.js"></script>
+<script src="matra-accounts.js"></script>
 <script src="matra-parity.js"></script>
 <script src="matra-parity-card.js"></script>
 <script src="matra-notch-reference.js"></script>
@@ -1029,22 +1030,7 @@ function slotFor(id){
 // would have had on their own, so headlineOf and weeklyOf need no rule about accounts. `base` is the
 // provider the cell belongs to (glyph, activity, slot choice); `id` is what makes the cell unique.
 function claudeCells(){
-  const ws=Array.isArray(usage.windows)?usage.windows:[];
-  const accounts=[];
-  for(const w of ws){
-    const g=w.group||'';
-    if(!accounts.some(a=>a.g===g)) accounts.push({g:g,slug:(String(w.id).split('@')[1]||'')});
-  }
-  // One account (or a reading with no headings yet) is the single cell it has always been
-  if(accounts.length<2) return [{id:'claude',base:'claude',name:'Claude',glyph:'C',snap:usage}];
-  return accounts.map(a=>({
-    id:a.slug?'claude@'+a.slug:'claude',
-    base:'claude',
-    name:a.g||'Claude',
-    glyph:'C',
-    snap:Object.assign({},usage,{windows:ws.filter(w=>(w.group||'')===a.g)
-      .map(w=>Object.assign({},w,{id:String(w.id).split('@')[0]}))})
-  }));
+  return window.MatraAccounts.claude(usage);
 }
 /* An id or a letter that reaches markup comes from a saved endpoint, so it is checked rather than trusted. */
 function parityCells(){
@@ -1205,13 +1191,13 @@ function renderRing(){
   // Rebuild the DOM only when the structure changes (never swap the element under the cursor)
   const want=ps.map(p=>p.id+':'+(glyphs[p.base]?glyphs[p.base].kind:'-')).join(',');
   if(pill.dataset.cells!==want){
-    pill.innerHTML=ps.map((p,i)=>`<div class="cell" data-p="${p.id}" style="--i:${i};--cell-delay:${Math.min(i*Notch.reference.motion.stagger.stepSeconds,Notch.reference.motion.stagger.capSeconds)}s">
+    pill.innerHTML=ps.map((p,i)=>`<div class="cell" data-p="${esc(p.id)}" style="--i:${i};--cell-delay:${Math.min(i*Notch.reference.motion.stagger.stepSeconds,Notch.reference.motion.stagger.capSeconds)}s">
       <div class="ringwrap"><svg class="ring" viewBox="0 0 56 56"></svg><svg class="reading" viewBox="0 0 56 56"></svg><svg class="activity" viewBox="0 0 56 56"></svg><svg class="feedback" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="22"/></svg><div class="glyph ${(!glyphs[p.base]&&p.glyph.length>1)?'small':''}">${glyphHtml(p)}</div></div>
       <div class="pct">—</div></div>`).join('');
     pill.dataset.cells=want;
   }
   for(const p of ps){
-    const cell=pill.querySelector(`.cell[data-p="${p.id}"]`); if(!cell) continue;
+    const cell=pill.querySelector(`.cell[data-p="${esc(p.id)}"]`); if(!cell) continue;
     const svg=cell.querySelector('svg.ring'), reading=cell.querySelector('svg.reading'), activity=cell.querySelector('svg.activity'), pct=cell.querySelector('.pct'), glyph=cell.querySelector('.glyph'), wrap=cell.querySelector('.ringwrap');
     const h=headlineOf(p.snap,p.base);
     const available=!['needsAuth','none'].includes(p.snap.status)&&metered(h);
@@ -1754,7 +1740,7 @@ function refreshRing(id){
 // The reading has a layer of its own that renders never replace, turned as a whole element so the
 // compositor can run it; it finishes its turn whenever the press lets go
 function turnReading(id){
-  const el=pill.querySelector(`.cell[data-p="${id}"] svg.reading`);
+  const el=Array.from(pill.querySelectorAll('.cell')).find(cell=>cell.dataset.p===id)?.querySelector('svg.reading');
   if(!el||matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   if(el.getAnimations().some(a=>a.playState==='running')) return;
   el.animate([{transform:'rotate(0deg)'},{transform:'rotate(360deg)'}],{duration:950,easing:'cubic-bezier(.32,0,.14,1)'});
