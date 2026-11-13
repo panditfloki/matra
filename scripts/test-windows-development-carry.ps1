@@ -99,11 +99,15 @@ function Is-SameRect($A, $B) {
 $repo = Split-Path $PSScriptRoot -Parent
 $output = Join-Path $repo '.build\development-lifecycle\native-carry.json'
 $results = [System.Collections.Generic.List[object]]::new()
-$oldDpi = [MatraCarryNative]::SetThreadDpiAwarenessContext([IntPtr](-4))
+# The installer harness invokes this script in-process. Thread DPI, held input,
+# cursor and listener changes are therefore made only inside the guarded block
+# and each is undone independently in finally.
+$oldDpi = [IntPtr]::Zero
 $savedCursor = New-Object MatraCarryNative+Point
-[MatraCarryNative]::GetCursorPos([ref]$savedCursor) | Out-Null
-$notch = [MatraCarryNative]::Window($AppProcessId,$false)
-$work = [MatraCarryNative]::Work($notch)
+$cursorSaved = $false
+$listenerInstalled = $false
+$primaryError = $null
+$cleanupErrors = [System.Collections.Generic.List[string]]::new()
 function Begin-PhysicalCarry([bool]$Grip = $true) {
     Query "hideCard();onHover=false;unfold();setDockActive(true);reportHot();true" | Out-Null
     $selector = if ($Grip) { 'moveHandle' } else { 'pill' }
@@ -137,7 +141,16 @@ function End-PhysicalCarry([long]$Id, [string]$Status) {
     Assert-Native (@($terminal).Count -eq 1 -and $terminal[0].status -eq $Status) "One native carry terminal event reports $Status"
     return $terminal[0]
 }
+function Invoke-Cleanup([string]$Name, [scriptblock]$Step) {
+    # One failed restoration step must neither hide the primary failure nor
+    # prevent the remaining restorations.
+    try { & $Step } catch { $cleanupErrors.Add("${Name}: $($_.Exception.Message)") }
+}
 try {
+    $oldDpi = [MatraCarryNative]::SetThreadDpiAwarenessContext([IntPtr](-4))
+    if ($oldDpi -eq [IntPtr]::Zero) { throw 'Per-monitor-v2 DPI awareness could not be applied to the physical input thread' }
+    $cursorSaved = [MatraCarryNative]::GetCursorPos([ref]$savedCursor)
+    $listenerInstalled = $true
     Query "(async()=>{window.__nativeCarryEvents=[];window.__nativeCarryStop=await window.__TAURI__.event.listen('carry_end',e=>window.__nativeCarryEvents.push(e.payload));await invoke('set_move_handle',{on:true});await invoke('set_notch_edge',{edge:'left'});return true})()" | Out-Null
     Start-Sleep -Milliseconds 650
     $notch = [MatraCarryNative]::Window($AppProcessId,$false)
@@ -145,12 +158,32 @@ try {
     $before = Placement
     $scene = Begin-PhysicalCarry
     $firstPlace = $scene.frame.place
-    Move-Native ($work.Left+3) ($work.Top+8)
-    $corner = Query "invoke('get_zones')"
+    # Walk the real cursor up the left edge and around the top-left corner in
+    # small steps. The body sits ahead of the grip along the edge, so it must
+    # straddle the corner before the cursor arrives; every published native
+    # frame reports that split, which is asserted below rather than recorded.
+    $start = New-Object MatraCarryNative+Point
+    [MatraCarryNative]::GetCursorPos([ref]$start) | Out-Null
+    $step = [Math]::Max(4, [Math]::Min(24, $scene.frame.length / 8))
+    $cornerFrames = [System.Collections.Generic.List[object]]::new()
+    $sweep = [System.Collections.Generic.List[object]]::new()
+    for ($y = [double]$start.Y; $y -gt ($work.Top + 3); $y -= $step) { $sweep.Add(@(($work.Left+3), $y)) }
+    $sweep.Add(@(($work.Left+3), ($work.Top+3)))
+    for ($x = [double]($work.Left + 3); $x -lt (($work.Left + $work.Right) / 2); $x += 4 * $step) { $sweep.Add(@($x, ($work.Top+3))) }
+    foreach ($at in $sweep) {
+        Move-Native $at[0] $at[1]
+        $frame = (Query "invoke('get_zones')").frame
+        if ($null -ne $frame.corner) {
+            $cornerFrames.Add([ordered]@{pointer=$at;corner=$frame.corner;from=$frame.from;to=$frame.to;turned=$frame.turned;before=$frame.before;after=$frame.after;place=$frame.place;length=$frame.length})
+        }
+    }
     Move-Native (($work.Left+$work.Right)/2) ($work.Top+3)
     Start-Sleep -Milliseconds 350
     $moved = Query "invoke('get_zones')"
     Assert-Native ([Math]::Abs($moved.frame.place-$firstPlace) -gt 5) 'Physical cursor movement changes the actual native carried body frame'
+    $topLeft = @($cornerFrames | Where-Object { $_.corner -eq 'topLeft' -and $_.from -eq 'left' -and $_.to -eq 'top' })
+    Assert-Native ($topLeft.Count -ge 2) "Native carried body split across the top-left corner during physical traversal ($($cornerFrames.Count) corner frames)"
+    Assert-Native ((@($topLeft | Where-Object { $_.turned -lt 0.5 }).Count -gt 0) -and (@($topLeft | Where-Object { $_.turned -gt 0.5 }).Count -gt 0)) 'Corner split turned from mostly-left to mostly-top during traversal'
     Query "document.title" 'dropzones' 'windows-development-physical-carry.png' | Out-Null
     $terminal = End-PhysicalCarry $scene.frame.id 'finished'
     $after = Placement
@@ -158,7 +191,7 @@ try {
     $bounds = [MatraCarryNative]::Bounds($notch)
     Assert-Native ($edge -eq 'top' -and [Math]::Abs($bounds.Top-$work.Top) -le 1) 'Release commits the top edge and places the actual notch window there'
     Assert-Native ($after -ne $before) 'Successful carry persists a changed native placement'
-    $results.Add(@{case='physical-grip-release';terminal=$terminal;before=$before;after=$after;work=$work;bounds=$bounds;cornerObserved=($null -ne $corner.frame.corner)})
+    $results.Add(@{case='physical-grip-corner-release';terminal=$terminal;before=$before;after=$after;work=$work;bounds=$bounds;cornerFrames=$cornerFrames})
 
     foreach ($cancel in @('escape','capture-loss')) {
         $before = Placement
@@ -188,14 +221,27 @@ try {
     $results.Add(@{case='physical-alt-body';terminal=$terminal;placement=(Placement)})
     Assert-Native ($results.Count -eq 4) 'All four physical native carry cases completed'
     $results | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $output -Encoding utf8NoBOM
-    Write-Output 'PASS: actual Windows physical grip/release, Escape cancellation, external capture loss and Alt-body carry; native HWND capture, overlay paint, placement persistence and cleanup.'
+    Write-Output 'PASS: actual Windows physical grip traversal across the top-left corner with release, Escape cancellation, external capture loss and Alt-body carry; native HWND capture, overlay paint, corner split frames, placement persistence and cleanup.'
+} catch {
+    $primaryError = $_
+    throw
 } finally {
-    [MatraCarryNative]::Mouse($false)
-    [MatraCarryNative]::Key(0x12,$false)
-    [MatraCarryNative]::Key(0x1b,$false)
-    [MatraCarryNative]::SetCursorPos($savedCursor.X,$savedCursor.Y) | Out-Null
-    if ($oldDpi -ne [IntPtr]::Zero) { [MatraCarryNative]::SetThreadDpiAwarenessContext($oldDpi) | Out-Null }
-    try { Query "if(window.__nativeCarryStop)window.__nativeCarryStop();true" | Out-Null } catch { Write-Warning $_ }
+    Invoke-Cleanup 'left button release' { [MatraCarryNative]::Mouse($false) }
+    Invoke-Cleanup 'Alt release' { [MatraCarryNative]::Key(0x12,$false) }
+    Invoke-Cleanup 'Escape release' { [MatraCarryNative]::Key(0x1b,$false) }
+    if ($cursorSaved) { Invoke-Cleanup 'cursor restore' { if (![MatraCarryNative]::SetCursorPos($savedCursor.X,$savedCursor.Y)) { throw 'SetCursorPos failed' } } }
+    if ($oldDpi -ne [IntPtr]::Zero) { Invoke-Cleanup 'DPI restore' { if ([MatraCarryNative]::SetThreadDpiAwarenessContext($oldDpi) -eq [IntPtr]::Zero) { throw 'SetThreadDpiAwarenessContext failed' } } }
+    if ($listenerInstalled) { Invoke-Cleanup 'carry listener removal' { Query "if(window.__nativeCarryStop)window.__nativeCarryStop();true" | Out-Null } }
     # Partial receipts remain diagnostic, never a successful terminal result.
-    if (!(Test-Path $output)) { $results | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath ($output+'.partial') -Encoding utf8NoBOM }
+    if (!(Test-Path $output)) {
+        $failureText = if ($primaryError) { "$primaryError" } else { $null }
+        Invoke-Cleanup 'partial receipt' {
+            [ordered]@{passed=$false;error=$failureText;cleanupErrors=$cleanupErrors;results=$results} |
+                ConvertTo-Json -Depth 10 | Set-Content -LiteralPath ($output+'.partial') -Encoding utf8NoBOM
+        }
+    }
+    foreach ($message in $cleanupErrors) { Write-Warning "Carry cleanup: $message" }
+    # The primary exception, if any, continues to propagate unchanged after this
+    # block. Without one, an incomplete restoration is itself a failure.
+    if (!$primaryError -and $cleanupErrors.Count -gt 0) { throw "Physical carry cleanup failed: $($cleanupErrors -join '; ')" }
 }

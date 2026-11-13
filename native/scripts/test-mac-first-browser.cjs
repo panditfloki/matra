@@ -65,6 +65,13 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
       const p = geometry.pill;
       assert.ok(p.width > 0 && p.height > 0 && p.x >= -1 && p.y >= -1 && p.right <= geometry.width + 1 && p.bottom <= geometry.height + 1, `${edge}/${count}/${dpr}: capsule fits viewport ${JSON.stringify(geometry)}`);
       assert.ok(Math.abs(geometry.ring.width / geometry.zoom - 44) < .2, `${edge}/${count}/${dpr}: original Mac 44pt ring anchor`);
+      // Six cells can fit while trailing padding still yields a scroll range;
+      // the shared contract must judge clipping from cell geometry, not overflow.
+      let handles = null;
+      if (!baseline && count === 6) {
+        handles = await page.evaluate(probeHandles);
+        handles.clipped = assertHandles(handles, `${edge}/${count}/${dpr}/${scale}: browser control contract`).clipped;
+      }
       await page.hover('.cell');
       await page.waitForFunction(() => document.querySelector('#card').classList.contains('show'));
       const card = await page.evaluate(() => {
@@ -77,7 +84,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
       if (count === 3 && dpr === 1 && scale === 1) await page.screenshot({ path: path.join(out, `${edge}-hover.png`) });
       await page.click('.cell');
       assert.ok(await page.evaluate(() => window.__matraSample.calls.some(c => c.name === 'refresh_ring' && c.args.provider === 'claude')), 'Provider click reaches the native refresh command boundary');
-      checks.push({ edge, count, dpr, scale, geometry, card });
+      checks.push({ edge, count, dpr, scale, geometry, card, handles: handles && { overflow: handles.overflow, clipped: handles.clipped, scrollMaximum: handles.scroll.maximum } });
     }
     if (shardIndex !== shardCount - 1) {
       assert.deepEqual(errors, []); assert.deepEqual(network, []);
@@ -114,7 +121,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
       }));
       for (const r of controls) assert.ok(r.left >= -1 && r.top >= -1 && r.right <= r.w - insets[1] * r.z + 1 && r.bottom <= r.h - insets[2] * r.z + 1, `${edge}/${scale}: ${r.selector} fits with taskbar inset ${JSON.stringify(r)}`);
       const handles = await page.evaluate(probeHandles);
-      assertHandles(handles, `${edge}/${scale}: browser control contract`);
+      assert.equal(assertHandles(handles, `${edge}/${scale}: browser control contract`).clipped, true, `${edge}/${scale}: ten-cell fixture initially clips the final provider`);
       stressChecks.push({ edge, scale, insets, before, after, scrolled, controls, handles });
     }
     // Exercise the standalone review itself, including its iframe and controls.

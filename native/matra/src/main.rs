@@ -796,7 +796,18 @@ fn start_pointer_watchdog(app: AppHandle) {
                 miss=0;click_through=None;continue;
             }
             let Some(w) = app.get_webview_window("notch") else { continue };
-            let (Ok(pos), Ok(cur)) = (w.outer_position(), platform::carry::sample(&app)) else { continue };
+            let (pos, cur) = match (w.outer_position(), platform::carry::sample(&app)) {
+                (Ok(pos), Ok(cur)) => (pos, cur),
+                (pos, cur) => {
+                    // Once per run: a pointer path that never works must not be silent.
+                    static REPORTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+                    if !REPORTED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                        applog(&format!("watchdog: pointer sample unavailable: position={:?} pointer={:?}",
+                            pos.err().map(|e| e.to_string()), cur.err()));
+                    }
+                    continue;
+                }
+            };
             let rects = HOT.lock().unwrap().clone();
             // Cursor position relative to the window's top-left, in physical pixels; the hot rectangles are physical too, so no scale conversion
             let lx = cur.x - pos.x as f64;
@@ -1715,6 +1726,7 @@ fn main() {
         }
     }
 
+    record_process_exit();
     let mut cfg = config::load();
     if platform::review_build() { cfg.automatic_updates = false; }
     let port = cfg.port;
@@ -1956,9 +1968,57 @@ fn main() {
             let _ = setup_audit::record("application", "ready", None);
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("Matra failed to start");
+        .build(tauri::generate_context!())
+        .expect("Matra failed to start")
+        .run(|_, event| lifecycle_event(&event));
 }
+
+/// Set once the Tauri event loop itself reports its exit, so the atexit record
+/// can tell a Tauri-driven exit apart from exit() called by native code.
+static EVENT_LOOP_EXIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Process lifecycle evidence for run.log. Exit requests, window teardown and the
+/// loop exit are rare, so an ordinary profile is not flooded. Builder::run is
+/// build().run() with an empty callback; only this logging is added.
+fn lifecycle_event(event: &tauri::RunEvent) {
+    use tauri::{RunEvent, WindowEvent};
+    match event {
+        RunEvent::ExitRequested { code, .. } => applog(&format!("lifecycle: exit requested code={code:?}")),
+        RunEvent::Exit => {
+            EVENT_LOOP_EXIT.store(true, std::sync::atomic::Ordering::SeqCst);
+            applog("lifecycle: event loop exit");
+        }
+        RunEvent::WindowEvent { label, event: WindowEvent::CloseRequested { .. }, .. } => {
+            applog(&format!("lifecycle: window close requested label={label}"))
+        }
+        RunEvent::WindowEvent { label, event: WindowEvent::Destroyed, .. } => {
+            applog(&format!("lifecycle: window destroyed label={label}"))
+        }
+        _ => {}
+    }
+}
+
+/// exit() from GTK, WebKit, Xlib or another native library bypasses the event loop
+/// and prints nothing of its own. Record it, so a silent status 1 after startup is
+/// attributable: no record at all then points to _exit() or a signal instead.
+#[cfg(unix)]
+fn record_process_exit() {
+    extern "C" fn at_exit() {
+        if EVENT_LOOP_EXIT.load(std::sync::atomic::Ordering::SeqCst) {
+            applog("lifecycle: process exit after the event loop exit");
+        } else {
+            applog("lifecycle: process exit() called outside the Tauri event loop exit");
+        }
+    }
+    extern "C" {
+        fn atexit(callback: extern "C" fn()) -> std::ffi::c_int;
+    }
+    if unsafe { atexit(at_exit) } != 0 {
+        applog("lifecycle: atexit registration failed");
+    }
+}
+#[cfg(not(unix))]
+fn record_process_exit() {}
 
 #[cfg(test)]
 mod tests {

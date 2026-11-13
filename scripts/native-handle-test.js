@@ -216,14 +216,19 @@ function assertHandles(value,context='native handles') {
   exactHot(s.folded,[physical(wake)],'folded wake band');
   const scroll=value.scroll;
   assert.equal(value.overflow,scroll.maximum>0,`${context}: overflow measurement`);
+  // scrollWidth/scrollHeight include trailing padding, so overflow alone does
+  // not mean a provider is hidden. Clipping is judged from the cell geometry.
+  const clipped=far(scroll.lastAtStart)>far(p)+1;
+  assert.ok(near(scroll.firstAtStart)>=near(p)-1&&far(scroll.firstAtStart)<=far(p)+1,`${context}: first provider fully reachable`);
+  if(clipped)assert.equal(value.overflow,true,`${context}: clipped final provider has a scroll range`);
+  else assert.ok(near(scroll.lastAtStart)>=near(p)-1,`${context}: unclipped final provider is fully visible without scrolling`);
   if(value.overflow) {
     assert.ok(['auto','scroll'].includes(scroll.overflowStyle),`${context}: long list remains scrollable`);
     close(scroll.end,scroll.maximum,'scroll reaches far limit',1);
     close((near(scroll.firstAtStart)-near(scroll.firstAtEnd))/z,scroll.end,'scroll moves retained providers',1);
-    assert.ok(near(scroll.firstAtStart)>=near(p)-1&&far(scroll.firstAtStart)<=far(p)+1,`${context}: first provider fully reachable`);
     assert.ok(near(scroll.lastAtEnd)>=near(p)-1&&far(scroll.lastAtEnd)<=far(p)+1,`${context}: last provider fully reachable`);
-    assert.ok(far(scroll.lastAtStart)>far(p),`${context}: scroll exposes initially clipped final provider`);
   }
+  return {clipped};
 }
 
 async function testNativeHandles(run=evaluate,{scales=[1],counts=[6,10],insetCases=[[0,0,0,0],'far']}={}) {
@@ -241,9 +246,12 @@ async function testNativeHandles(run=evaluate,{scales=[1],counts=[6,10],insetCas
         const inset=requestedInset==='far'?(['left','right'].includes(edge)?[0,0,60,0]:[0,60,0,0]):requestedInset;
         run(`providers=()=>Array.from({length:${count}},(_,i)=>({id:'handle-fixture-'+i,base:['claude','codex','glm','cursor','grok','gemini'][i%6],name:'Synthetic provider '+i,glyph:'F',snap:{status:'ok',fetched_at:Date.now(),windows:[{id:'session',label:'Current session',used:.2}]}}));hoverId=null;applyInsets(${JSON.stringify(inset)});showMove=true;renderRing();unfold();setDockActive(true);`);
         const value=run(`(${probeHandles.toString()})()`), context=`${edge}, scale=${scale}, cells=${count}, insets=${inset}`;
-        assert.equal(value.edge,edge);assert.equal(value.cells,count);assertHandles(value,context);
-        if(count>=10)assert.equal(value.overflow,true,`${context}: large fixture exercises scrolling rather than losing providers`);
-        results.push({edge,scale,count,inset,overflow:value.overflow,viewport:value.viewport});
+        assert.equal(value.edge,edge);assert.equal(value.cells,count);const {clipped}=assertHandles(value,context);
+        if(count>=10) {
+          assert.equal(value.overflow,true,`${context}: large fixture exercises scrolling rather than losing providers`);
+          assert.equal(clipped,true,`${context}: large fixture initially clips the final provider, and scroll exposes it`);
+        }
+        results.push({edge,scale,count,inset,overflow:value.overflow,clipped,viewport:value.viewport});
       }
     }
     return {passed:true,cases:results.length,results};

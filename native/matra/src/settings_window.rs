@@ -48,6 +48,7 @@ fn open_now(app: &AppHandle) {
     match builder.build() {
         // Raised again once it exists: a window created while the app is not in front can come up behind
         Ok(w) => {
+            crate::applog("settings window: created");
             let _ = w.set_focus();
         }
         Err(e) => crate::applog(&format!("settings window: {e}")),
