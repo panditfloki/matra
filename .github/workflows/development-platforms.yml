@@ -28,6 +28,15 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22.20.0'
+      - name: Restore workspace-only Cargo build cache
+        id: cargo-cache
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          key: matra-development-v1-${{ runner.os }}-rust-1.97.1-${{ hashFiles('native/Cargo.lock', 'native/**/Cargo.toml') }}
+          path: |
+            .build/development/cargo/registry
+            .build/development/target
+            native/target/hook
       - name: Frozen Linux build and X11 fixture dependencies
         if: runner.os == 'Linux'
         shell: bash
@@ -58,11 +67,21 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' dbus-run-session -- bash scripts/test-linux-development.sh
+      - name: Save workspace-only Cargo build cache
+        if: always() && steps.cargo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809
+        with:
+          key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
+          path: |
+            .build/development/cargo/registry
+            .build/development/target
+            native/target/hook
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: matra-development-020-${{ matrix.platform }}-${{ github.run_attempt }}
           if-no-files-found: warn
+          include-hidden-files: true
           path: |
             artifacts/development/
             .desktop-test/

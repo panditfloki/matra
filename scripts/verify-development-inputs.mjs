@@ -26,3 +26,16 @@ for(const [key,pkg] of Object.entries(npmLock.packages)){
   if(!evidence||(Date.now()-Date.parse(evidence.published))/86400000<14)throw new Error(`Packaging dependency age/integrity changed: ${name}`);
 }
 console.log('PASS: pinned packaging CLI and platform binaries match age and integrity receipts.');
+
+const workflow=readFileSync(resolve(root,'.github/workflows/development-platforms.yml'),'utf8');
+const actionAudit=JSON.parse(readFileSync(resolve(root,'build/development/action-age-audit.json')));
+for(const match of workflow.matchAll(/uses: (actions\/[a-z-]+)(?:\/[a-z-]+)?@([a-f0-9]{40})/g)){
+  const evidence=actionAudit.actions.find(a=>a.repository===match[1]&&a.commit===match[2]);
+  if(!evidence||(Date.now()-Date.parse(evidence.committed_at))/86400000<14)throw new Error(`Unverified action: ${match[0]}`);
+}
+const bundler=JSON.parse(readFileSync(resolve(root,'build/development/bundler-inputs.json')));
+for(const input of bundler.inputs){
+  if(!/^[a-f0-9]{64}$/.test(input.sha256)||!Number.isFinite(Date.parse(input.published))||(Date.now()-Date.parse(input.published))/86400000<14)throw new Error(`Unverified bundler helper: ${input.file}`);
+  if(input.commit&&!input.url.includes('/'+input.commit+'/'))throw new Error(`Bundler script URL is not pinned: ${input.file}`);
+}
+console.log('PASS: workflow actions and seven bundler helpers have age-eligible pinned receipts.');

@@ -5,7 +5,10 @@ set -euo pipefail
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 work="$repo/.build/linux-lifecycle"
 mkdir -p "$work/root" "$work/profile" "$work/screenshots"
-package="$(rg --files "$repo/artifacts/development/linux-x64" | sed -n '/\.deb$/p' | head -1)"
+shopt -s nullglob
+packages=("$repo/artifacts/development/linux-x64/"*.deb)
+[[ ${#packages[@]} == 1 ]] || { echo 'Expected exactly one development Debian package'; exit 1; }
+package="${packages[0]}"
 [[ -n "$package" ]] || { echo 'Missing development Debian package'; exit 1; }
 dpkg-deb --contents "$package" > "$work/deb-contents.txt"
 dpkg-deb --extract "$package" "$work/root"
@@ -13,7 +16,7 @@ exe="$work/root/usr/bin/matra-development020"
 hook="$work/root/usr/bin/matra-development020-hook"
 [[ -x "$exe" && -x "$hook" ]]
 ldd "$exe" > "$work/linked-libraries.txt"
-! rg 'not found' "$work/linked-libraries.txt"
+! grep -F 'not found' "$work/linked-libraries.txt"
 export MATRA_PREVIEW=1 MATRA_DATA_DIR="$work/profile"
 export XDG_SESSION_TYPE=x11
 unset WAYLAND_DISPLAY
