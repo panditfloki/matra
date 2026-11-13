@@ -73,6 +73,88 @@ app=4242; echo stop[4242]; stop_app >/dev/null; echo "after[$app]"
   assert.match(validPart, /after\[\]/);
 });
 
+test('harness functions state every return status (bare return misreports inside the EXIT trap)', () => {
+  // bash 5.1 (ubuntu-22.04): a bare `return` in a function run from a trap handler returns the status
+  // saved before the trap, i.e. the original failure. CI 43453950415 lost its strace reproduction
+  // that way: check_app said the live app had ended, silently, and the app was signalled in ld.so.
+  const text = fs.readFileSync(path.join(root, 'scripts/test-linux-development.sh'), 'utf8');
+  const bare = text.split('\n').map((l, i) => [i + 1, l.replace(/#.*$/, '')])
+    .filter(([, l]) => /(^|[;{]|\bthen|\belse|\bdo|&&|\|\|)\s*return\s*($|;|\}|\bfi\b)/.test(l));
+  assert.deepEqual(bare, [], 'bare return');
+});
+
+test('the diagnostic wait inside the EXIT trap keeps polling a live app and keeps the paint gate', { skip: !python && 'python3 unavailable' }, () => {
+  const text = fs.readFileSync(path.join(root, 'scripts/test-linux-development.sh'), 'utf8');
+  const functions = ['valid_pid', 'check_app', 'wait_settings'].map(n => shellFunction(text, n)).join('\n');
+  const scratch = path.join(root, '.build', 'test-linux-native-trace-harness');
+  fs.rmSync(scratch, { recursive: true, force: true });
+  const bin = path.join(scratch, 'bin');
+  fs.mkdirSync(bin, { recursive: true });
+  // Stand-ins for the X11/ImageMagick tools. They never touch a display.
+  const stub = (name, body) => fs.writeFileSync(path.join(bin, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+  stub('xdotool', `case "$1" in
+  search) echo x >> "$STUB_DIR/searches"; [ -z "$STUB_WINDOW" ] || echo "$STUB_WINDOW";;
+  getwindowpid) echo "$STUB_APP_PID";;
+  getwindowgeometry) echo "WINDOW=$3";;
+esac`);
+  stub('import', 'for a; do last="$a"; done; : > "$last"');
+  stub('convert', 'for a; do last="$a"; done; : > "$last"');
+  stub('identify', 'case "$2" in "%w %h"*) echo "400 600";; *) echo "$STUB_DEVIATION";; esac');
+  const run = (scenario, env) => {
+    const dir = path.join(scratch, scenario);
+    fs.mkdirSync(path.join(dir, 'work', 'screenshots'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'work', 'native-trace'), { recursive: true });
+    // The real functions run from an EXIT trap after a failing command, exactly as native_trace
+    // calls them; `sleep` is shadowed so 120 polls take no time, the app is a real live child.
+    const script = `set -euo pipefail
+${functions}
+sleep(){ :; }
+work="$STUB_DIR/work" app='' tracer='' phase=''
+cleanup(){
+  local status=$?
+  set +e
+  if [ "$SCENARIO" = dead ]; then /bin/sleep 0 & app=$!; command wait "$app"; else /bin/sleep 30 & app=$!; fi
+  export STUB_APP_PID="$app"
+  tracer=diagnostic phase=diagnostic-test
+  if wait_settings; then echo WAIT=0; else echo WAIT=1; fi
+  [ "$SCENARIO" = dead ] || { kill "$app"; command wait "$app"; }
+  return "$status"
+}
+trap cleanup EXIT
+false
+`;
+    const r = spawnSync('bash', ['-c', script], { encoding: 'utf8', timeout: 60000,
+      env: { ...process.env, ...env, SCENARIO: scenario, STUB_DIR: dir, PATH: `${bin}${path.delimiter}${process.env.PATH}` } });
+    const read = name => fs.existsSync(path.join(dir, name)) ? fs.readFileSync(path.join(dir, name), 'utf8') : '';
+    return { ...r, searches: read('searches').split('\n').filter(Boolean).length, paint: read('work/diagnostic-test-paint.txt'), ended: read('work/native-trace/process-exit.txt') };
+  };
+  try {
+    const blank = run('blank', { STUB_WINDOW: '', STUB_DEVIATION: '0.5' });
+    assert.equal(blank.status, 1, 'the trap still returns the original failure');
+    assert.match(blank.stdout, /^WAIT=1$/m);
+    assert.equal(blank.searches, 120, 'a live app is polled for the whole window, not dropped at once');
+    assert.match(blank.stderr, /did not remain visible and paint \(diagnostic-test\)/);
+    assert.equal(blank.ended, '');
+
+    const painted = run('painted', { STUB_WINDOW: '77', STUB_DEVIATION: '0.5' });
+    assert.match(painted.stdout, /^WAIT=0$/m, 'a painted traced app is reported as such');
+    assert.equal(painted.searches, 5, 'four stable repeats of the same owned window before capture');
+    assert.match(painted.paint, /XID=77 .*content_standard_deviation=0\.5/);
+
+    const uniform = run('uniform', { STUB_WINDOW: '77', STUB_DEVIATION: '0.01' });
+    assert.match(uniform.stdout, /^WAIT=1$/m, 'uniform content never passes the >0.01 gate');
+    assert.equal(uniform.searches, 120);
+    assert.equal(uniform.paint, '');
+
+    const dead = run('dead', { STUB_WINDOW: '77', STUB_DEVIATION: '0.5' });
+    assert.match(dead.stdout, /^WAIT=1$/m);
+    assert.equal(dead.searches, 0, 'an ended app is not polled');
+    assert.match(dead.ended, /ended phase=diagnostic-test/);
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
 function runGdbScript(mode) {
   const scratch = path.join(root, '.build', 'test-linux-native-trace-gdb', mode);
   fs.rmSync(scratch, { recursive: true, force: true });

@@ -656,11 +656,7 @@ static BASE_DPR: Mutex<f64> = Mutex::new(0.0);
 /// WebView zooms by `size` on top of whatever brings its DPR back to the monitor's scale, so the
 /// rings, text and hover card scale together, as the Mac's size does.
 fn zoom_notch(w: &tauri::WebviewWindow, monitor_scale: f64, size: f64) {
-    let base = match *BASE_DPR.lock().unwrap() {
-        b if b > 0.0 => b,
-        _ => monitor_scale,
-    };
-    let target = monitor_scale * size / base;
+    let target = notch_zoom(monitor_scale, size, *BASE_DPR.lock().unwrap());
     let mut z = ZOOM.lock().unwrap();
     if (target - *z).abs() > 0.001 {
         match w.set_zoom(target) {
@@ -668,6 +664,12 @@ fn zoom_notch(w: &tauri::WebviewWindow, monitor_scale: f64, size: f64) {
             Err(e) => applog(&format!("notch zoom failed: {e}")),
         }
     }
+}
+
+/// The zoom `zoom_notch` applies, from the last reported page DPR without zoom (0 before any report).
+fn notch_zoom(monitor_scale: f64, size: f64, base_dpr: f64) -> f64 {
+    let base = if base_dpr > 0.0 { base_dpr } else { monitor_scale };
+    monitor_scale * size / base
 }
 
 /// run.log never grows past this. The placement line used to rewrite the file on every drag,
@@ -689,6 +691,35 @@ pub fn applog(line: &str) {
     }
 }
 
+/// Whether the page's `window.devicePixelRatio` already includes the WebView zoom. WebView2's
+/// ZoomFactor scales it (DPR = monitor scale × zoom). WebKitGTK's zoom level does not: its DPR stays
+/// the GDK device scale while the CSS viewport grows by 1/zoom. Linux CI 43453950415 showed exactly
+/// that: dpr=1.000 at zoom 0.8, 0.64, 0.512 and 0.41 while the viewport went 460 → 575 → 718 → 898
+/// px wide. Treating it the WebView2 way read every report as a too-high DPR and shrank the zoom
+/// again each time (0.8 → 0.64 → 0.512 → 0.41, then 0.328 through `zoom_notch`).
+const DPR_INCLUDES_ZOOM: bool = !cfg!(target_os = "linux");
+
+/// The page's DPR without the WebView zoom, and its effective DPR with it, from a reported DPR and
+/// the zoom applied when it was measured.
+fn page_dpr(reported: f64, zoom: f64, includes_zoom: bool) -> (f64, f64) {
+    match (includes_zoom, zoom > 0.0) {
+        (true, true) => (reported / zoom, reported),
+        (true, false) => (reported, reported),
+        (false, _) => (reported, reported * zoom.max(0.0)),
+    }
+}
+
+/// From one DPR report: the page's DPR without zoom, the zoom that brings it to `want`, and whether
+/// that differs enough from the applied `zoom` to set. Before the per-process correction cap.
+fn dpr_correction(reported: f64, zoom: f64, want: f64, includes_zoom: bool) -> (f64, f64, bool) {
+    let (base, effective) = page_dpr(reported, zoom, includes_zoom);
+    let target = if base > 0.0 { want / base } else { 1.0 };
+    let needed = (effective - want).abs() > 0.02
+        && (target - zoom).abs() > 0.01
+        && (0.25..=4.0).contains(&target);
+    (base, target, needed)
+}
+
 /// Root cause: with two monitors (150 % / 200 %) WebView2 picked a devicePixelRatio of 2.0 while
 /// the window was sized for the primary monitor's 1.5, so the page was 255 CSS px wide instead of
 /// the designed 340 and every coordinate conversion was off (the watchdog misfired and the card
@@ -705,9 +736,8 @@ fn report_dpr(app: AppHandle, dpr: f64, w: f64, h: f64, settled: Option<bool>) {
         .unwrap_or_else(|| win.scale_factor().unwrap_or(1.0))
         * ui_scale(&app);
     let mut z = ZOOM.lock().unwrap();
-    let base = if *z > 0.0 { dpr / *z } else { dpr };
+    let (base, target, needed) = dpr_correction(dpr, *z, want, DPR_INCLUDES_ZOOM);
     *BASE_DPR.lock().unwrap() = base;
-    let target = if base > 0.0 { want / base } else { 1.0 };
     applog(&format!(
         "dpr report: dpr={dpr:.3} viewport={w:.0}x{h:.0} want_dpr={want:.3} zoom_applied={:.3} -> target_zoom={target:.3}",
         *z
@@ -715,11 +745,7 @@ fn report_dpr(app: AppHandle, dpr: f64, w: f64, h: f64, settled: Option<bool>) {
     // Oscillation guard: at most three corrections per process (if the DPR does not follow the zoom, stop chasing it)
     static APPLIED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     let mut corrected = false;
-    if (dpr - want).abs() > 0.02
-        && (target - *z).abs() > 0.01
-        && (0.25..=4.0).contains(&target)
-        && APPLIED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 3
-    {
+    if needed && APPLIED.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 3 {
         match win.set_zoom(target) {
             Ok(()) => {
                 *z = target;
@@ -2023,8 +2049,8 @@ fn record_process_exit() {}
 #[cfg(test)]
 mod tests {
     use super::{
-        cursor_in_hot, notch_window_size, provider_page, ring_window, work_insets, Screen, HOT_PAD,
-        NOTCH_W, TRAY_PROVIDER_IDS,
+        cursor_in_hot, dpr_correction, notch_window_size, notch_zoom, page_dpr, provider_page,
+        ring_window, work_insets, Screen, DPR_INCLUDES_ZOOM, HOT_PAD, NOTCH_W, TRAY_PROVIDER_IDS,
     };
     use crate::usage::LimitWindow;
 
@@ -2369,5 +2395,71 @@ mod tests {
     fn a_request_count_still_leads_when_it_is_all_there_is() {
         let requests = LimitWindow { id: "requests".into(), count: Some(79), ..Default::default() };
         assert_eq!(pick("gemini", std::slice::from_ref(&requests)), Some("requests"));
+    }
+
+    /// How each WebView reports `devicePixelRatio` for a window at `scale` with `zoom` applied:
+    /// WebView2 multiplies the zoom in, WebKitGTK leaves it out (Linux CI 43453950415).
+    fn reported_dpr(webview2: bool, scale: f64, zoom: f64) -> f64 {
+        if webview2 { scale * zoom } else { scale }
+    }
+
+    /// Replays the notch start-up: placement zooms by size, then alternating page reports and
+    /// placements, with report_dpr's three-correction cap. Returns every zoom actually set.
+    fn replay(webview2: bool, includes_zoom: bool, scale: f64, size: f64, rounds: usize) -> Vec<f64> {
+        let (mut zoom, mut base, mut corrections) = (1.0, 0.0, 0);
+        let mut set = Vec::new();
+        let apply = |zoom: &mut f64, target: f64, set: &mut Vec<f64>| {
+            if (target - *zoom).abs() > 0.001 { *zoom = target; set.push(target); }
+        };
+        apply(&mut zoom, notch_zoom(scale, size, base), &mut set);
+        for _ in 0..rounds {
+            let (b, target, needed) = dpr_correction(reported_dpr(webview2, scale, zoom), zoom, scale * size, includes_zoom);
+            base = b;
+            if needed && corrections < 3 { corrections += 1; apply(&mut zoom, target, &mut set); }
+            apply(&mut zoom, notch_zoom(scale, size, base), &mut set);
+        }
+        set
+    }
+
+    fn assert_zooms(got: &[f64], want: &[f64]) {
+        assert!(got.len() == want.len() && got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-9), "{got:?} != {want:?}");
+    }
+
+    #[test]
+    fn webkitgtk_dpr_reports_do_not_shrink_the_notch_zoom() {
+        assert!(!DPR_INCLUDES_ZOOM || !cfg!(target_os = "linux"), "Linux must use the WebKitGTK semantics");
+        // The exact CI 43453950415 first report: dpr=1 at zoom 0.8, Small (0.8) at scale 1
+        let (base, target, needed) = dpr_correction(1.0, 0.8, 0.8, false);
+        assert_eq!((base, needed), (1.0, false));
+        assert!((target - 0.8).abs() < 1e-9);
+        assert_eq!(page_dpr(1.0, 0.8, false), (1.0, 0.8));
+        // At scale 1 and 2, every size: the start-up zoom is the size and nothing chases it
+        for scale in [1.0, 1.25, 2.0] {
+            for size in [0.8, 1.0, 1.2] {
+                // One zoom, the size, set at placement (none at size 1, which is the default zoom)
+                let once: &[f64] = if size == 1.0 { &[] } else { &[size] };
+                assert_zooms(&replay(false, false, scale, size, 8), once);
+            }
+        }
+        // The old reading of the same reports reproduces the CI loop: 0.8, 0.64, 0.512, 0.41, 0.328 …
+        assert_zooms(&replay(false, true, 1.0, 0.8, 4), &[0.8, 0.64, 0.512, 0.4096, 0.32768]);
+    }
+
+    #[test]
+    fn webview2_dpr_correction_is_unchanged() {
+        assert!(DPR_INCLUDES_ZOOM || cfg!(target_os = "linux"));
+        assert_eq!(page_dpr(2.0, 1.0, true), (2.0, 2.0));
+        assert_eq!(page_dpr(1.5, 0.75, true), (2.0, 1.5));
+        assert_eq!(page_dpr(1.5, 0.0, true), (1.5, 1.5));
+        // The mixed-monitor root case: WebView2 at DPR 2 in a window sized for 1.5 is pulled to 0.75
+        let (base, target, needed) = dpr_correction(2.0, 1.0, 1.5, true);
+        assert_eq!(base, 2.0);
+        assert!(needed && (target - 0.75).abs() < 1e-9);
+        // … and once it follows, the next report needs nothing
+        let (_, target, needed) = dpr_correction(1.5, 0.75, 1.5, true);
+        assert!(!needed && (target - 0.75).abs() < 1e-9);
+        for scale in [1.0, 1.5, 2.0] {
+            assert_zooms(&replay(true, true, scale, 0.8, 8), &[0.8]);
+        }
     }
 }

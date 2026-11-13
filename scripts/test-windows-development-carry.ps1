@@ -181,8 +181,12 @@ function End-PhysicalCarry([long]$Id, [string]$Status) {
     Wait-Native { Query "!carrying && !dragging && !document.body.classList.contains('carry-hidden') && window.__nativeCarryEvents.some(e=>e.id===$Id)" } 'Carry did not restore the normal body' 12
     Wait-Native { (Find-Overlay) -eq [IntPtr]::Zero } 'Carry overlay survived terminal cleanup'
     Assert-Native ([MatraCarryNative]::Capture($notch) -eq [IntPtr]::Zero) 'Native pointer capture is released after terminal cleanup'
-    $terminal = Query "window.__nativeCarryEvents.filter(e=>e.id===$Id)"
-    Assert-Native (@($terminal).Count -eq 1 -and $terminal[0].status -eq $Status) "One native carry terminal event reports $Status"
+    # @() keeps a single-event result an array; the failure names every observed payload.
+    $terminal = @(Query "window.__nativeCarryEvents.filter(e=>e.id===$Id)")
+    if (!($terminal.Count -eq 1 -and $terminal[0].status -eq $Status)) {
+        throw "Expected one native carry terminal event reporting $Status for id $Id; observed $($terminal.Count): $(ConvertTo-Json -InputObject $terminal -Depth 6 -Compress)"
+    }
+    Write-Host "PASS: One native carry terminal event reports $Status"
     return $terminal[0]
 }
 function Invoke-Cleanup([string]$Name, [scriptblock]$Step) {

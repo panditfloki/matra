@@ -87,7 +87,7 @@ cleanup(){
   xdotool search --onlyvisible --name '.*' > "$work/visible-windows.txt" 2>&1
   if (( status != 0 )); then
     import -window root "$work/screenshots/x11-failure.png" 2>> "$work/capture-errors.log"
-    for log in run.log stderr.log relaunch-stderr.log appimage-stderr.log process-exit.txt; do
+    for log in run.log stdout.log stderr.log relaunch-stdout.log relaunch-stderr.log appimage-stdout.log appimage-stderr.log process-exit.txt; do
       [[ ! -f "$work/$log" ]] || { printf '\nDiagnostic: %s\n' "$log"; tail -100 "$work/$log"; }
     done
   fi
@@ -106,7 +106,10 @@ check_app(){
     printf 'Invalid application PID %q phase=%s; nothing signalled or polled\n' "$app" "$phase" >&2
     return 1
   fi
-  if kill -0 "$app" 2>/dev/null; then return; fi
+  # Explicit statuses only: these functions also run from the EXIT trap (native_trace), where
+  # bash 5.1's bare `return` yields the status saved before the trap (the original failure, 1).
+  # That made the live traced app look dead at once and get signalled within its loader.
+  if kill -0 "$app" 2>/dev/null; then return 0; fi
   local status
   if [[ -n "$tracer" ]]; then
     # Diagnostic reproduction: the tracer reaped the app; it records the status itself.
@@ -168,7 +171,7 @@ PY_PAINT
           xdotool getwindowgeometry --shell "$window" > "$work/$phase-geometry.txt"
           import -window root "$work/screenshots/x11-development-$phase.png"
           printf 'PID=%s XID=%s content_crop=%sx%s+%s+%s content_standard_deviation=%s\n' "$app" "$window" "$crop_w" "$crop_h" "$crop_x" "$crop_y" "$deviation" > "$work/$phase-paint.txt"
-          return
+          return 0
         fi
       fi
     fi

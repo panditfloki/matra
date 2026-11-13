@@ -452,6 +452,31 @@ fn destination_for(c: &Controller, screen: &Screen) -> Destination {
     }
 }
 
+/// What one physical pointer sample means for an active carry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PointerVerdict {
+    Held,
+    Released,
+    Cancelled,
+}
+/// Escape always cancels. A released button is the release even when capture
+/// vanished in the same instant: on Windows, tao's `WM_LBUTTONUP` handler calls
+/// `ReleaseCapture()` on the window that owns the carry's `SetCapture`, so a real
+/// physical release is observed as button-up *and* capture lost (CI 43453950415).
+/// Capture loss while the button is still held (`WM_CANCELMODE`, another
+/// `SetCapture`, an unmapped X11 window) is an external interruption and cancels.
+fn pointer_verdict(p: &crate::platform::carry::PointerSample, released: bool) -> PointerVerdict {
+    if p.escape_down {
+        PointerVerdict::Cancelled
+    } else if !p.left_down || released {
+        PointerVerdict::Released
+    } else if p.capture_lost {
+        PointerVerdict::Cancelled
+    } else {
+        PointerVerdict::Held
+    }
+}
+
 fn run(session: &mut Session, mut request: Request) -> Result<(), String> {
     cancelled(session)?;
     if RELEASED.load(SeqCst) == session.id {
@@ -514,12 +539,13 @@ fn run(session: &mut Session, mut request: Request) -> Result<(), String> {
     crate::platform::carry::begin(&app, "notch")?;
     session.captured = true;
     let first = crate::platform::carry::sample(&app)?;
-    if first.escape_down || first.capture_lost {
-        return Err("Carry cancelled before presentation".into());
-    }
-    if !first.left_down || RELEASED.load(SeqCst) == session.id {
-        session.status = "finished";
-        return Ok(());
+    match pointer_verdict(&first, RELEASED.load(SeqCst) == session.id) {
+        PointerVerdict::Cancelled => return Err("Carry cancelled before presentation".into()),
+        PointerVerdict::Released => {
+            session.status = "finished";
+            return Ok(());
+        }
+        PointerVerdict::Held => {}
     }
     crate::set_click_through(&app, false);
     crate::dropzones::show(
@@ -532,12 +558,15 @@ fn run(session: &mut Session, mut request: Request) -> Result<(), String> {
     while crate::dropzones::ready() != session.id {
         cancelled(session)?;
         let p = crate::platform::carry::sample(&app)?;
-        if p.escape_down || p.capture_lost {
-            return Err("Carry capture was lost before presentation".into());
-        }
-        if !p.left_down || RELEASED.load(SeqCst) == session.id {
-            session.status = "finished";
-            return Ok(());
+        match pointer_verdict(&p, RELEASED.load(SeqCst) == session.id) {
+            PointerVerdict::Cancelled => {
+                return Err("Carry capture was lost before presentation".into())
+            }
+            PointerVerdict::Released => {
+                session.status = "finished";
+                return Ok(());
+            }
+            PointerVerdict::Held => {}
         }
         if Instant::now() >= ready_by {
             return Err("Carry overlay did not paint".into());
@@ -563,7 +592,8 @@ fn run(session: &mut Session, mut request: Request) -> Result<(), String> {
             }
         }
         let pointer = crate::platform::carry::sample(&app)?;
-        if pointer.escape_down || pointer.capture_lost {
+        let verdict = pointer_verdict(&pointer, RELEASED.load(SeqCst) == session.id);
+        if verdict == PointerVerdict::Cancelled {
             return Err("Carry cancelled or capture lost".into());
         }
         if let Some(next) = crate::screen_at(&all, pointer.x, pointer.y) {
@@ -598,7 +628,8 @@ fn run(session: &mut Session, mut request: Request) -> Result<(), String> {
         last = now;
         controller.tick(elapsed);
         crate::dropzones::retarget(&app, &frame(session.id, &controller, &request.presentation))?;
-        if !pointer.left_down || RELEASED.load(SeqCst) == session.id {
+        // The final pointer position is applied above before the release commits.
+        if verdict == PointerVerdict::Released || RELEASED.load(SeqCst) == session.id {
             break;
         }
         std::thread::sleep(Duration::from_millis(8));
@@ -693,4 +724,72 @@ fn run(session: &mut Session, mut request: Request) -> Result<(), String> {
         mon.name
     ));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{pointer_verdict, PointerVerdict};
+    use crate::platform::carry::PointerSample;
+
+    fn sample(left_down: bool, escape_down: bool, capture_lost: bool) -> PointerSample {
+        PointerSample {
+            x: 512.0,
+            y: 3.0,
+            left_down,
+            escape_down,
+            capture_lost,
+        }
+    }
+
+    #[test]
+    fn physical_release_that_drops_capture_finishes_the_carry() {
+        // CI 43453950415: tao releases capture inside WM_LBUTTONUP, so the first
+        // post-release sample is button-up with capture already gone.
+        assert_eq!(
+            pointer_verdict(&sample(false, false, true), false),
+            PointerVerdict::Released
+        );
+        assert_eq!(
+            pointer_verdict(&sample(false, false, false), false),
+            PointerVerdict::Released
+        );
+        // The frontend's mouseup token is also a release, even beside capture loss.
+        assert_eq!(
+            pointer_verdict(&sample(true, false, true), true),
+            PointerVerdict::Released
+        );
+    }
+
+    #[test]
+    fn capture_loss_while_held_still_cancels() {
+        // WM_CANCELMODE / a competing SetCapture with the button down.
+        assert_eq!(
+            pointer_verdict(&sample(true, false, true), false),
+            PointerVerdict::Cancelled
+        );
+    }
+
+    #[test]
+    fn escape_cancels_even_at_release() {
+        assert_eq!(
+            pointer_verdict(&sample(true, true, false), false),
+            PointerVerdict::Cancelled
+        );
+        assert_eq!(
+            pointer_verdict(&sample(false, true, true), false),
+            PointerVerdict::Cancelled
+        );
+        assert_eq!(
+            pointer_verdict(&sample(false, true, false), true),
+            PointerVerdict::Cancelled
+        );
+    }
+
+    #[test]
+    fn held_pointer_with_capture_continues() {
+        assert_eq!(
+            pointer_verdict(&sample(true, false, false), false),
+            PointerVerdict::Held
+        );
+    }
 }
