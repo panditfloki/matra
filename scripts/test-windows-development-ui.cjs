@@ -162,6 +162,7 @@ async function saved(command, predicate) {
   assert.equal(alertsBefore.channel,'system','Existing notification preferences start on System');
   // Exercise the real Settings control and native NotchSink/renderer ACK. Sound
   // is off before selecting the channel, and no system notification is sent.
+  let alertFailure=null;
   try {
     evaluate('settings',`invoke('set_alert_settings',{settings:{...${JSON.stringify(alertsBefore)},sound:false,peek:true,peek_duration:'long'}})`);
     await saved('get_alert_settings',value=>value.channel==='system' && value.sound===false);
@@ -172,10 +173,12 @@ async function saved(command, predicate) {
     assert.equal(notchStatus.channel,'notch');
     assert.equal(notchStatus.os_state,'notch');
     assert.equal(notchStatus.can_deliver,true,'The real native notch is available even when system toasts are blocked by elevation');
+    console.log('Native silent Notch fixture: channel selected; preparing the renderer');
     evaluate('notch',`hideCard();onHover=false;unfold();true`);
     await pause(100);
     assert.equal(evaluate('settings',`(()=>{const send=[...document.querySelectorAll('#alerts-host button')].find(button=>button.textContent==='Send a test');if(!send||send.disabled)return false;send.click();return true})()`),true,'The real Settings test button submits the notch notification');
     const delivered=await saved('get_alert_status',value=>value.delivered===alertStatus.delivered+1 || value.failed>alertStatus.failed);
+    console.log('Native silent Notch delivery result:',JSON.stringify(delivered));
     assert.equal(delivered.failed,alertStatus.failed,`Native notch delivery failed: ${delivered.last?.error||''}`);
     assert.equal(delivered.delivered,alertStatus.delivered+1,'Native delivery increments only after the real notch renderer acknowledges');
     assert.equal(delivered.last.channel,'notch');
@@ -188,9 +191,18 @@ async function saved(command, predicate) {
     assert.equal(evaluate('notch',`document.querySelector('.matra-alert-peek').hidden && alertPeekUntil===0`),true,'Dismiss clears the actual peek and its fold hold');
     assert.equal(evaluate('settings',`invoke('get_alert_status').then(s=>s.delivered)`),alertStatus.delivered+1,'Dismiss does not count another delivery');
     console.log('PASS: native System→Notch setting, silent test button, real renderer ACK, painted peek and dismissal');
+  } catch(error) {
+    alertFailure=error;
+    console.error('Native Notch fixture failed before cleanup:',error);
+    try {evaluate('settings','document.title','windows-development-alert-failure.png');}catch(diagnosticError){console.error('Settings failure capture:',String(diagnosticError));}
+    throw error;
   } finally {
-    evaluate('notch',`window.matraAlertPeek?.hide();true`);
-    evaluate('settings',`invoke('set_alert_settings',{settings:${JSON.stringify(alertsBefore)}})`);
+    let cleanupFailure=null;
+    try {evaluate('notch',`window.matraAlertPeek?.hide();true`);}catch(error){cleanupFailure=error;console.error('Notch cleanup:',String(error));}
+    try {evaluate('settings',`invoke('set_alert_settings',{settings:${JSON.stringify(alertsBefore)}})`);}catch(error){cleanupFailure??=error;console.error('Alert preference restore:',String(error));}
+    // A hung renderer during cleanup must not replace the original delivery or
+    // viewport failure. Cleanup failure still fails an otherwise successful test.
+    if(cleanupFailure&&!alertFailure)throw cleanupFailure;
   }
   evaluate('settings',`invoke('open_activity')`);
   for(let n=0;n<40;n++){

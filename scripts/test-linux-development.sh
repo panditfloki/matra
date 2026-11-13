@@ -95,7 +95,8 @@ check_app(){
 # Openbox's startup command runs after it owns the display. Launching GTK while
 # the WM is still starting can invalidate a just-discovered native window.
 export MATRA_WM_READY="$work/wm-ready-$$"
-openbox --sm-disable --startup 'printf ready > "$MATRA_WM_READY"' > "$work/openbox.log" 2>&1 & wm=$!
+# Openbox parses argv and spawns directly; it does not interpret redirections.
+openbox --sm-disable --startup "/bin/sh -c 'printf ready > \"\$MATRA_WM_READY\"'" > "$work/openbox.log" 2>&1 & wm=$!
 for i in $(seq 1 100); do
   kill -0 "$wm"
   [[ -f "$MATRA_WM_READY" ]] && break

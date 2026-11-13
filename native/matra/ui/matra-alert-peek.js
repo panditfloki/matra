@@ -28,15 +28,16 @@
     close.type='button'; close.textContent='Dismiss'; close.className='btn'; close.setAttribute('aria-label','Dismiss notification');
     Object.assign(close.style,{font:'inherit',color:'inherit',background:'#8882',border:'1px solid #8886',borderRadius:'7px',padding:'5px 9px',cursor:'pointer'});
     panel.append(title,body,close); doc.body.append(panel);
-    let timer=null, disposed=false, revision=0, pending=null, unlisten=null;
+    let timer=null, disposed=false, revision=0, pending=null, unlisten=null, positionFrame=null, lastGeometry=null;
     const ack=(id,error=null)=>Promise.resolve(invoke('acknowledge_notch_alert',{id,error})).catch(()=>{});
     function hide() {
-      clearTimeout(timer); const wasVisible=!panel.hidden; panel.hidden=true;
+      clearTimeout(timer); if(positionFrame!==null){root.cancelAnimationFrame(positionFrame);positionFrame=null;}
+      lastGeometry=null; const wasVisible=!panel.hidden; panel.hidden=true;
       if(pending){revision++;ack(pending,'The notch alert closed before presentation finished.');pending=null;}
       if(wasVisible)onChange(false,0);
     }
     function position() {
-      if (panel.hidden) return;
+      if (disposed || panel.hidden) return;
       const card=doc.getElementById('card');
       if(card){const style=root.getComputedStyle(card);panel.style.background=style.background;panel.style.color=style.color;}
       const r=anchor(), w=panel.getBoundingClientRect().width, h=panel.getBoundingClientRect().height;
@@ -46,7 +47,18 @@
       else if (edge()==='right') { x=r.left-w-12; y=r.top; }
       const zoom=parseFloat(doc.documentElement.style.zoom)||1;
       const left=`${Math.max(8,Math.min(root.innerWidth-w-8,x))/zoom}px`,top=`${Math.max(8,Math.min(root.innerHeight-h-8,y))/zoom}px`;
-      if(panel.style.left!==left||panel.style.top!==top){panel.style.left=left;panel.style.top=top;onGeometry();}
+      panel.style.left=left;panel.style.top=top;
+      // CSSOM rounds serialized fractions (265.96875px becomes 265.969px). Comparing that
+      // string to the requested value can republish identical hit areas forever: the callback
+      // updates root styles, which this module observes. Compare actual laid-out bounds instead.
+      const measured=panel.getBoundingClientRect(),geometry=[measured.left,measured.top,measured.width,measured.height];
+      if(!lastGeometry||geometry.some((value,index)=>value!==lastGeometry[index])){lastGeometry=geometry;onGeometry();}
+    }
+    function schedulePosition() {
+      if(disposed||panel.hidden||positionFrame!==null)return;
+      // Root/body style bursts can result from our own geometry callback. Coalesce them into a
+      // frame so mutation delivery never recursively performs layout or starves IPC/paint tasks.
+      positionFrame=root.requestAnimationFrame(()=>{positionFrame=null;if(!canShow())hide();else position();});
     }
     async function receive(event) {
       const payload=event?.payload || {}, toast=payload.toast;
@@ -71,13 +83,13 @@
     }
     close.addEventListener('click',hide);
     const visibility=()=>{if(doc.visibilityState==='hidden'){revision++;if(pending){ack(pending,'The notch was hidden.');pending=null;}hide();}};
-    doc.addEventListener('visibilitychange',visibility); root.addEventListener('resize',position);
-    const busyObserver=new MutationObserver(()=>{if(!canShow()){hide();}else position();});
+    doc.addEventListener('visibilitychange',visibility); root.addEventListener('resize',schedulePosition);
+    const busyObserver=new MutationObserver(()=>{if(!canShow()){hide();}else schedulePosition();});
     busyObserver.observe(doc.body,{attributes:true,attributeFilter:['class','data-edge']});
     busyObserver.observe(doc.documentElement,{attributes:true,attributeFilter:['class','style','data-matra-theme','data-theme']});
     Promise.resolve(listen('notch_alert',receive)).then(stop=>{if(disposed)stop();else unlisten=stop;}).catch(()=>{});
     return {receive,rect:()=>panel.hidden?null:panel.getBoundingClientRect(),hide,
-      dispose(){disposed=true;revision++;if(pending){ack(pending,'The notch closed.');pending=null;}hide();unlisten?.();busyObserver.disconnect();root.removeEventListener('resize',position);doc.removeEventListener('visibilitychange',visibility);panel.remove();}};
+      dispose(){disposed=true;revision++;if(pending){ack(pending,'The notch closed.');pending=null;}hide();unlisten?.();busyObserver.disconnect();root.removeEventListener('resize',schedulePosition);doc.removeEventListener('visibilitychange',visibility);panel.remove();}};
   }
   root.MatraAlertPeek={mount,clean};
   if(typeof module!=='undefined')module.exports=root.MatraAlertPeek;
