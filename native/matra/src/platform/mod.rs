@@ -26,6 +26,21 @@ pub fn linux_x11_session() -> bool {
         && std::env::var_os("WAYLAND_DISPLAY").is_none()
 }
 
+/// Xlib creates its per-display locks only if XInitThreads runs before any other Xlib call in the
+/// process. GTK 3 never calls it, and tao 0.35.3's GTK event loop never constructs the XConnection
+/// whose constructor would (x11/xdisplay.rs). Hardening only: GDK itself stays single-threaded,
+/// so GTK/GDK/monitor reads are still marshalled to the UI thread (`crate::screens`, carry).
+/// No DISPLAY means no Xlib client can connect, so a pure Wayland session is left untouched.
+#[cfg(target_os = "linux")]
+pub fn prepare_xlib_threads() {
+    if std::env::var_os("DISPLAY").is_none_or(|v| v.is_empty()) { return; }
+    #[link(name = "X11")]
+    extern "C" { fn XInitThreads() -> std::ffi::c_int; }
+    if unsafe { XInitThreads() } == 0 {
+        eprintln!("Xlib thread support could not be initialised; continuing with GTK's single-threaded use.");
+    }
+}
+
 pub fn global_pointer_available() -> bool { cfg!(windows) || (cfg!(target_os = "linux") && linux_x11_session()) }
 
 pub fn updates_available() -> bool {

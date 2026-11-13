@@ -144,7 +144,31 @@ impl Screen {
 }
 
 /// Every attached monitor, primary first so a stale name always falls back to something sensible.
+///
+/// Linux: the whole read runs on the UI thread. tauri-runtime-wry 2.11.4 fetches the monitor
+/// handles there, but converts them into `Monitor` on the CALLING thread (lib.rs `primary_monitor`/
+/// `available_monitors` → `MonitorHandleWrapper::into`), and that conversion is GDK work:
+/// `gdk_monitor_get_workarea` (monitor/linux.rs), geometry, model and scale. On X11 the work area is
+/// an Xlib property request on GTK's own connection. Called from the work-area watcher (and other
+/// background loops) it can race the UI thread, consistent with the observed Xlib queue assertion.
+/// `run_on_main_thread` runs the closure inline when already on the UI thread. Windows
+/// keeps the direct read (its monitor queries are thread-safe Win32 calls).
 pub fn screens(app: &AppHandle) -> Vec<Screen> {
+    if !cfg!(target_os = "linux") {
+        return screens_on_ui(app);
+    }
+    let (send, receive) = std::sync::mpsc::sync_channel(1);
+    let handle = app.clone();
+    if app.run_on_main_thread(move || { let _ = send.send(screens_on_ui(&handle)); }).is_err() {
+        return Vec::new();
+    }
+    // Bounded like platform::carry's UI calls: a busy or exiting UI thread yields no screens, which
+    // every caller already treats as "no display", rather than a hung background loop.
+    receive.recv_timeout(std::time::Duration::from_secs(2)).unwrap_or_default()
+}
+
+/// `screens` body. On Linux call it only on the UI thread (GDK is single-threaded).
+fn screens_on_ui(app: &AppHandle) -> Vec<Screen> {
     let Some(w) = app.get_webview_window("notch") else {
         return Vec::new();
     };
@@ -1690,6 +1714,9 @@ fn main() {
         eprintln!("Use the native Swift Mac build entry: scripts/build-development.mjs --platform macos.");
         std::process::exit(1);
     }
+    // Before any GTK/Xlib work (GTK initialises inside tauri::Builder below).
+    #[cfg(target_os = "linux")]
+    platform::prepare_xlib_threads();
     if let Err(error) = config::validate_environment() {
         eprintln!("{error}");
         std::process::exit(1);
