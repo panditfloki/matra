@@ -1,93 +1,38 @@
-# Mātrā: development from the existing Mac product
+# Mātrā development from the existing Mac product
 
-The Mac app is the product reference: version 1.9.0, build 1906, source release
-`121746dcf4a0e619fa05ddd9b81f9b2e64f00da1`. Its SwiftUI/AppKit interface stays in
-place. This branch develops the Windows equivalent against that reference.
-The earlier replacement Mac preview is not part of this implementation.
+The product reference is the native Mac app, version 1.9.0/build 1906. Its SwiftUI/AppKit screens, notch and window controllers remain the Mac interface. Windows and Linux use the existing Rust/Tauri desktop target in the same repository, with source-derived Mac geometry and behavior.
 
-The development line is **0.2.0**. This first milestone is source and a browser
-component proof, not a new native installer or an update for installed 1.9.0.
-Native package versions and update-channel migration belong to the later,
-separately validated packaging step; no existing feed is changed here.
+The development line is **0.2.0**. Its identities, storage, credentials and explicitly installed hooks are separate from 1.9.0. Development builds do not change production update feeds. The native Swift build is the only Mac packaging entry; the Rust desktop executable refuses to launch on macOS.
 
-## First component
+## Shared implementation
 
-The Windows notch uses the original Mac measurements for its silhouette, rings,
-provider spacing, cards and settings/move controls. A generated reference in
-`shared/notch-reference/` gives adapters stable names for those measurements and
-timings. The generator reads the existing Mac source and fails on unsupported
-expressions or drift. The browser module embeds the same generated data.
+`native/matra-core` supplies pricing, token aggregation, coverage and Claude quota selection to both the native Swift application and Rust desktop. The C interface and Swift adapter are checked against common vectors and the prior native pricing behavior. Platform credential access, window management and provider transport stay in their native adapters.
 
-This is shared reference data. It is not yet a shared provider/cost runtime.
-Mac still executes its current Swift source. A later core extraction must keep
-its current interface and behavior while introducing small, testable boundaries.
+`shared/notch-reference/` contains generated Mac geometry. The generator reads the preserved Mac source and rejects unsupported expressions or drift. Windows/X11 carry uses the real body and ring snapshots, perimeter geometry, pointer offset, corner hysteresis, spring integration and measured landing. Release, Escape, capture loss and removed displays have explicit cleanup paths.
 
-The resumed implementation also ports the resting settings arc from the Mac's
-97-point flare walk and normal offset. It retains the Mac clearance and the four
-edge orientations. The existing spring-driven goo/disc transition is a separate
-remaining task.
+## Build and package
 
-## Local checks
+Follow [the native build entries](building-matra.md) and [platform dependencies and limitations](development-builds.md). Mac produces native arm64 or x86_64 ZIP/DMG packages. Windows produces an x64 installer; Linux produces x64 Debian and AppImage packages. Package receipts contain identities, versions and SHA-256 values. Hosted development workflows upload artifacts without creating production releases.
 
-From the repository root:
+## Focused checks
 
 ```sh
 node scripts/check-mac-notch-reference.mjs --check --self-test --runtime
 node native/scripts/test-mac-notch.cjs
 node native/scripts/check-ui-scripts.mjs
 node native/scripts/test-parity-ui.cjs
+node native/scripts/test-carry.cjs
 node scripts/build-notch-review.mjs
 ```
 
-The last command writes `artifacts/mac-first-notch/index.html`. Open it in a
-browser to interact with the actual Windows renderer using labelled sample data.
-The file is self-contained. The sample bridge records commands but does not
-connect to providers, move native windows, change settings or run updates.
-The review starts with left edge, six sample sources, Small size, Liquid Glass
-and hover visibility, following the settings observed in the running Mac app.
-Size, theme and percentage-reading controls are available. Browser pointer
-delivery is simulated from the renderer's hot regions, including wake and fold;
-that simulation is not a native Windows pointer test.
+The last command creates an offline component review in `artifacts/mac-first-notch/`. It uses the real Windows renderer and labelled sample data. Its bridge records commands without credentials, provider network access or native window movement.
 
-For real browser geometry checks, reuse an installed Puppeteer and Chrome:
+Browser checks accept existing Puppeteer and Chrome through `MATRA_PUPPETEER_PATH` and `MATRA_CHROME_PATH`. `test-mac-first-browser.cjs` covers 72 geometry combinations, twelve long-list/control cases and four review interactions. `MATRA_BROWSER_WORKSPACE` selects a contained disposable profile/evidence root. Optional `MATRA_BROWSER_SHARDS=4` and `MATRA_BROWSER_SHARD=0..3` split independent combinations across fresh browser processes; run all four to cover the complete matrix. `test-carry-browser.cjs` renders actual carry snapshots and replays Rust spring positions.
 
-```sh
-MATRA_PUPPETEER_PATH=/absolute/path/to/puppeteer \
-MATRA_CHROME_PATH=/absolute/path/to/chrome \
-node native/scripts/test-mac-first-browser.cjs
-```
+Mac tests and explicitly opted-in sample UI use `MATRA_IN_MEMORY_DEFAULTS=1`, which routes app-owned preferences to memory without contacting the system preferences daemon. Environment home redirection alone is insufficient. `native/macos/Scripts/check-defaults-isolation.py` verifies this boundary with daemon access and outside writes denied. Normal app runs retain native preference persistence.
 
-All profiles, output and temporary browser data stay in the enclosing task
-directory. No dependencies are installed by these commands. The browser check
-uses the real HTML and scripts, checks four edges, multiple provider counts,
-three notch sizes, two pixel ratios, hover content and command boundaries.
-Additional ten-provider cases cover normal mouse-wheel scrolling, taskbar
-insets, hidden readings and last-provider hover/refresh. It does not replace
-native Windows/WebView2 or physical pointer testing.
+## Acceptance boundaries
 
-The Windows CI job also checks reference drift and adapter geometry. Its compiler
-is explicitly pinned to Rust 1.99.1; it does not follow moving stable. A configured
-workflow is not evidence that Windows CI has run for this branch.
+Source and browser checks do not establish native WebView2/GTK behavior. Read exact-commit CI package/lifecycle results and review the resulting app on the target device. Physical multi-monitor scaling, native materials, notifications under desktop policy and real-account authentication require their respective environments.
 
-## Remaining platform work
-
-- Compare the expanded Mac notch and Windows component with the owner. The
-  original dashboard and settings were visually inspected on 13 November; the
-  nonstandard notch window rejected automated pointer input. Fonts, measured
-  line heights, glass materials, DPI and animation remain native checks.
-- Finish the native goo/disc morph and exact spring/shape transitions. The
-  ordinary silhouette and resting settings arc preserve source geometry but
-  CSS timing does not establish identical motion.
-- Port native carry behavior: Mac follows the pointer around the display with
-  corner hysteresis and springs; the current Windows native command still uses
-  an edge chooser. Matching handle geometry does not complete this interaction.
-- Verify physical hover/hit regions, screen changes and taskbar insets in Windows.
-  The fixed Windows overlay also compresses/scrolls long provider lists earlier
-  than the Mac's screen-sized layout; ordinary mouse-wheel access is checked.
-- Extend the established pattern to dashboard/settings/provider behavior and
-  extract reusable business logic incrementally. Preserve the existing Mac UI.
-- Add Linux adapters and native build/test evidence. This component alone does
-  not establish Linux readiness or complete Mac feature parity.
-
-The ordinary display-edge notch is the scope of this slice. Mac hardware-cutout
-geometry and native window behavior remain separate, explicit platform concerns.
+X11 supports the perimeter notch. Wayland restricts global pointer tracking and absolute positioning, so the app opens Settings/Dashboard and explains unavailable controls. Platform-specific credential, terminal and notification limitations are listed in the build guide. Apple hardware-cutout placement remains Mac-specific.
