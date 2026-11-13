@@ -22,6 +22,11 @@ This is shared reference data. It is not yet a shared provider/cost runtime.
 Mac still executes its current Swift source. A later core extraction must keep
 its current interface and behavior while introducing small, testable boundaries.
 
+The resumed implementation also ports the resting settings arc from the Mac's
+97-point flare walk and normal offset. It retains the Mac clearance and the four
+edge orientations. The existing spring-driven goo/disc transition is a separate
+remaining task.
+
 ## Local checks
 
 From the repository root:
@@ -38,6 +43,11 @@ The last command writes `artifacts/mac-first-notch/index.html`. Open it in a
 browser to interact with the actual Windows renderer using labelled sample data.
 The file is self-contained. The sample bridge records commands but does not
 connect to providers, move native windows, change settings or run updates.
+The review starts with left edge, six sample sources, Small size, Liquid Glass
+and hover visibility, following the settings observed in the running Mac app.
+Size, theme and percentage-reading controls are available. Browser pointer
+delivery is simulated from the renderer's hot regions, including wake and fold;
+that simulation is not a native Windows pointer test.
 
 For real browser geometry checks, reuse an installed Puppeteer and Chrome:
 
@@ -61,11 +71,13 @@ workflow is not evidence that Windows CI has run for this branch.
 
 ## Remaining platform work
 
-- Compare the running Mac and Windows component with the owner. Fonts, measured
-  line heights, glass materials, DPI and animation are platform dependent.
-- Finish the resting settings arc's native flare-following geometry and exact
-  spring/shape transitions. The current ordinary silhouette port and CSS timing
-  preserve reference dimensions but do not establish identical motion.
+- Compare the expanded Mac notch and Windows component with the owner. The
+  original dashboard and settings were visually inspected on 13 November; the
+  nonstandard notch window rejected automated pointer input. Fonts, measured
+  line heights, glass materials, DPI and animation remain native checks.
+- Finish the native goo/disc morph and exact spring/shape transitions. The
+  ordinary silhouette and resting settings arc preserve source geometry but
+  CSS timing does not establish identical motion.
 - Port native carry behavior: Mac follows the pointer around the display with
   corner hysteresis and springs; the current Windows native command still uses
   an edge chooser. Matching handle geometry does not complete this interaction.

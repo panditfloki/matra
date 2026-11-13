@@ -61,6 +61,35 @@
     return points;
   }
 
+  // GooNeck.flareWalk, including its midpoint headings for the offset normal.
+  // Normalising the two axes separately and retaining the final sampled heading
+  // is intentional: this is the native polyline, not an ideal quarter circle.
+  const flareWalk=(()=>{
+    const p=reference.shape.filletRamp,steps=reference.shape.fluidTurnSteps;
+    const bend=(Math.PI/2)/(1-p),walk=[{u:0,v:0,heading:0}];
+    let heading=0,u=0,v=0;
+    for(let i=0;i<steps;i++){
+      const s=(i+.5)/steps,share=s<p?s/p:s>1-p?(1-s)/p:1,before=heading;
+      heading+=bend*share/steps;u+=Math.cos(heading)/steps;v+=Math.sin(heading)/steps;
+      walk.push({u,v,heading:(before+heading)/2});
+    }
+    return walk.map(step=>({u:step.u/u,v:step.v/v,heading:step.heading}));
+  })();
+  function settingsArcPath(edge){
+    // FlareArc at GooArc's fully separated rest. GooArc uses orbClearance as
+    // the normal offset, while the underlying flare remains radius + orbGap.
+    // At the ordinary trailing end, SettingsOrb.restingTrim selects the bezel
+    // direction and the direction back along the stack on every edge.
+    const {outward:bezel,along}=reference.anchors[edge],side={x:-along.x,y:-along.y};
+    const flare=L.orbArcRadius+L.orbGap,offset=L.orbClearance;
+    return flareWalk.map((step,index)=>{
+      const normalSide=-Math.sin(step.heading),normalBezel=-Math.cos(step.heading);
+      const x=flare*(1-step.v)*bezel.x+flare*step.u*side.x+offset*(normalSide*side.x+normalBezel*bezel.x);
+      const y=flare*(1-step.v)*bezel.y+flare*step.u*side.y+offset*(normalSide*side.y+normalBezel*bezel.y);
+      return (index?'L':'M')+Number(x.toFixed(8))+' '+Number(y.toFixed(8));
+    }).join('');
+  }
+
   function cardSpace(edge,width,height,insets,pill,scale=1){
     const [top,right,bottom,left]=insets;
     const margin=8,clearance=(L.tailLength+L.tailGap)*scale;
@@ -123,5 +152,5 @@
     fluid([depth-band-curl,extent-curl],[depth-band,extent],[1,0],[0,1]);if(band)line(depth,extent);commands.push('Z');
     return {path:commands.join(''),width:vertical(edge)?depth:extent,height:vertical(edge)?extent:depth,flare:L.curlRadius,drawnFlare:curl};
   }
-  return {reference,vertical,ringGeometry,stackGeometry,handleGeometry,handleAt,gripDots,cardSpace,cardGeometry,tailPath,silhouette};
+  return {reference,vertical,ringGeometry,stackGeometry,handleGeometry,handleAt,gripDots,settingsArcPath,cardSpace,cardGeometry,tailPath,silhouette};
 });

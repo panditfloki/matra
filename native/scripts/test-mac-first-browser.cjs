@@ -27,9 +27,10 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     env: { ...process.env, TMPDIR: path.join(task, 'tmp') },
     args: ['--disable-background-networking', '--disable-component-update', '--no-first-run', '--no-default-browser-check', '--disable-crash-reporter', '--disable-breakpad', '--disable-sync', '--disable-features=MediaRouter']
   });
-  const checks = [], stressChecks = [], errors = [], network = [];
+  const checks = [], stressChecks = [], reviewChecks = [], errors = [], network = [];
   try {
     const page = await browser.newPage();
+    page.setDefaultTimeout(10000);
     page.on('pageerror', error => errors.push(error.message));
     await page.setRequestInterception(true);
     page.on('request', request => {
@@ -101,6 +102,70 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     await page.setViewport({ width: 1100, height: 950, deviceScaleFactor: 1 });
     await page.goto(pathToFileURL(path.join(review, 'index.html')).href);
     await page.waitForFunction(() => document.querySelector('iframe').contentWindow.__matraSample?.calls.length > 0);
+    if (!baseline) {
+      assert.deepEqual(await page.evaluate(() => ({
+        edge: document.getElementById('edge').value,
+        size: document.getElementById('size').value,
+        count: document.getElementById('count').value,
+        theme: document.getElementById('theme').value,
+        fold: document.getElementById('fold').checked
+      })), { edge: 'left', size: '0.8', count: '6', theme: 'glass', fold: true }, 'Review starts from the observed Mac display configuration');
+      const componentFrame = await page.$('iframe').then(handle => handle.contentFrame());
+      // Puppeteer's frame.hover does not include CSS zoom on the embedding
+      // iframe. Convert observed inner client geometry to the parent viewport
+      // explicitly so the trusted input lands on the visible control.
+      const hoverReview = async selector => {
+        const point = await page.evaluate(selector => {
+          const frame = document.querySelector('iframe'), outer = frame.getBoundingClientRect();
+          const box = frame.contentDocument.querySelector(selector).getBoundingClientRect();
+          const style = getComputedStyle(frame), zoom = Number(style.zoom) || 1;
+          return {
+            x: outer.x + (parseFloat(style.borderLeftWidth) + box.x + box.width / 2) * zoom,
+            y: outer.y + (parseFloat(style.borderTopWidth) + box.y + box.height / 2) * zoom
+          };
+        }, selector);
+        await page.mouse.move(point.x, point.y);
+      };
+      await componentFrame.waitForFunction(() => document.body.classList.contains('folded'));
+      // Transparent iframe space must not wake the notch. Native Windows
+      // supplies this boundary; the offline fixture must explicitly model it.
+      const iframeBox = await page.$eval('iframe', el => {
+        const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height };
+      });
+      await page.mouse.move(iframeBox.x + iframeBox.width - 20, iframeBox.y + 25);
+      await pause(120);
+      assert.equal(await componentFrame.evaluate(() => document.body.classList.contains('folded')), true, 'Transparent area does not wake folded review');
+      await hoverReview('#rest');
+      await componentFrame.waitForFunction(() => !document.body.classList.contains('folded'));
+      await page.hover('h1');
+      await componentFrame.waitForFunction(() => document.body.classList.contains('folded'));
+      reviewChecks.push({ wakeLeaveRefold: true, transparentSpaceIgnored: true });
+      await page.click('#fold');
+      for (const size of [.8, 1, 1.25]) {
+        await page.select('#size', String(size));
+        await pause(250);
+        await hoverReview('.cell');
+        await componentFrame.waitForFunction(() => document.querySelector('#card').classList.contains('show'));
+        const measurement = await page.evaluate(() => {
+          const frame = document.querySelector('iframe'), doc = frame.contentDocument;
+          const scale = Number(frame.style.zoom);
+          return {
+            scale,
+            ring: doc.querySelector('.ringwrap').getBoundingClientRect().width * scale,
+            card: doc.querySelector('#card').getBoundingClientRect().width * scale,
+            material: doc.documentElement.dataset.matraMaterial
+          };
+        });
+        assert.ok(Math.abs(measurement.ring - 44 * size) < .3, 'Review size scales the rendered ring');
+        assert.ok(Math.abs(measurement.card - 600 * 44 / 117) < 1, 'Review size preserves the physical card width');
+        assert.equal(measurement.material, 'glass');
+        reviewChecks.push(measurement);
+      }
+      await page.select('#size', '1');
+      await page.click('#readings');
+      assert.equal(await componentFrame.$eval('.cell .pct', el => getComputedStyle(el).display), 'none', 'Review can hide readings');
+      await page.click('#readings');
+    }
     for (const edge of ['left', 'top', 'right', 'bottom']) {
       await page.select('#edge', edge);
       assert.equal(await page.evaluate(() => document.querySelector('iframe').contentDocument.body.dataset.edge), edge);
@@ -111,8 +176,8 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     await page.select('#theme', 'dark'); await page.screenshot({ path: path.join(out, 'review-dark.png') });
     assert.deepEqual(network, [], 'Review must not request network resources');
     assert.deepEqual(errors, [], 'No JavaScript runtime errors');
-    fs.writeFileSync(path.join(out, 'result.json'), JSON.stringify({ passed: true, browser: await browser.version(), baseline, sampleData: true, nativeAcceptance: false, checks, stressChecks, errors, network }, null, 2) + '\n');
-    console.log(JSON.stringify({ passed: true, cases: checks.length, stressCases: stressChecks.length, evidence: out, nativeAcceptance: false }));
+    fs.writeFileSync(path.join(out, 'result.json'), JSON.stringify({ passed: true, browser: await browser.version(), baseline, sampleData: true, nativeAcceptance: false, checks, stressChecks, reviewChecks, errors, network }, null, 2) + '\n');
+    console.log(JSON.stringify({ passed: true, cases: checks.length, stressCases: stressChecks.length, reviewCases: reviewChecks.length, evidence: out, nativeAcceptance: false }));
   } catch (error) {
     fs.writeFileSync(path.join(out, 'failure.json'), JSON.stringify({ message: error.message, stack: error.stack, checks, stressChecks, errors, network }, null, 2) + '\n');
     throw error;

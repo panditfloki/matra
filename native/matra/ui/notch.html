@@ -299,10 +299,10 @@
   #root .s-row{padding:var(--notch-session-row-gap) 0}
   #root #controls-cue{display:none}
   #root #orb,#root #move{width:var(--handle-size);height:var(--handle-size);border-radius:50%;opacity:1;pointer-events:auto;z-index:3}
-  #root #orb .h-rest{display:block;width:var(--notch-orb-arc-box);height:var(--notch-orb-arc-box);margin:calc(var(--notch-orb-arc-box)/-2);opacity:1;transform:rotate(var(--arc))}
+  #root #orb .h-rest{display:block;width:var(--notch-orb-arc-box);height:var(--notch-orb-arc-box);margin:calc(var(--notch-orb-arc-box)/-2);opacity:1;transform:scale(1)}
   #root #orb .h-disc{width:var(--notch-orb-diameter);height:var(--notch-orb-diameter);margin:calc(var(--notch-orb-diameter)/-2);opacity:0;transform:scale(1.1)}
   #root #orb .h-glyph{width:var(--notch-orb-glyph);height:var(--notch-orb-glyph);margin:calc(var(--notch-orb-glyph)/-2);opacity:0;transform:rotate(calc(var(--spins,0)*360deg - 60deg)) scale(.5)}
-  #root #orb.hover .h-rest{opacity:0;transform:rotate(var(--arc)) scale(.86)}
+  #root #orb.hover .h-rest{opacity:0;transform:scale(.86)}
   #root #orb.hover .h-disc{opacity:1;transform:scale(1)}
   #root #orb.hover .h-glyph{opacity:1;transform:rotate(calc(var(--spins,0)*360deg)) scale(1)}
   #root #move .h-rest,#root #move .h-disc{display:none}
@@ -336,10 +336,7 @@
     </svg>
   </div>
   <div id="orb" class="handle" role="button" tabindex="0" aria-label="Settings" title="Settings">
-    <svg class="h-rest" viewBox="-36 -36 72 72" aria-hidden="true">
-      <circle r="28.5" fill="none" stroke="#2e2e2e" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
-      <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
-    </svg>
+    <svg class="h-rest" aria-hidden="true"></svg>
     <div class="h-disc"></div>
     <svg class="h-glyph matra-control-icon" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><path fill-rule="evenodd" d="M12 4.5a7.5 7.5 0 1 1 0 15 7.5 7.5 0 0 1 0-15Zm0 4.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(45 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(90 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(135 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(180 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(225 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(270 12 12)"/><rect x="10.3" y="2" width="3.4" height="4" rx=".8" transform="rotate(315 12 12)"/></g></svg>
   </div>
@@ -1844,7 +1841,8 @@ function placeHandles(){
   grip.innerHTML=Notch.gripDots(notchEdge).map(p=>`<circle cx="${p.x}" cy="${p.y}" r="${p.r}"/>`).join('');
   const radius=NotchLayout.orbArcRadius,stroke=NotchLayout.orbStroke,box=radius+stroke;
   const rest=orb.querySelector('.h-rest');rest.setAttribute('viewBox',`${-box} ${-box} ${box*2} ${box*2}`);
-  rest.innerHTML=`<circle r="${radius}" fill="none" stroke="var(--matra-stroke)" stroke-width="${stroke+1}" stroke-linecap="round" stroke-dasharray="${Math.PI*radius/2} ${2*Math.PI*radius}"/><circle r="${radius}" fill="none" stroke="var(--matra-bg)" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${Math.PI*radius/2} ${2*Math.PI*radius}"/>`;
+  const arc=Notch.settingsArcPath(notchEdge);
+  rest.innerHTML=`<path d="${arc}" fill="none" stroke="var(--matra-stroke)" stroke-width="${stroke+1}" stroke-linecap="round" stroke-linejoin="round"/><path d="${arc}" fill="none" stroke="var(--matra-bg)" stroke-width="${stroke}" stroke-linecap="round" stroke-linejoin="round"/>`;
   return true;
 }
 function near(at,x,y){ return !!at&&Math.hypot(x-at.x,y-at.y)<=at.reach; }
