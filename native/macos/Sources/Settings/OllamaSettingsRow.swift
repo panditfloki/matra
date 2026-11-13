@@ -62,7 +62,7 @@ struct OllamaSettingsRow: View {
 
             Toggle(L10n.settings("Measure speed and thinking"), isOn: $preferences.ollamaMetricsEnabled)
                 .disabled(!enabled)
-            Text(L10n.settingsBranded("To measure responses, point your chat client to http://127.0.0.1:11435 and keep Matra open."))
+            Text(Self.relayInstruction(address: OllamaActivityRelay.address))
                 .foregroundStyle(.secondary)
             if enabled, preferences.ollamaMetricsEnabled, let relay {
                 OllamaRelayStatus(relay: relay)
@@ -72,6 +72,13 @@ struct OllamaSettingsRow: View {
         .fixedSize(horizontal: false, vertical: true)
         .onAppear { address = preferences.ollamaEndpoint }
         .onChange(of: address) { _, _ in addressError = nil }
+    }
+
+    /// Names the relay this build actually runs, so a development build points
+    /// at its own port rather than the installed app's.
+    static func relayInstruction(address: String, locale: Locale = L10n.locale) -> String {
+        L10n.settingsBranded("To measure responses, point your chat client to \(address) and keep Matra open.",
+                             locale: locale)
     }
 
     private func applyAddress() {

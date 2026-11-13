@@ -3,7 +3,7 @@ import Foundation
 
 @MainActor
 final class OllamaActivityRelay: ObservableObject {
-    static let address = "http://127.0.0.1:\(MatraStorage.channel.relayPort)"
+    static let address = MatraStorage.channel.relayAddress
     @Published private(set) var status = "Off"
     @Published private(set) var ready = false
     @Published private(set) var thinkingModels: [String: Date] = [:]

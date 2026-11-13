@@ -26,6 +26,10 @@ Mac `--check` validates the native entry's command interface only. `--test` runs
 
 ## Isolation and platform behavior
 
+### Windows and Linux (Rust/Tauri target)
+
+This table applies only to the Rust/Tauri executable. The Mac development build uses the native identities in the next section.
+
 | Area | Development behavior |
 | --- | --- |
 | Bundle | `com.dydxfx.matra.development020`, version `0.2.0` |
@@ -39,7 +43,26 @@ Mac `--check` validates the native entry's command interface only. `--test` runs
 | Linux executable | `matra-development020`, with `matra-development020-hook`; no `/usr/bin/matra` replacement |
 | Windows installer | Separate product directory/identity; rejects an existing executable without a development marker; removes only its own opted-in integrations |
 
-Linux X11 supports global pointer sampling, mouse capture, physical desktop coordinates and Escape cancellation. It uses the same Xlib display connection as GTK, so it can replace the application's implicit button grab. Windows capture and capture-loss checks run on the window-owning UI thread. Capture cleanup is queued even after a UI-thread timeout.
+### macOS (native Swift target)
+
+`native/macos/Sources/App/MatraStorage.swift` derives every app-owned name below from the running bundle identifier, never from an environment flag. The installed product keeps its own values, shown in parentheses.
+
+| Area | Development behavior |
+| --- | --- |
+| Bundle | `com.dydxfx.matra.mac.development`, `Matra Development.app`, displayed as `Mātrā Development`, version `0.2.0` build `2001` (installed: `com.dydxfx.matra.mac`) |
+| Preferences | The bundle identifier's own defaults domain. XCTest and `MATRA_IN_MEMORY_DEFAULTS=1` use in-memory defaults that never reach `cfprefsd` |
+| App data | `~/Library/Application Support/Matra Development/` (installed: `Matra/`) |
+| Keychain | Services named `com.dydxfx.matra.mac.development.<item>`, account `matra`, including Phone Link pairing secrets (installed: `com.dydxfx.matra.mac.<item>`). Logging uses the same subsystem prefix |
+| Hooks | The only external integration is the OpenCode plugin, written by the explicit Settings action as `matra-development.js` in `$XDG_CONFIG_HOME/opencode/plugins` or `~/.config/opencode/plugins`. It writes activity into `Matra Development`. The installed `matra.js` is left alone; uninstall removes only a file carrying this app's ownership marker |
+| Login startup | Explicit toggle; `SMAppService.mainApp` registers this development bundle itself, not the installed app |
+| Ollama speed relay | `http://127.0.0.1:11436` (installed: `11435`). Settings shows the running identity's address |
+| Phone Link | Default port `8789` (installed: `8788`); a port saved in this identity's own preferences overrides it |
+| Updates | Sparkle is off: the build removes `SUFeedURL` and `SUPublicEDKey` and disables automatic checks, and the app enables its updater only for the installed identity outside tests and samples. Claude credential renewal is also production-only |
+| Tests and samples | Never register a login item or install the OpenCode plugin |
+
+`make preview-build` produces a third identity, `com.dydxfx.matra.mac.preview` (`Matra Preview`, relay `11437`, Phone Link `8790`), with the same separation. An unrecognised bundle identifier falls back to `com.dydxfx.matra.mac.unidentified` with port `0`, so it never inherits installed state and its relay does not start.
+
+Linux X11 supports global pointer sampling, mouse capture, physical desktop coordinates and Escape cancellation. GTK selects XInput2 events, so a button press gives GTK's client an XI2 implicit grab, and the X server refuses a grab of a different type, including a core `XGrabPointer`, with `AlreadyGrabbed`. Capture therefore uses GDK's own seat pointer grab (`gdk_seat_grab`), which is the same XI2 grab type on GTK's client and supersedes the implicit grab. Release is pointer-only and happens only while GDK still records the grab as this module's own. Pointer and Escape sampling run on GTK's borrowed Xlib connection, not a separately opened display. Host Rust tests do not drive a real X server; native Linux carry acceptance requires the Linux CI run and device receipts. Windows capture and capture-loss checks run on the window-owning UI thread. Capture cleanup is queued even after a UI-thread timeout.
 
 Wayland does not offer the global pointer and absolute placement contract required by perimeter carry. Capability flags disable carry and placement controls; native adapter errors do not report a move as successful. Dashboard and Settings remain available. Linux terminal jump-back, foreground acknowledgement, encrypted Cursor editor credentials and the Antigravity ConPTY runner are not supplied by these adapters. Their supported local-tool/cache paths remain separate.
 

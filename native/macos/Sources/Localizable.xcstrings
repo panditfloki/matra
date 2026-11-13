@@ -34022,61 +34022,61 @@
         }
       }
     },
-    "To measure responses, point your chat client to http://127.0.0.1:11435 and keep Matra open.": {
+    "To measure responses, point your chat client to %@ and keep Matra open.": {
       "extractionState": "manual",
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Um Antworten zu messen, richte deinen Chat-Client auf http://127.0.0.1:11435 und lass Matra geöffnet."
+            "value": "Um Antworten zu messen, richte deinen Chat-Client auf %@ und lass Matra geöffnet."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "応答を計測するには、チャットクライアントの向き先を http://127.0.0.1:11435 にして、Matra を開いたままにしてください。"
+            "value": "応答を計測するには、チャットクライアントの向き先を %@ にして、Matra を開いたままにしてください。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "要测量回复，把聊天客户端指向 http://127.0.0.1:11435，并保持 Matra 打开。"
+            "value": "要测量回复，把聊天客户端指向 %@，并保持 Matra 打开。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "要測量回復，把聊天客戶端指向 http://127.0.0.1:11435，並保持 Matra 開啟。"
+            "value": "要測量回復，把聊天客戶端指向 %@，並保持 Matra 開啟。"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Щоб вимірювати відповіді, спрямуйте свій чат-клієнт на http://127.0.0.1:11435 і не закривайте Matra."
+            "value": "Щоб вимірювати відповіді, спрямуйте свій чат-клієнт на %@ і не закривайте Matra."
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "응답을 측정하려면 채팅 클라이언트의 주소를 http://127.0.0.1:11435로 설정하고 Matra를 열어 두십시오."
+            "value": "응답을 측정하려면 채팅 클라이언트의 주소를 %@로 설정하고 Matra를 열어 두십시오."
           }
         },
         "uz": {
           "stringUnit": {
             "state": "translated",
-            "value": "Javoblarni oʻlchash uchun chat mijozingizni http://127.0.0.1:11435 ga yoʻnaltiring va Matraʼni ochiq qoldiring."
+            "value": "Javoblarni oʻlchash uchun chat mijozingizni %@ ga yoʻnaltiring va Matraʼni ochiq qoldiring."
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Untuk mengukur respons, arahkan klien obrolan Anda ke http://127.0.0.1:11435 dan biarkan Matra tetap terbuka."
+            "value": "Untuk mengukur respons, arahkan klien obrolan Anda ke %@ dan biarkan Matra tetap terbuka."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yanıtları ölçmek için sohbet istemcinizi http://127.0.0.1:11435 adresine yönlendirin ve Matra'u açık tutun."
+            "value": "Yanıtları ölçmek için sohbet istemcinizi %@ adresine yönlendirin ve Matra'u açık tutun."
           }
         }
       }

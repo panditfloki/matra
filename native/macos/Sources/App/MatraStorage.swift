@@ -32,6 +32,9 @@ struct MatraChannel: Equatable {
         }
     }
 
+    /// Where this identity's Ollama speed relay listens.
+    var relayAddress: String { "http://127.0.0.1:\(relayPort)" }
+
     func allowsUpdates(underTest: Bool, sample: Bool) -> Bool {
         isProduction && !underTest && !sample
     }
