@@ -1,7 +1,7 @@
 {
   "name": "claude-usage-meter",
-  "displayName": "Mātrā — Claude + Codex + Gemini Usage",
-  "description": "Live Claude, Codex, and Gemini usage — plan limits, tokens and equivalent API cost in one local dashboard.",
+  "displayName": "M\u0101tr\u0101 \u2014 Claude + Codex + Gemini Usage",
+  "description": "Live Claude, Codex, and Gemini usage \u2014 plan limits, tokens and equivalent API cost in one local dashboard.",
   "version": "1.7.5",
   "publisher": "dydxfx",
   "author": {
@@ -45,15 +45,15 @@
     "commands": [
       {
         "command": "claudeUsage.open",
-        "title": "Mātrā: Open Dashboard"
+        "title": "M\u0101tr\u0101: Open Dashboard"
       },
       {
         "command": "claudeUsage.refresh",
-        "title": "Mātrā: Refresh Now"
+        "title": "M\u0101tr\u0101: Refresh Now"
       }
     ],
     "configuration": {
-      "title": "Mātrā Usage Meter",
+      "title": "M\u0101tr\u0101 Usage Meter",
       "properties": {
         "claudeUsage.statusBar.metric": {
           "type": "string",
@@ -96,14 +96,14 @@
           "minimum": 0,
           "maximum": 100,
           "default": 80,
-          "description": "Usage percentage that gives the Mātrā meter a warning background."
+          "description": "Usage percentage that gives the M\u0101tr\u0101 meter a warning background."
         },
         "claudeUsage.statusBar.errorThreshold": {
           "type": "number",
           "minimum": 0,
           "maximum": 100,
           "default": 95,
-          "description": "Usage percentage that gives the Mātrā meter an error background."
+          "description": "Usage percentage that gives the M\u0101tr\u0101 meter an error background."
         },
         "claudeUsage.accounts.claudeAlias": {
           "type": "string",
@@ -128,7 +128,10 @@
     "desktop:build": "node scripts/build-desktop.js",
     "desktop:smoke": "electron desktop/main.js --smoke-test",
     "package": "vsce package",
-    "test": "node --test test/*.test.js && node native/scripts/check-ui-scripts.mjs && node native/scripts/test-claude-auth-ui.cjs && node native/scripts/test-ko-i18n.cjs && node native/test-codex-headline.cjs && node native/scripts/test-matra-interactions.cjs"
+    "test": "node --test test/*.test.js && node native/scripts/check-ui-scripts.mjs && node native/scripts/test-claude-auth-ui.cjs && node native/scripts/test-ko-i18n.cjs && node native/test-codex-headline.cjs && node native/scripts/test-matra-interactions.cjs",
+    "development:check": "node scripts/build-development.mjs --check",
+    "development:test": "node scripts/build-development.mjs --test",
+    "development:bundle": "node scripts/build-development.mjs --bundle"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
