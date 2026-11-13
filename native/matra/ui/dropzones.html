@@ -1,57 +1,47 @@
 <!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<style>
-  /* The four places the notch can land, over one screen, while it is carried by the move handle.
-     Click-through and never focused: Rust sets both on the window. */
-  *{box-sizing:border-box}
-  html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;overflow:hidden;user-select:none;cursor:default}
-  .zone{
-    position:absolute;background:rgba(0,0,0,.3);
-    /* The notch's own outline: dashed, and washed inside. A stroke alone disappears over a light or
-       busy desktop, which is where seeing the places matters most. */
-    border:3px dashed rgba(232,232,234,.72);
-    transition:transform .3s cubic-bezier(.34,1.3,.64,1),background-color .2s,border-color .2s;
-  }
-  .zone.on{background:rgba(0,0,0,.62);border-color:#e8e8ea;transform:scale(1.06)}
-  /* Welded to its edge, rounded on the three corners that are not against it, as the notch is */
-  #right{border-radius:20px 0 0 20px;right:0}
-  #left{border-radius:0 20px 20px 0;left:0}
-  #top{border-radius:0 0 20px 20px;top:0}
-  #bottom{border-radius:20px 20px 0 0;bottom:0}
-  @media (prefers-reduced-motion: reduce){.zone{transition:none}}
-</style>
-</head>
-<body>
-<div class="zone" id="left"></div>
-<div class="zone" id="right"></div>
-<div class="zone" id="top"></div>
-<div class="zone" id="bottom"></div>
-<script>
-const invoke = window.__TAURI__.core.invoke;
-const listen = window.__TAURI__.event.listen;
-
-/* One shape, turned on its side for the flat edges: a column down a side edge, a row along a flat
-   one. Depth and length are the pill's own, standing upright. */
-function draw(z){
-  if(!z) return;
-  const depth=Math.round(z.depth), length=Math.round(z.length);
-  for(const edge of ['left','right']){
-    const el=document.getElementById(edge);
-    el.style.width=depth+'px'; el.style.height=length+'px';
-    el.style.top=Math.round((z.h-length)/2)+'px';
-  }
-  for(const edge of ['top','bottom']){
-    const el=document.getElementById(edge);
-    el.style.width=length+'px'; el.style.height=depth+'px';
-    el.style.left=Math.round((z.w-length)/2)+'px';
-  }
-  for(const edge of ['left','right','top','bottom'])
-    document.getElementById(edge).classList.toggle('on',edge===z.target);
+<html><head><meta charset="UTF-8"><style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;pointer-events:none;user-select:none}
+#stage{display:block;width:100%;height:100%;overflow:visible}image{pointer-events:none}
+</style></head><body>
+<svg id="stage" xmlns="http://www.w3.org/2000/svg"><defs>
+<filter id="goo" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB"><feGaussianBlur id="blur" stdDeviation="0"/><feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -8.5"/></filter>
+<clipPath id="body-clip"></clipPath>
+</defs><g id="body"></g><g id="cells" clip-path="url(#body-clip)"></g><g id="grip"></g></svg>
+<script src="matra-notch-reference.js"></script><script src="matra-carry.js"></script><script>
+'use strict';
+const invoke=window.__TAURI__.core.invoke,listen=window.__TAURI__.event.listen,Carry=MatraCarry;
+const stage=document.getElementById('stage'),body=document.getElementById('body'),cells=document.getElementById('cells'),clip=document.getElementById('body-clip'),grip=document.getElementById('grip');
+const ns='http://www.w3.org/2000/svg';let presentation=null,pending=null,ticking=false,sceneId=0,loadedId=0;
+const node=(tag,attrs)=>{const el=document.createElementNS(ns,tag);for(const[k,v]of Object.entries(attrs))el.setAttribute(k,v);return el;};
+async function install(scene){
+  if(!scene)return;const id=scene.frame.id;sceneId=id;presentation=scene.presentation;pending=scene.frame;
+  const images=await Promise.all(presentation.cells.map(async c=>{const img=new Image();img.src=c.image;await img.decode();return c;}));
+  if(sceneId!==id)return;
+  cells.replaceChildren(...images.map(c=>node('image',{href:c.image,width:c.width*presentation.scale,height:c.height*presentation.scale})));
+  loadedId=id;draw();requestAnimationFrame(()=>requestAnimationFrame(()=>{if(sceneId===id)invoke('carry_overlay_ready',{id}).catch(()=>{});}));
 }
-listen('zones',e=>draw(e.payload)).catch(()=>{});
-invoke('get_zones').then(draw).catch(()=>{});
-</script>
-</body>
-</html>
+function queue(frame){if(!frame||frame.id!==sceneId)return;pending=frame;if(!ticking){ticking=true;requestAnimationFrame(draw);}}
+function draw(){
+  ticking=false;const f=pending,p=presentation;if(!f||!p||loadedId!==f.id)return;
+  // The native overlay is pinned in physical pixels; viewBox absorbs transient
+  // WebView DPI/viewport discrepancies without resizing the notch itself.
+  stage.setAttribute('viewBox',`0 0 ${f.w} ${f.h}`);stage.setAttribute('preserveAspectRatio','none');
+  const pieces=Carry.parts(f,p);body.replaceChildren(...pieces.map(part=>node('path',{d:part.path,transform:`translate(${part.x} ${part.y})`,fill:p.fill,stroke:p.stroke,'stroke-width':1})));
+  clip.replaceChildren(...pieces.map(part=>node('path',{d:part.path,transform:`translate(${part.x} ${part.y})`})));
+  const blur=Carry.goo(f,p);document.getElementById('blur').setAttribute('stdDeviation',blur);
+  body.setAttribute('filter',blur>.25?'url(#goo)':'none');
+  for(let i=0;i<cells.children.length;i++){const c=p.cells[i],at=f.rings[i],image=cells.children[i];if(!at){image.setAttribute('visibility','hidden');continue;}
+    image.setAttribute('visibility','visible');image.setAttribute('width',c.width*p.scale);image.setAttribute('height',c.height*p.scale);image.setAttribute('x',at[0]-c.width*p.scale/2);image.setAttribute('y',at[1]-c.height*p.scale/2);}
+  const sign=['top','right'].includes(p.source_edge)?1:-1,end=Carry.place(f.place+sign*f.length/2,f.w,f.h),L=MatraNotchReference.reference.layout;
+  const across=p.flare*p.scale,at=end.edge==='top'?[end.along,across]:end.edge==='bottom'?[end.along,f.h-across]:end.edge==='left'?[across,end.along]:[f.w-across,end.along];
+  // The settings end becomes the native six-dot carried handle. Its real geometry
+  // comes from the same Mac reference used by the ordinary grip.
+  grip.replaceChildren(...MatraNotchReference.gripDots(end.edge).map(d=>node('circle',{cx:at[0]+d.x*p.scale,cy:at[1]+d.y*p.scale,r:d.r*p.scale,fill:p.ink})));
+}
+Promise.all([
+  listen('carry_scene',e=>install(e.payload).catch(()=>{})),
+  listen('carry_frame',e=>queue(e.payload)),
+  listen('carry_presentation',e=>{presentation=e.payload;queue(pending);})
+]).then(()=>invoke('get_zones')).then(install).catch(()=>{});
+window.addEventListener('resize',()=>queue(pending));
+</script></body></html>

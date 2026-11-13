@@ -2,6 +2,7 @@
 (() => {
   const listeners = new Map();
   const calls = [];
+  const carryResolvers=new Map();
   const ids = ['claude', 'codex', 'cursor', 'gemini', 'grok', 'glm'];
   const allIds = [...ids, ...Array.from({ length: 14 }, (_, i) => 'custom:sample-' + (i + 1))];
   const now = Date.now();
@@ -74,8 +75,14 @@
         return null;
       }
       if (name === 'refresh_ring') return false;
-      if (name === 'begin_move') setTimeout(() => emit('move_end', null), 30);
-      if (name === 'drag_begin') setTimeout(() => emit('drag_end', null), 30);
+      if(name==='begin_move'||name==='drag_begin'){
+        const id=args.request.id;
+        if(window.__matraSample.failCarry)throw Error(window.__matraSample.failCarry);
+        if(!window.__matraSample.manualCarry)setTimeout(()=>emit('carry_end',{id,status:'finished'}),30);
+        if(window.__matraSample.deferCarry)return new Promise(resolve=>carryResolvers.set(id,resolve));
+        return id;
+      }
+      if(['report_notch_body','carry_pointer_end','carry_layout_ready','carry_overlay_ready','carry_revealed'].includes(name))return null;
       if (['report_dpr', 'log_js', 'notch_hidden', 'open_settings', 'refresh_on_look', 'begin_move', 'drag_begin', 'show_notch_menu'].includes(name)) return null;
       throw new Error('Sample bridge has no command: ' + name);
     } },
@@ -88,7 +95,8 @@
     window: { getCurrentWindow: () => ({ close() {}, startDragging() {} }) }
   };
   window.__matraSample = {
-    calls, emit,
+    calls, emit, manualCarry:false, deferCarry:false, failCarry:null,
+    resolveCarry(id){const resolve=carryResolvers.get(id);if(resolve){carryResolvers.delete(id);resolve(id);}},
     configure({ edge = 'right', count = 3, theme = 'dark', fold = false, insets = [0, 0, 0, 0], stale = false, readings = true, size = values.get_scale } = {}) {
       const checkedEdge = ['left', 'right', 'top', 'bottom'].includes(edge) ? edge : 'right';
       values.get_notch_edge = checkedEdge;
