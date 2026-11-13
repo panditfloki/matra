@@ -66,29 +66,35 @@ struct CostValue: Equatable, Sendable {
     /// Records one turn's cost; nil, or a number that is not a real amount, is
     /// counted as unknown instead of joining the sum.
     mutating func add(_ cost: Double?, tokens: Int = 0, model: String? = nil) {
-        if let cost, cost.isFinite, cost >= 0 {
-            amount += cost
-            pricedTurns += 1
-        } else {
-            unknownTurns += 1
+        let next = SharedCore.accumulate(amount: amount, priced: pricedTurns, unknown: unknownTurns, cost: cost)
+        if next.unknown > unknownTurns {
             unknownTokens += tokens
             if let model, !model.isEmpty { unknownModels.insert(model) }
         }
+        amount = next.amount
+        pricedTurns = next.priced
+        unknownTurns = next.unknown
     }
 
     static func + (a: CostValue, b: CostValue) -> CostValue {
         var out = a
-        out.amount += b.amount
-        out.pricedTurns += b.pricedTurns
-        out.unknownTurns += b.unknownTurns
+        let next = SharedCore.merge(amount: a.amount, priced: a.pricedTurns, unknown: a.unknownTurns,
+                                     otherAmount: b.amount, otherPriced: b.pricedTurns, otherUnknown: b.unknownTurns)
+        out.amount = next.amount
+        out.pricedTurns = next.priced
+        out.unknownTurns = next.unknown
         out.unknownTokens += b.unknownTokens
         out.unknownModels.formUnion(b.unknownModels)
         return out
     }
 
     var coverage: Coverage {
-        if unknownTurns == 0 { return pricedTurns > 0 ? .complete : .none }
-        return pricedTurns > 0 ? .atLeast : .unavailable
+        switch SharedCore.coverage(priced: pricedTurns, unknown: unknownTurns) {
+        case 0: return .none
+        case 1: return .complete
+        case 2: return .atLeast
+        default: return .unavailable
+        }
     }
 
     var text: String {

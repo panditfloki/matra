@@ -1225,9 +1225,13 @@ pub(crate) fn ring_window<'a>(
 ) -> Option<&'a usage::LimitWindow> {
     let by_id = |id: &str| windows.iter().find(|w| w.id == id);
     match provider {
-        "claude" => ["session", "five_hour", "seven_day", "weekly_all", "weekly"]
-            .iter()
-            .find_map(|id| by_id(id)),
+        "claude" => windows.iter()
+            .filter_map(|window| {
+                let rank = matra_core::claude_headline_rank(&window.id, false);
+                (rank != u32::MAX).then_some((rank, window))
+            })
+            .min_by_key(|(rank, _)| *rank)
+            .map(|(_, window)| window),
         "codex" => by_id("primary"),
         "cursor" => by_id("included").or_else(|| by_id("api")),
         "grok" => by_id("credits").or_else(|| windows.first()),

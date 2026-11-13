@@ -514,8 +514,8 @@ fn parse_response(v: &serde_json::Value) -> Vec<LimitWindow> {
         }
         out.push(LimitWindow { id: id.into(), label, used, resets_at, ..Default::default() });
     }
-    // session always comes first (upstream display order)
-    out.sort_by_key(|w| if w.id == "session" { 0 } else { 1 });
+    // Same account allowance/model-cap ordering as the native Mac parser.
+    out.sort_by(|a, b| matra_core::claude_display_order(&a.id, &b.id));
     out
 }
 

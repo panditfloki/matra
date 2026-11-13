@@ -32,9 +32,7 @@ const OPENROUTER_MODELS_URL: &str = "https://openrouter.ai/api/v1/models";
 
 // Relative weights that split a plan's price across turns. Same values as the Mac app: cached input costs
 // roughly a tenth of fresh input, output several times more.
-const WEIGHT_OUTPUT: f64 = 5.0;
-const WEIGHT_CACHE_WRITE: f64 = 1.25;
-const WEIGHT_CACHE_READ: f64 = 0.1;
+use matra_core::{CostAccumulator, Rates as CoreRates, Tokens as CoreTokens};
 
 const MIN_SLICE_SECONDS: i64 = 120;
 const MAX_SESSIONS: usize = 500;
@@ -256,8 +254,7 @@ fn save_settings(dir: &Path, settings: CostSettings) -> Result<CostSettings, Str
 
 /// Lower case, no vendor path, dots as dashes: "openai/gpt-5.1-codex" and "gpt-5-1-codex" have to meet.
 fn normalize_model(model: &str) -> String {
-    let bare = model.rsplit('/').find(|part| !part.is_empty()).unwrap_or(model);
-    bare.to_lowercase().replace('.', "-")
+    matra_core::normalize_model(model)
 }
 
 fn valid_model_name(model: &str) -> bool {
@@ -278,12 +275,10 @@ impl Usage {
     fn tokens(&self) -> u64 {
         self.input.saturating_add(self.output).saturating_add(self.cache_read).saturating_add(self.cache_write)
     }
-    fn weight(&self) -> f64 {
-        self.input as f64
-            + self.output as f64 * WEIGHT_OUTPUT
-            + self.cache_read as f64 * WEIGHT_CACHE_READ
-            + self.cache_write as f64 * WEIGHT_CACHE_WRITE
+    fn core_tokens(&self) -> CoreTokens {
+        CoreTokens { input: self.input, output: self.output, cache_read: self.cache_read, cache_write: self.cache_write }
     }
+    fn weight(&self) -> f64 { self.core_tokens().weight() }
     fn merge_max(&mut self, other: &Usage) {
         self.input = self.input.max(other.input);
         self.output = self.output.max(other.output);
@@ -316,21 +311,10 @@ impl PriceTable {
 
     /// Rupees at list price. Zero tokens cost nothing whatever the model; tokens with no rate are unknown.
     fn inr(&self, model: &str, usage: &Usage, rate: f64) -> Option<f64> {
-        if usage.tokens() == 0 {
-            return Some(0.0);
-        }
-        if !(rate.is_finite() && rate > 0.0) {
-            return None;
-        }
-        let price = self.prices.get(&normalize_model(model))?;
-        let mut usd = usage.input as f64 * price.input + usage.output as f64 * price.output;
-        if usage.cache_read != 0 {
-            usd += usage.cache_read as f64 * price.cache_read?;
-        }
-        if usage.cache_write != 0 {
-            usd += usage.cache_write as f64 * price.cache_write?;
-        }
-        Some(usd / 1_000_000.0 * rate)
+        let rates = self.prices.get(&normalize_model(model)).map(|price| CoreRates {
+            input: price.input, output: price.output, cache_read: price.cache_read, cache_write: price.cache_write,
+        });
+        matra_core::local_cost(usage.core_tokens(), rates, rate)
     }
 }
 
@@ -1288,24 +1272,22 @@ struct Tally {
 
 impl Tally {
     fn add(&mut self, cost: Option<f64>) {
-        match cost.filter(|c| c.is_finite() && *c >= 0.0) {
-            Some(cost) => {
-                self.amount += cost;
-                self.priced += 1;
-            }
-            None => self.unknown += 1,
-        }
+        let mut core = CostAccumulator { amount: self.amount, priced: self.priced, unknown: self.unknown };
+        core.add(cost);
+        self.amount = core.amount;
+        self.priced = core.priced;
+        self.unknown = core.unknown;
     }
     /// The amount when every turn is priced. A row with any unpriced turn has no single price.
     fn exact(&self) -> Option<f64> {
         (self.unknown == 0 && self.priced > 0).then_some(self.amount)
     }
     fn coverage(&self) -> Coverage {
-        match (self.unknown, self.priced) {
-            (0, 0) => Coverage::None,
-            (0, _) => Coverage::Complete,
-            (_, 0) => Coverage::Unavailable,
-            _ => Coverage::AtLeast,
+        match matra_core::coverage(self.priced, self.unknown) {
+            matra_core::Coverage::None => Coverage::None,
+            matra_core::Coverage::Complete => Coverage::Complete,
+            matra_core::Coverage::Unavailable => Coverage::Unavailable,
+            matra_core::Coverage::AtLeast => Coverage::AtLeast,
         }
     }
     fn value(&self) -> CostValue {
@@ -3005,4 +2987,45 @@ mod tests {
         assert_eq!(json["coverage"], "complete");
         assert_eq!(json["budgets"][0]["billing"], "subscription");
     }
+
+    #[test]
+    fn production_pricer_matches_shared_core_vectors() {
+        let optional = |value: &str| if value == "-" { None } else { Some(value.parse::<f64>().unwrap()) };
+        for line in include_str!("../../matra-core/tests/fixtures/pricing.tsv").lines().filter(|line| !line.starts_with('#') && !line.is_empty()) {
+            let r: Vec<_> = line.split('\t').collect();
+            let mut prices = PriceTable::default();
+            prices.add([ModelPrice { model: r[1].into(), input: r[7].parse().unwrap(), output: r[8].parse().unwrap(),
+                cache_read: optional(r[9]), cache_write: optional(r[10]) }]);
+            let usage = Usage { input: r[3].parse().unwrap(), output: r[4].parse().unwrap(),
+                cache_read: r[5].parse().unwrap(), cache_write: r[6].parse().unwrap() };
+            let result = prices.inr(r[2], &usage, r[11].parse().unwrap());
+            // The Windows/Linux settings adapter deliberately admits ASCII model IDs only.
+            // The core's Unicode identity vector still applies to the native Mac adapter.
+            let expected = if valid_model_name(r[1]) { optional(r[12]) } else { None };
+            match (result, expected) {
+                (Some(actual), Some(expected)) => assert!((actual - expected).abs() <= 1e-10 * expected.abs().max(1.0), "{}", r[0]),
+                (None, None) => (),
+                _ => panic!("{}: production pricer changed known/unknown coverage", r[0]),
+            }
+            assert!((usage.weight() - r[13].parse::<f64>().unwrap()).abs() < 1e-9, "{}", r[0]);
+        }
+    }
+
+    #[test]
+    fn production_tally_retains_unknowns_and_finite_lower_bounds() {
+        let mut tally = Tally::default();
+        tally.add(Some(0.0));
+        tally.add(None);
+        tally.add(Some(f64::NAN));
+        tally.add(Some(2.5));
+        assert_eq!(tally.value(), CostValue { amount_inr: 2.5, coverage: Coverage::AtLeast, unknown_turns: 2 });
+        assert_eq!(tally.exact(), None);
+        let mut overflow = Tally::default();
+        overflow.add(Some(1e308));
+        overflow.add(Some(1e308));
+        assert_eq!(overflow.coverage(), Coverage::AtLeast);
+        assert_eq!(overflow.unknown, 1);
+        assert!(overflow.amount.is_finite());
+    }
+
 }

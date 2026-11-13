@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-/// USD per million tokens for a model family (matched by prefix, longest wins).
+/// USD per million tokens for one exact model identity.
 ///
 /// `input` and `output` are required: a list entry without them is not a price.
 /// The cache rates are optional because not every source publishes them, and a
@@ -202,35 +202,19 @@ struct Pricer: Sendable {
     let prices: [ModelPrice]
     let rate: Double                  // 1 USD = `rate` INR; 0 = unknown
 
-    /// Lower case, no vendor path, dots as dashes: "openai/gpt-5.1-codex" and
-    /// OpenRouter's "gpt-5-1-codex" have to meet.
-    private static func normalized(_ model: String) -> String {
-        let bare = model.split(separator: "/").last.map(String.init) ?? model
-        return bare.lowercased().replacingOccurrences(of: ".", with: "-")
-    }
-
     /// A price belongs to this exact model. A newer version or a larger
     /// context variant may have different rates and must stay unpriced.
     func price(for model: String) -> ModelPrice? {
-        let name = Self.normalized(model)
-        return prices.first { Self.normalized($0.model) == name }
+        prices.first { SharedCore.modelsMatch($0.model, model) }
     }
 
     /// Rupees for one turn's tokens at API list price. Zero tokens cost nothing
     /// whatever the model; tokens with no rate, or no exchange rate, are unknown.
     func local(model: String, input: Int, output: Int, cacheRead: Int, cacheWrite: Int) -> Double? {
-        guard input != 0 || output != 0 || cacheRead != 0 || cacheWrite != 0 else { return 0 }
-        guard let p = price(for: model), rate > 0 else { return nil }
-        var usd = Double(input) * p.input + Double(output) * p.output
-        if cacheRead != 0 {
-            guard let r = p.cacheRead else { return nil }
-            usd += Double(cacheRead) * r
-        }
-        if cacheWrite != 0 {
-            guard let r = p.cacheWrite else { return nil }
-            usd += Double(cacheWrite) * r
-        }
-        return usd / 1_000_000 * rate
+        let p = price(for: model)
+        return SharedCore.localCost(input: input, output: output, cacheRead: cacheRead, cacheWrite: cacheWrite,
+                                    inputRate: p?.input, outputRate: p?.output,
+                                    cacheReadRate: p?.cacheRead, cacheWriteRate: p?.cacheWrite, usdToINR: rate)
     }
 }
 
@@ -318,8 +302,7 @@ struct CostEstimator: Sendable {
     }
 
     static func weight(input: Int, output: Int, cacheRead: Int, cacheWrite: Int) -> Double {
-        Double(input) + Double(output) * CostStore.kOutput
-            + Double(cacheRead) * CostStore.kCacheRead + Double(cacheWrite) * CostStore.kCacheWrite
+        SharedCore.weight(input: input, output: output, cacheRead: cacheRead, cacheWrite: cacheWrite)
     }
 
     static func monthStart(of ts: Int, calendar: Calendar = .current) -> Int {

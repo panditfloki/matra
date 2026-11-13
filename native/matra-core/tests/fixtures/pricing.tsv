@@ -1,0 +1,17 @@
+# name	listed_model	requested_model	input	output	cache_read	cache_write	input_rate	output_rate	read_rate	write_rate	fx	expected_inr	expected_weight	matches
+mixed_cache	anthropic/CLAUDE-OPUS-5	claude-opus-5	1000000	200000	300000	400000	5	25	0.5	6.25	83	1049.95	2530000	1
+normalized	openai/GPT-5.1-codex/	gpt-5-1-codex	1000000	0	0	0	1.25	10	0.125	-	100	125	1000000	1
+new_version	gpt-5-1-codex	gpt-5-2-codex	1000000	0	0	0	1.25	10	0.125	-	100	-	1000000	0
+context_variant	gpt-5-1-codex	gpt-5-1-codex-long	1000000	0	0	0	1.25	10	0.125	-	100	-	1000000	0
+missing_read	model	model	1000	0	1000	0	5	25	-	-	100	-	1100	1
+unused_cache	model	model	1000	0	0	0	5	25	-	-	100	0.5	1000	1
+missing_write	model	model	0	0	0	1000	5	25	0.5	-	100	-	1250	1
+free_cache	model	model	1000	2000	3000	4000	0	0	0	0	100	0	16300	1
+zero_unknown	known	unknown	0	0	0	0	5	25	-	-	0	0	0	0
+unknown_fx	model	model	1	0	0	0	5	25	-	-	0	-	1	1
+invalid_fx	model	model	1	0	0	0	5	25	-	-	NaN	-	1	1
+invalid_rate	model	model	1	0	0	0	-1	25	-	-	100	-	1	1
+infinite_rate	model	model	1	0	0	0	inf	25	-	-	100	-	1	1
+overflow	model	model	2	0	0	0	1e308	25	-	-	1e308	-	2	1
+small_nonzero	model	model	1	0	0	0	0.01	1	-	-	83	0.00000083	1	1
+unicode_identity	vendor/ΜΟΝΤΈΛΟ.1	μοντέλο-1	1	0	0	0	1	1	-	-	100	0.0001	1	1

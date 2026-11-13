@@ -106,9 +106,9 @@ final class CostStore: @unchecked Sendable {
     // Weights that split a limit delta across turns within one interval. They are
     // relative, not absolute: cached input costs roughly a tenth of fresh input,
     // output several times more. Small errors do not accumulate across intervals.
-    static let kOutput: Double = 5.0
-    static let kCacheWrite: Double = 1.25
-    static let kCacheRead: Double = 0.1
+    static let kOutput = SharedCore.outputWeight
+    static let kCacheWrite = SharedCore.cacheWriteWeight
+    static let kCacheRead = SharedCore.cacheReadWeight
 
     init?(url: URL) {
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),

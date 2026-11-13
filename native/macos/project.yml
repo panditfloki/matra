@@ -54,6 +54,15 @@ targets:
         product: NIOHTTP1
       - package: SwiftNIO
         product: NIOPosix
+    preBuildScripts:
+      - name: Build shared business core
+        script: '"$SRCROOT/Scripts/build-shared-core.sh"'
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - "$(SRCROOT)/../matra-core/src/lib.rs"
+          - "$(SRCROOT)/Scripts/build-shared-core.sh"
+        outputFiles:
+          - "$(DERIVED_FILE_DIR)/matra-core/libmatra_core.a"
     info:
       path: Sources/Info.plist
       properties:
@@ -107,13 +116,10 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_EMIT_LOC_STRINGS: "YES"
         DEVELOPMENT_LANGUAGE: en
-        # The only C in the project is the vendored Zstandard decoder, and this
-        # is how Swift sees it. It is needed because Claude Desktop's HTTP cache
-        # stores bodies with `content-encoding: zstd` and macOS ships no zstd
-        # anywhere a signed, notarized app can reach — see
-        # Sources/Vendor/zstd/README.md. Delete this line and that directory
-        # together if the Desktop source is ever dropped.
+        # Zstandard decoding and the shared Rust business rules use narrow C interfaces.
         SWIFT_OBJC_BRIDGING_HEADER: Sources/Matra-Bridging-Header.h
+        LIBRARY_SEARCH_PATHS: "$(inherited) $(DERIVED_FILE_DIR)/matra-core"
+        OTHER_LDFLAGS: "$(inherited) -lmatra_core"
 
   MatraTests:
     type: bundle.unit-test

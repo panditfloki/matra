@@ -10,6 +10,7 @@ repository = "https://github.com/panditfloki/matra"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+matra-core = { path = "../matra-core" }
 tauri = { version = "2.11", features = ["tray-icon", "image-png"] }
 tauri-plugin-single-instance = "2"
 # native-tls rather than the default rustls: on Windows that is schannel, the

@@ -855,10 +855,12 @@ struct UsageResponse: Decodable {
     /// Model-scoped weeks cannot stand for the account. Credit seats retain
     /// their balance, and an empty response still has no headline reading.
     static func headlineID(for windows: [LimitWindow]) -> String {
-        if windows.contains(where: { $0.id == "session" }) { return "session" }
-        if windows.contains(where: { $0.id == "weekly_all" }) { return "weekly_all" }
-        if let balance = windows.first(where: { $0.money != nil }) { return balance.id }
-        return "session"
+        // The shared rule never promotes a model-scoped cap into the account headline.
+        let ranked = windows.enumerated().map { (offset: $0.offset, window: $0.element,
+            rank: SharedCore.claudeHeadlineRank(id: $0.element.id, isBalance: $0.element.money != nil)) }
+        return ranked.filter { $0.rank != UInt32.max }.min {
+            $0.rank == $1.rank ? $0.offset < $1.offset : $0.rank < $1.rank
+        }?.window.id ?? "session"
     }
 
     /// The credit balance as a window, or nil where the seat has none.
@@ -927,15 +929,7 @@ struct UsageResponse: Decodable {
     /// Shared with `ClaudeUsageCLI`, which reads the same windows off the CLI
     /// and must hand them over in the same order.
     static func displayOrder(_ a: LimitWindow, _ b: LimitWindow) -> Bool {
-        func rank(_ id: String) -> Int {
-            if id == "session" { return 0 }
-            if id == "weekly_all" { return 1 }
-            // Last: a balance is not one of the plan's periods, and on a seat
-            // that has both it is the odd one out rather than another window.
-            if id == "spend" { return 3 }
-            return 2
-        }
-        let (ra, rb) = (rank(a.id), rank(b.id))
+        let (ra, rb) = (SharedCore.claudeDisplayRank(id: a.id), SharedCore.claudeDisplayRank(id: b.id))
         return ra == rb ? a.id < b.id : ra < rb
     }
 }

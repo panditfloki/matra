@@ -1,0 +1,11 @@
+[package]
+name = "matra-core"
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+description = "Dependency-free usage and cost rules shared by Matra's native platform adapters"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[dependencies]
