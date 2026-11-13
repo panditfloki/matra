@@ -1,7 +1,9 @@
 //! Physical desktop pointer/capture boundary. Every native call executes on Tauri's UI thread.
-//! Windows capture belongs to the window-creating thread. X11 borrows GDK's own Xlib connection
-//! (a second X client cannot replace GTK's implicit button grab, and Tauri's Linux display_handle()
-//! opens a new, never-closed connection per call). Wayland never fabricates input.
+//! Windows capture belongs to the window-creating thread. X11 capture is GDK's own seat grab: GTK
+//! selects XInput2 events, so a button press activates an XI2 implicit grab for GTK's client, and the
+//! X server answers any grab of a different type (a core XGrabPointer, even from GTK's own
+//! connection) with AlreadyGrabbed. Sampling borrows GDK's Xlib connection (Tauri's Linux
+//! display_handle() opens a new, never-closed connection per call). Wayland never fabricates input.
 use tauri::AppHandle;
 
 #[derive(Clone, Copy, Debug)]
@@ -110,10 +112,6 @@ mod native {
     #[link(name = "X11")]
     extern "C" {
         fn XDefaultRootWindow(display: *mut c_void) -> c_ulong;
-        fn XGrabPointer(display: *mut c_void, window: c_ulong, owner_events: c_int, event_mask: c_uint,
-            pointer_mode: c_int, keyboard_mode: c_int, confine_to: c_ulong, cursor: c_ulong, time: c_ulong) -> c_int;
-        fn XUngrabPointer(display: *mut c_void, time: c_ulong) -> c_int;
-        fn XFlush(display: *mut c_void) -> c_int;
         fn XQueryPointer(display: *mut c_void, window: c_ulong, root: *mut c_ulong, child: *mut c_ulong,
             root_x: *mut c_int, root_y: *mut c_int, win_x: *mut c_int, win_y: *mut c_int, mask: *mut c_uint) -> c_int;
         fn XQueryKeymap(display: *mut c_void, keys: *mut c_char) -> c_int;
@@ -129,7 +127,21 @@ mod native {
         fn gdk_x11_window_lookup_for_display(display: *mut c_void, window: c_ulong) -> *mut c_void;
         fn gdk_x11_display_error_trap_push(display: *mut c_void);
         fn gdk_x11_display_error_trap_pop(display: *mut c_void) -> c_int;
+        // GDK 3.20+ capture (gdk-sys 0.18.2 signatures). On X11 with XI2 the seat grab is an
+        // XIGrabDevice of the master pointer from GTK's client, which replaces its implicit grab.
+        fn gdk_display_get_default_seat(display: *mut c_void) -> *mut c_void;
+        fn gdk_seat_get_pointer(seat: *mut c_void) -> *mut c_void;
+        fn gdk_seat_grab(seat: *mut c_void, window: *mut c_void, capabilities: c_uint, owner_events: c_int,
+            cursor: *mut c_void, event: *const c_void, prepare: Option<unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void)>,
+            prepare_data: *mut c_void) -> c_int;
+        // Pointer-only release: gdk_seat_ungrab would also drop a keyboard grab this module never took.
+        fn gdk_device_ungrab(device: *mut c_void, time: u32);
+        fn gdk_display_device_is_grabbed(display: *mut c_void, device: *mut c_void) -> c_int;
+        fn gdk_device_grab_info_libgtk_only(display: *mut c_void, device: *mut c_void,
+            grab_window: *mut *mut c_void, owner_events: *mut c_int) -> c_int;
+        fn gdk_window_is_visible(window: *mut c_void) -> c_int;
     }
+    const GDK_SEAT_CAPABILITY_POINTER: c_uint = 1;
     #[link(name = "gobject-2.0")]
     extern "C" { fn g_type_check_instance_is_a(instance: *mut c_void, type_: usize) -> c_int; }
 
@@ -165,19 +177,48 @@ mod native {
         }
         Ok(target)
     }
+    /// GDK's live window for the target XID, looked up afresh (null once GDK destroyed it), so no
+    /// GdkWindow pointer outlives a call. UI thread only.
+    fn gdk_window(target: Target) -> *mut c_void {
+        unsafe { gdk_x11_window_lookup_for_display(target.gdk as *mut c_void, target.window) }
+    }
+    fn pointer_device(gdk: usize) -> *mut c_void {
+        let seat = unsafe { gdk_display_get_default_seat(gdk as *mut c_void) };
+        if seat.is_null() { std::ptr::null_mut() } else { unsafe { gdk_seat_get_pointer(seat) } }
+    }
+    /// GDK's steady-state grab for the master pointer is this module's explicit grab on `window`:
+    /// not an implicit button grab, and not a later in-process grab (menu, DnD) on another window.
+    fn owns_grab(gdk: usize, pointer: *mut c_void, window: *mut c_void) -> bool {
+        if pointer.is_null() || window.is_null() { return false; }
+        let explicit = unsafe { gdk_display_device_is_grabbed(gdk as *mut c_void, pointer) } != 0;
+        let mut grab_window: *mut c_void = std::ptr::null_mut();
+        let known = unsafe { gdk_device_grab_info_libgtk_only(gdk as *mut c_void, pointer, &mut grab_window, std::ptr::null_mut()) } != 0;
+        super::x11::grab_is_ours(explicit, known.then_some(grab_window as usize), window as usize)
+    }
     pub fn begin(app: &AppHandle, label: &str) -> Result<(), String> {
         end()?;
         let target = target(app, label)?;
-        let display = target.xdisplay as *mut c_void;
-        // Same client as GTK, so this converts GTK's implicit button grab instead of colliding
-        // with it (a second client would get AlreadyGrabbed). Async modes keep the desktop
-        // responsive; no confinement and no keyboard grab.
-        let (code, error) = trapped(target.gdk, || unsafe {
-            XGrabPointer(display, target.window, 0, (1 << 2) | (1 << 3) | (1 << 6), 1, 1, 0, 0, 0)
+        let window = gdk_window(target);
+        if window.is_null() { return Err("The carry window is not a GTK window on the desktop's X11 display.".into()); }
+        // gdk_seat_grab reports a hidden window as a g_critical; X would answer GrabNotViewable.
+        if unsafe { gdk_window_is_visible(window) } == 0 { return Err(super::x11::grab_failure(3, 0)); }
+        let seat = unsafe { gdk_display_get_default_seat(target.gdk as *mut c_void) };
+        let pointer = if seat.is_null() { std::ptr::null_mut() } else { unsafe { gdk_seat_get_pointer(seat) } };
+        if pointer.is_null() { return Err("GTK reports no pointer device on this X11 seat.".into()); }
+        // GTK's own grab on GTK's own client and grab type: it supersedes the XI2 implicit grab from
+        // the grip press (GtkMenu and DnD take the same path during a press). Pointer only, no owner
+        // events (events report to the carry window), no cursor change, async modes, current time.
+        let (status, error) = trapped(target.gdk, || unsafe {
+            gdk_seat_grab(seat, window, GDK_SEAT_CAPABILITY_POINTER, 0, std::ptr::null_mut(), std::ptr::null(), None, std::ptr::null_mut())
         });
-        // No ungrab on failure: from this (GTK's) client XUngrabPointer would also release GTK's
-        // implicit button grab, which this call did not obtain.
-        if error != 0 || code != 0 { return Err(super::x11::grab_failure(code, error)); }
+        if error != 0 || status != 0 {
+            // A refused grab took nothing, and GTK's implicit grab stays with GTK. Release only a
+            // grab GDK recorded as this module's own (a success later reported with an X error).
+            if status == 0 && owns_grab(target.gdk, pointer, window) {
+                let _ = trapped(target.gdk, || unsafe { gdk_device_ungrab(pointer, 0) });
+            }
+            return Err(super::x11::grab_failure(status, error));
+        }
         CAPTURE.with(|slot| *slot.borrow_mut() = Some(Capture { target, label: label.into() }));
         Ok(())
     }
@@ -185,9 +226,14 @@ mod native {
         if let Some(capture) = CAPTURE.with(|slot| slot.borrow_mut().take()) {
             // A replaced default display means the connection the grab lived on is gone with it.
             if unsafe { gdk_display_get_default() } as usize == capture.target.gdk {
-                let display = capture.target.xdisplay as *mut c_void;
-                // Ungrabbing a grab that no longer exists is not an X error; any error is trapped.
-                let _ = trapped(capture.target.gdk, || unsafe { XUngrabPointer(display, 0); XFlush(display); });
+                // A destroyed window already ended its grab in both X and GDK. Never release a
+                // grab this module does not own (an in-process menu or DnD that superseded it).
+                let window = gdk_window(capture.target);
+                let pointer = pointer_device(capture.target.gdk);
+                if owns_grab(capture.target.gdk, pointer, window) {
+                    // GDK flushes the XIUngrabDevice; any X error is trapped.
+                    let _ = trapped(capture.target.gdk, || unsafe { gdk_device_ungrab(pointer, 0) });
+                }
             }
         }
         Ok(())
@@ -212,9 +258,12 @@ mod native {
         if !pointer { return Err("X11 cannot sample this desktop's pointer screen. Carry was cancelled.".into()); }
         if !keymap { return Err("X11 keyboard state is unavailable.".into()); }
         let viewable = described && attributes.map_state == 2;
+        // X ends the grab when its window becomes unviewable; GDK tracks that and any in-process
+        // grab that supersedes this one. Only meaningful while a capture is held.
+        let owned = active.is_some() && owns_grab(target.gdk, pointer_device(target.gdk), gdk_window(target));
         Ok(PointerSample { x: x as f64, y: y as f64, left_down: mask & (1 << 8) != 0,
             escape_down: super::x11::key_down(&keys.map(|k| k as u8), escape),
-            capture_lost: super::x11::capture_lost(active.map(|c| c.target), target, viewable) })
+            capture_lost: super::x11::capture_lost(active.map(|c| c.target), target, viewable, owned) })
     }
 }
 
@@ -222,9 +271,14 @@ mod native {
 #[cfg(any(test, target_os = "linux"))]
 mod x11 {
     /// A grab belongs to one window on one client connection. A different window, a different
-    /// connection, or an unviewable window means it is gone.
-    pub fn capture_lost<T: PartialEq>(active: Option<T>, current: T, viewable: bool) -> bool {
-        active.is_some_and(|held| held != current || !viewable)
+    /// connection, an unviewable window, or GDK no longer recording it as ours means it is gone.
+    pub fn capture_lost<T: PartialEq>(active: Option<T>, current: T, viewable: bool, owned: bool) -> bool {
+        active.is_some_and(|held| held != current || !viewable || !owned)
+    }
+    /// GDK's last pointer grab is ours only when it is explicit (not an implicit button grab)
+    /// and its window is the carry window.
+    pub fn grab_is_ours<W: PartialEq>(explicit: bool, grab_window: Option<W>, ours: W) -> bool {
+        explicit && grab_window.is_some_and(|window| window == ours)
     }
     /// XQueryKeymap bit vector; keycode 0 means the keysym has no key.
     pub fn key_down(keys: &[u8; 32], keycode: usize) -> bool {
@@ -233,10 +287,11 @@ mod x11 {
     pub fn grab_failure(status: i32, error: i32) -> String {
         if error != 0 { return format!("X11 rejected pointer capture (X error {error}); the carry window may have closed."); }
         let reason = match status {
-            1 => "AlreadyGrabbed: another client owns the pointer",
+            1 => "AlreadyGrabbed: another client or an incompatible grab owns the pointer",
             2 => "GrabInvalidTime",
             3 => "GrabNotViewable: the carry window is not mapped",
             4 => "GrabFrozen: another grab froze the pointer",
+            5 => "GrabFailed: GTK could not grab the pointer",
             _ => "unknown status",
         };
         format!("X11 refused pointer capture (status {status}, {reason}).")
@@ -251,20 +306,34 @@ mod tests {
     const HELD: Id = Id { display: 0x1000, window: 42 };
     #[test]
     fn same_connection_and_window_keeps_capture() {
-        assert!(!capture_lost(Some(HELD), HELD, true));
+        assert!(!capture_lost(Some(HELD), HELD, true, true));
         // A stable borrowed connection is what makes this hold across samples; a fresh
         // connection per sample (the old display_handle path) reported loss on every sample.
-        assert!(capture_lost(Some(HELD), Id { display: 0x2000, ..HELD }, true));
+        assert!(capture_lost(Some(HELD), Id { display: 0x2000, ..HELD }, true, true));
     }
     #[test]
     fn other_window_or_unviewable_loses_capture() {
-        assert!(capture_lost(Some(HELD), Id { window: 43, ..HELD }, true));
-        assert!(capture_lost(Some(HELD), HELD, false));
+        assert!(capture_lost(Some(HELD), Id { window: 43, ..HELD }, true, true));
+        assert!(capture_lost(Some(HELD), HELD, false, true));
+    }
+    #[test]
+    fn grab_no_longer_owned_loses_capture() {
+        assert!(capture_lost(Some(HELD), HELD, true, false));
     }
     #[test]
     fn idle_sampling_never_reports_loss() {
-        assert!(!capture_lost(None, HELD, false));
-        assert!(!capture_lost(None, HELD, true));
+        assert!(!capture_lost(None, HELD, false, false));
+        assert!(!capture_lost(None, HELD, true, false));
+        assert!(!capture_lost(None, HELD, true, true));
+    }
+    #[test]
+    fn only_an_explicit_grab_on_the_carry_window_is_ours() {
+        assert!(grab_is_ours(true, Some(7usize), 7));
+        // GTK's implicit button grab, even on the carry window, is not this module's capture.
+        assert!(!grab_is_ours(false, Some(7usize), 7));
+        // A later in-process grab (menu, DnD) on another window superseded ours.
+        assert!(!grab_is_ours(true, Some(8usize), 7));
+        assert!(!grab_is_ours(true, None, 7usize));
     }
     #[test]
     fn keymap_bits() {
@@ -281,6 +350,7 @@ mod tests {
     fn grab_failures_name_the_cause() {
         assert!(grab_failure(1, 0).contains("AlreadyGrabbed"));
         assert!(grab_failure(3, 0).contains("GrabNotViewable"));
+        assert!(grab_failure(5, 0).contains("GrabFailed"));
         assert!(grab_failure(0, 3).contains("X error 3"));
     }
 }
