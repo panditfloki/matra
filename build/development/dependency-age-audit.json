@@ -1,0 +1,3336 @@
+{
+  "as_of": "2026-11-13",
+  "minimum_days": 14,
+  "packages": [
+    {
+      "name": "adler2",
+      "version": "2.0.1",
+      "published": "2025-06-09T22:31:53Z",
+      "old_enough": true
+    },
+    {
+      "name": "ahash",
+      "version": "0.8.12",
+      "published": "2025-05-08T05:05:32Z",
+      "old_enough": true
+    },
+    {
+      "name": "aho-corasick",
+      "version": "1.1.5",
+      "published": "2026-08-03T11:44:11Z",
+      "old_enough": true
+    },
+    {
+      "name": "alloc-no-stdlib",
+      "version": "2.0.4",
+      "published": "2022-09-12T05:29:48Z",
+      "old_enough": true
+    },
+    {
+      "name": "alloc-stdlib",
+      "version": "0.2.4",
+      "published": "2026-06-14T17:59:00Z",
+      "old_enough": true
+    },
+    {
+      "name": "android_system_properties",
+      "version": "0.1.6",
+      "published": "2026-08-05T13:44:27Z",
+      "old_enough": true
+    },
+    {
+      "name": "anyhow",
+      "version": "1.0.104",
+      "published": "2026-07-18T20:59:37Z",
+      "old_enough": true
+    },
+    {
+      "name": "arbitrary",
+      "version": "1.4.2",
+      "published": "2025-08-14T18:20:10Z",
+      "old_enough": true
+    },
+    {
+      "name": "ascii",
+      "version": "1.1.0",
+      "published": "2022-09-18T13:04:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "async-broadcast",
+      "version": "0.7.2",
+      "published": "2024-12-23T21:10:23Z",
+      "old_enough": true
+    },
+    {
+      "name": "async-channel",
+      "version": "2.5.0",
+      "published": "2025-07-06T07:06:07Z",
+      "old_enough": true
+    },
+    {
+      "name": "async-executor",
+      "version": "1.14.0",
+      "published": "2026-02-15T16:45:48Z",
+      "old_enough": true
+    },
+    {
+      "name": "async-io",
+      "version": "2.6.0",
+      "published": "2025-09-14T14:03:50Z",
+      "old_enough": true
+    },
+    {
+      "name": "async-lock",
+      "version": "3.4.2",
+      "published": "2025-12-21T16:24:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "async-process",
+      "version": "2.5.0",
+      "published": "2025-09-14T14:11:17Z",
+      "old_enough": true
+    },
+    {
+      "name": "async-recursion",
+      "version": "1.1.1",
+      "published": "2024-04-25T16:06:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "async-signal",
+      "version": "0.2.14",
+      "published": "2026-04-07T11:50:26Z",
+      "old_enough": true
+    },
+    {
+      "name": "async-task",
+      "version": "4.7.1",
+      "published": "2024-04-27T23:06:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "async-trait",
+      "version": "0.1.92",
+      "published": "2026-08-08T07:10:35Z",
+      "old_enough": true
+    },
+    {
+      "name": "atk",
+      "version": "0.18.2",
+      "published": "2024-12-09T11:45:55Z",
+      "old_enough": true
+    },
+    {
+      "name": "atk-sys",
+      "version": "0.18.2",
+      "published": "2024-12-09T11:45:59Z",
+      "old_enough": true
+    },
+    {
+      "name": "atomic-waker",
+      "version": "1.1.2",
+      "published": "2023-09-25T17:45:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "autocfg",
+      "version": "1.5.1",
+      "published": "2026-05-22T11:03:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "base64",
+      "version": "0.21.7",
+      "published": "2024-01-11T16:21:52Z",
+      "old_enough": true
+    },
+    {
+      "name": "base64",
+      "version": "0.22.1",
+      "published": "2024-04-30T23:16:40Z",
+      "old_enough": true
+    },
+    {
+      "name": "bit-set",
+      "version": "0.8.0",
+      "published": "2024-07-16T17:18:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "bit-vec",
+      "version": "0.8.0",
+      "published": "2024-07-16T17:14:52Z",
+      "old_enough": true
+    },
+    {
+      "name": "bitflags",
+      "version": "1.3.2",
+      "published": "2021-08-16T04:16:02Z",
+      "old_enough": true
+    },
+    {
+      "name": "bitflags",
+      "version": "2.13.1",
+      "published": "2026-07-15T20:36:19Z",
+      "old_enough": true
+    },
+    {
+      "name": "block-buffer",
+      "version": "0.10.4",
+      "published": "2023-03-09T02:08:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "block2",
+      "version": "0.6.2",
+      "published": "2025-10-04T16:00:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "blocking",
+      "version": "1.7.0",
+      "published": "2026-08-23T09:00:11Z",
+      "old_enough": true
+    },
+    {
+      "name": "brotli",
+      "version": "8.0.4",
+      "published": "2026-06-14T19:26:42Z",
+      "old_enough": true
+    },
+    {
+      "name": "brotli-decompressor",
+      "version": "5.0.3",
+      "published": "2026-06-14T18:10:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "bs58",
+      "version": "0.5.1",
+      "published": "2024-03-19T12:50:23Z",
+      "old_enough": true
+    },
+    {
+      "name": "bumpalo",
+      "version": "3.20.3",
+      "published": "2026-05-22T14:59:11Z",
+      "old_enough": true
+    },
+    {
+      "name": "bytemuck",
+      "version": "1.25.2",
+      "published": "2026-07-19T19:36:16Z",
+      "old_enough": true
+    },
+    {
+      "name": "byteorder",
+      "version": "1.5.0",
+      "published": "2023-10-06T00:45:57Z",
+      "old_enough": true
+    },
+    {
+      "name": "byteorder-lite",
+      "version": "0.1.0",
+      "published": "2024-04-07T19:09:06Z",
+      "old_enough": true
+    },
+    {
+      "name": "bytes",
+      "version": "1.12.1",
+      "published": "2026-07-08T10:01:28Z",
+      "old_enough": true
+    },
+    {
+      "name": "cairo-rs",
+      "version": "0.18.5",
+      "published": "2023-12-30T14:10:28Z",
+      "old_enough": true
+    },
+    {
+      "name": "cairo-sys-rs",
+      "version": "0.18.2",
+      "published": "2023-09-14T19:38:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "camino",
+      "version": "1.2.5",
+      "published": "2026-07-28T03:52:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "cargo-platform",
+      "version": "0.1.9",
+      "published": "2024-11-28T14:02:37Z",
+      "old_enough": true
+    },
+    {
+      "name": "cargo_metadata",
+      "version": "0.19.2",
+      "published": "2025-03-02T16:12:24Z",
+      "old_enough": true
+    },
+    {
+      "name": "cargo_toml",
+      "version": "0.22.3",
+      "published": "2025-07-25T11:59:17Z",
+      "old_enough": true
+    },
+    {
+      "name": "cc",
+      "version": "1.4.5",
+      "published": "2026-09-04T09:28:57Z",
+      "old_enough": true
+    },
+    {
+      "name": "cesu8",
+      "version": "1.1.0",
+      "published": "2016-05-15T12:20:41Z",
+      "old_enough": true
+    },
+    {
+      "name": "cfb",
+      "version": "0.7.3",
+      "published": "2022-07-05T18:30:56Z",
+      "old_enough": true
+    },
+    {
+      "name": "cfg-expr",
+      "version": "0.15.8",
+      "published": "2024-04-10T15:13:47Z",
+      "old_enough": true
+    },
+    {
+      "name": "cfg-if",
+      "version": "1.0.4",
+      "published": "2025-10-15T08:12:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "chrono",
+      "version": "0.4.45",
+      "published": "2026-06-04T12:16:42Z",
+      "old_enough": true
+    },
+    {
+      "name": "chunked_transfer",
+      "version": "1.5.0",
+      "published": "2023-11-23T04:36:30Z",
+      "old_enough": true
+    },
+    {
+      "name": "combine",
+      "version": "4.6.8",
+      "published": "2026-08-25T15:36:05Z",
+      "old_enough": true
+    },
+    {
+      "name": "concurrent-queue",
+      "version": "2.5.0",
+      "published": "2024-04-26T14:26:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "cookie",
+      "version": "0.18.2",
+      "published": "2026-08-08T23:05:00Z",
+      "old_enough": true
+    },
+    {
+      "name": "core-foundation",
+      "version": "0.10.1",
+      "published": "2025-05-26T12:40:41Z",
+      "old_enough": true
+    },
+    {
+      "name": "core-foundation-sys",
+      "version": "0.8.7",
+      "published": "2024-08-11T00:48:27Z",
+      "old_enough": true
+    },
+    {
+      "name": "core-graphics",
+      "version": "0.25.0",
+      "published": "2025-05-27T01:46:19Z",
+      "old_enough": true
+    },
+    {
+      "name": "core-graphics-types",
+      "version": "0.2.0",
+      "published": "2024-08-11T11:18:55Z",
+      "old_enough": true
+    },
+    {
+      "name": "cpufeatures",
+      "version": "0.2.17",
+      "published": "2025-01-25T01:35:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "crc32fast",
+      "version": "1.5.1",
+      "published": "2026-08-22T18:49:22Z",
+      "old_enough": true
+    },
+    {
+      "name": "crossbeam-channel",
+      "version": "0.5.17",
+      "published": "2026-09-05T17:47:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "crossbeam-utils",
+      "version": "0.8.23",
+      "published": "2026-09-05T17:46:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "crypto-common",
+      "version": "0.1.7",
+      "published": "2025-11-12T14:20:00Z",
+      "old_enough": true
+    },
+    {
+      "name": "cssparser",
+      "version": "0.36.0",
+      "published": "2025-11-10T06:01:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "cssparser-macros",
+      "version": "0.6.1",
+      "published": "2023-06-04T10:13:01Z",
+      "old_enough": true
+    },
+    {
+      "name": "ctor",
+      "version": "0.8.0",
+      "published": "2026-03-28T03:12:38Z",
+      "old_enough": true
+    },
+    {
+      "name": "ctor-proc-macro",
+      "version": "0.0.7",
+      "published": "2025-10-08T19:35:50Z",
+      "old_enough": true
+    },
+    {
+      "name": "darling",
+      "version": "0.23.0",
+      "published": "2025-12-03T15:49:05Z",
+      "old_enough": true
+    },
+    {
+      "name": "darling_core",
+      "version": "0.23.0",
+      "published": "2025-12-03T15:48:57Z",
+      "old_enough": true
+    },
+    {
+      "name": "darling_macro",
+      "version": "0.23.0",
+      "published": "2025-12-03T15:49:02Z",
+      "old_enough": true
+    },
+    {
+      "name": "dbus",
+      "version": "0.9.12",
+      "published": "2026-07-03T14:50:11Z",
+      "old_enough": true
+    },
+    {
+      "name": "defmt",
+      "version": "1.1.1",
+      "published": "2026-07-03T14:14:30Z",
+      "old_enough": true
+    },
+    {
+      "name": "defmt-macros",
+      "version": "1.1.1",
+      "published": "2026-07-03T14:14:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "defmt-parser",
+      "version": "1.0.0",
+      "published": "2025-04-01T14:32:40Z",
+      "old_enough": true
+    },
+    {
+      "name": "deranged",
+      "version": "0.5.8",
+      "published": "2026-02-21T21:37:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "derive_arbitrary",
+      "version": "1.4.2",
+      "published": "2025-08-14T18:20:00Z",
+      "old_enough": true
+    },
+    {
+      "name": "derive_more",
+      "version": "2.1.1",
+      "published": "2025-12-22T09:13:44Z",
+      "old_enough": true
+    },
+    {
+      "name": "derive_more-impl",
+      "version": "2.1.1",
+      "published": "2025-12-22T09:13:41Z",
+      "old_enough": true
+    },
+    {
+      "name": "digest",
+      "version": "0.10.7",
+      "published": "2023-05-19T17:11:30Z",
+      "old_enough": true
+    },
+    {
+      "name": "dirs",
+      "version": "5.0.1",
+      "published": "2023-04-30T22:02:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "dirs",
+      "version": "6.0.0",
+      "published": "2025-01-12T17:19:23Z",
+      "old_enough": true
+    },
+    {
+      "name": "dirs-sys",
+      "version": "0.4.1",
+      "published": "2023-04-30T21:46:08Z",
+      "old_enough": true
+    },
+    {
+      "name": "dirs-sys",
+      "version": "0.5.0",
+      "published": "2025-01-11T22:10:02Z",
+      "old_enough": true
+    },
+    {
+      "name": "dispatch2",
+      "version": "0.3.1",
+      "published": "2026-02-26T15:35:48Z",
+      "old_enough": true
+    },
+    {
+      "name": "displaydoc",
+      "version": "0.2.7",
+      "published": "2026-07-28T13:58:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "dlopen2",
+      "version": "0.8.2",
+      "published": "2025-12-06T18:39:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "dlopen2_derive",
+      "version": "0.4.3",
+      "published": "2025-12-06T18:39:29Z",
+      "old_enough": true
+    },
+    {
+      "name": "dom_query",
+      "version": "0.27.0",
+      "published": "2026-03-17T15:05:42Z",
+      "old_enough": true
+    },
+    {
+      "name": "dpi",
+      "version": "0.1.2",
+      "published": "2025-05-02T07:19:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "dtoa",
+      "version": "1.0.11",
+      "published": "2025-12-27T06:45:26Z",
+      "old_enough": true
+    },
+    {
+      "name": "dtoa-short",
+      "version": "0.3.5",
+      "published": "2024-06-07T11:52:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "dtor",
+      "version": "0.3.0",
+      "published": "2026-03-28T03:12:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "dtor-proc-macro",
+      "version": "0.0.6",
+      "published": "2025-07-27T12:50:22Z",
+      "old_enough": true
+    },
+    {
+      "name": "dunce",
+      "version": "1.0.5",
+      "published": "2024-08-04T01:36:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "dyn-clone",
+      "version": "1.0.20",
+      "published": "2025-07-27T19:29:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "embed-resource",
+      "version": "3.0.11",
+      "published": "2026-07-02T15:15:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "embed_plist",
+      "version": "1.2.2",
+      "published": "2022-01-09T23:15:53Z",
+      "old_enough": true
+    },
+    {
+      "name": "endi",
+      "version": "1.1.1",
+      "published": "2025-11-26T17:18:58Z",
+      "old_enough": true
+    },
+    {
+      "name": "enumflags2",
+      "version": "0.7.12",
+      "published": "2025-06-09T22:16:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "enumflags2_derive",
+      "version": "0.7.12",
+      "published": "2025-06-09T22:15:13Z",
+      "old_enough": true
+    },
+    {
+      "name": "equivalent",
+      "version": "1.0.2",
+      "published": "2025-02-14T22:14:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "erased-serde",
+      "version": "0.4.10",
+      "published": "2026-03-02T19:44:28Z",
+      "old_enough": true
+    },
+    {
+      "name": "errno",
+      "version": "0.3.14",
+      "published": "2025-09-09T04:35:15Z",
+      "old_enough": true
+    },
+    {
+      "name": "event-listener",
+      "version": "5.4.2",
+      "published": "2026-07-27T11:31:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "event-listener-strategy",
+      "version": "0.5.4",
+      "published": "2025-03-27T17:31:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "fallible-iterator",
+      "version": "0.3.0",
+      "published": "2023-05-22T23:12:37Z",
+      "old_enough": true
+    },
+    {
+      "name": "fallible-streaming-iterator",
+      "version": "0.1.9",
+      "published": "2018-05-02T20:02:49Z",
+      "old_enough": true
+    },
+    {
+      "name": "fastrand",
+      "version": "2.5.0",
+      "published": "2026-07-19T12:40:53Z",
+      "old_enough": true
+    },
+    {
+      "name": "fdeflate",
+      "version": "0.3.7",
+      "published": "2024-12-06T03:16:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "field-offset",
+      "version": "0.3.6",
+      "published": "2023-06-02T12:38:31Z",
+      "old_enough": true
+    },
+    {
+      "name": "filetime",
+      "version": "0.2.29",
+      "published": "2026-05-12T22:38:22Z",
+      "old_enough": true
+    },
+    {
+      "name": "find-msvc-tools",
+      "version": "0.1.12",
+      "published": "2026-09-04T09:28:52Z",
+      "old_enough": true
+    },
+    {
+      "name": "flate2",
+      "version": "1.1.10",
+      "published": "2026-08-28T04:35:22Z",
+      "old_enough": true
+    },
+    {
+      "name": "fnv",
+      "version": "1.0.7",
+      "published": "2020-05-14T16:06:29Z",
+      "old_enough": true
+    },
+    {
+      "name": "foldhash",
+      "version": "0.2.0",
+      "published": "2025-08-23T19:14:01Z",
+      "old_enough": true
+    },
+    {
+      "name": "foreign-types",
+      "version": "0.3.2",
+      "published": "2017-11-28T23:17:39Z",
+      "old_enough": true
+    },
+    {
+      "name": "foreign-types",
+      "version": "0.5.0",
+      "published": "2019-10-13T19:24:15Z",
+      "old_enough": true
+    },
+    {
+      "name": "foreign-types-macros",
+      "version": "0.2.4",
+      "published": "2026-07-22T20:33:59Z",
+      "old_enough": true
+    },
+    {
+      "name": "foreign-types-shared",
+      "version": "0.1.1",
+      "published": "2017-11-28T23:16:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "foreign-types-shared",
+      "version": "0.3.1",
+      "published": "2022-03-21T22:06:37Z",
+      "old_enough": true
+    },
+    {
+      "name": "form_urlencoded",
+      "version": "1.2.2",
+      "published": "2025-08-21T08:47:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "fsevent-sys",
+      "version": "4.1.0",
+      "published": "2022-01-05T21:39:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "futures-channel",
+      "version": "0.3.34",
+      "published": "2026-08-11T12:13:10Z",
+      "old_enough": true
+    },
+    {
+      "name": "futures-core",
+      "version": "0.3.34",
+      "published": "2026-08-11T12:13:01Z",
+      "old_enough": true
+    },
+    {
+      "name": "futures-executor",
+      "version": "0.3.34",
+      "published": "2026-08-11T12:13:23Z",
+      "old_enough": true
+    },
+    {
+      "name": "futures-io",
+      "version": "0.3.34",
+      "published": "2026-08-11T12:13:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "futures-lite",
+      "version": "2.6.1",
+      "published": "2025-08-04T00:29:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "futures-macro",
+      "version": "0.3.34",
+      "published": "2026-08-11T12:13:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "futures-sink",
+      "version": "0.3.34",
+      "published": "2026-08-11T12:13:06Z",
+      "old_enough": true
+    },
+    {
+      "name": "futures-task",
+      "version": "0.3.34",
+      "published": "2026-08-11T12:13:07Z",
+      "old_enough": true
+    },
+    {
+      "name": "futures-util",
+      "version": "0.3.34",
+      "published": "2026-08-11T12:13:19Z",
+      "old_enough": true
+    },
+    {
+      "name": "gdk",
+      "version": "0.18.2",
+      "published": "2024-12-09T11:46:05Z",
+      "old_enough": true
+    },
+    {
+      "name": "gdk-pixbuf",
+      "version": "0.18.5",
+      "published": "2023-12-30T14:10:15Z",
+      "old_enough": true
+    },
+    {
+      "name": "gdk-pixbuf-sys",
+      "version": "0.18.0",
+      "published": "2023-07-23T21:08:53Z",
+      "old_enough": true
+    },
+    {
+      "name": "gdk-sys",
+      "version": "0.18.2",
+      "published": "2024-12-09T11:46:10Z",
+      "old_enough": true
+    },
+    {
+      "name": "gdkwayland-sys",
+      "version": "0.18.2",
+      "published": "2024-12-09T11:46:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "gdkx11",
+      "version": "0.18.2",
+      "published": "2024-12-09T11:46:22Z",
+      "old_enough": true
+    },
+    {
+      "name": "gdkx11-sys",
+      "version": "0.18.2",
+      "published": "2024-12-09T11:46:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "generic-array",
+      "version": "0.14.7",
+      "published": "2023-03-28T00:01:29Z",
+      "old_enough": true
+    },
+    {
+      "name": "getrandom",
+      "version": "0.2.17",
+      "published": "2026-01-11T21:09:53Z",
+      "old_enough": true
+    },
+    {
+      "name": "getrandom",
+      "version": "0.3.4",
+      "published": "2025-10-14T17:47:36Z",
+      "old_enough": true
+    },
+    {
+      "name": "getrandom",
+      "version": "0.4.3",
+      "published": "2026-06-17T18:01:59Z",
+      "old_enough": true
+    },
+    {
+      "name": "gio",
+      "version": "0.18.4",
+      "published": "2023-12-09T10:10:06Z",
+      "old_enough": true
+    },
+    {
+      "name": "gio-sys",
+      "version": "0.18.1",
+      "published": "2023-08-01T18:58:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "glib",
+      "version": "0.18.5",
+      "published": "2023-12-30T14:09:59Z",
+      "old_enough": true
+    },
+    {
+      "name": "glib-macros",
+      "version": "0.18.5",
+      "published": "2023-12-30T14:09:40Z",
+      "old_enough": true
+    },
+    {
+      "name": "glib-sys",
+      "version": "0.18.1",
+      "published": "2023-08-01T18:57:01Z",
+      "old_enough": true
+    },
+    {
+      "name": "glob",
+      "version": "0.3.4",
+      "published": "2026-07-21T14:53:49Z",
+      "old_enough": true
+    },
+    {
+      "name": "gobject-sys",
+      "version": "0.18.0",
+      "published": "2023-07-23T21:05:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "gtk",
+      "version": "0.18.2",
+      "published": "2024-12-09T11:46:31Z",
+      "old_enough": true
+    },
+    {
+      "name": "gtk-sys",
+      "version": "0.18.2",
+      "published": "2024-12-09T11:46:36Z",
+      "old_enough": true
+    },
+    {
+      "name": "gtk3-macros",
+      "version": "0.18.2",
+      "published": "2024-12-09T11:46:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "hashbrown",
+      "version": "0.12.3",
+      "published": "2022-07-17T11:20:38Z",
+      "old_enough": true
+    },
+    {
+      "name": "hashbrown",
+      "version": "0.14.5",
+      "published": "2024-04-28T18:32:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "hashbrown",
+      "version": "0.17.1",
+      "published": "2026-05-09T04:35:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "hashlink",
+      "version": "0.9.1",
+      "published": "2024-05-12T00:35:27Z",
+      "old_enough": true
+    },
+    {
+      "name": "heck",
+      "version": "0.4.1",
+      "published": "2023-02-01T15:51:50Z",
+      "old_enough": true
+    },
+    {
+      "name": "heck",
+      "version": "0.5.0",
+      "published": "2024-03-12T22:42:23Z",
+      "old_enough": true
+    },
+    {
+      "name": "hermit-abi",
+      "version": "0.5.3",
+      "published": "2026-08-31T11:45:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "hex",
+      "version": "0.4.3",
+      "published": "2021-03-03T10:48:58Z",
+      "old_enough": true
+    },
+    {
+      "name": "html5ever",
+      "version": "0.38.0",
+      "published": "2026-01-22T12:34:15Z",
+      "old_enough": true
+    },
+    {
+      "name": "http",
+      "version": "1.5.0",
+      "published": "2026-07-29T14:57:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "http-body",
+      "version": "1.1.0",
+      "published": "2026-07-13T17:25:06Z",
+      "old_enough": true
+    },
+    {
+      "name": "http-body-util",
+      "version": "0.1.5",
+      "published": "2026-08-12T15:22:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "httparse",
+      "version": "1.10.1",
+      "published": "2025-03-03T14:44:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "httpdate",
+      "version": "1.0.3",
+      "published": "2023-08-13T10:55:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "hyper",
+      "version": "1.11.1",
+      "published": "2026-08-28T12:22:30Z",
+      "old_enough": true
+    },
+    {
+      "name": "hyper-tls",
+      "version": "0.6.0",
+      "published": "2023-11-27T19:18:29Z",
+      "old_enough": true
+    },
+    {
+      "name": "hyper-util",
+      "version": "0.1.20",
+      "published": "2026-02-02T14:17:16Z",
+      "old_enough": true
+    },
+    {
+      "name": "iana-time-zone",
+      "version": "0.1.65",
+      "published": "2026-01-28T08:40:52Z",
+      "old_enough": true
+    },
+    {
+      "name": "iana-time-zone-haiku",
+      "version": "0.1.2",
+      "published": "2023-05-12T08:43:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "ico",
+      "version": "0.5.0",
+      "published": "2025-11-28T15:08:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "icu_collections",
+      "version": "2.3.0",
+      "published": "2026-08-13T23:28:40Z",
+      "old_enough": true
+    },
+    {
+      "name": "icu_locale_core",
+      "version": "2.3.0",
+      "published": "2026-08-13T23:28:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "icu_normalizer",
+      "version": "2.3.0",
+      "published": "2026-08-13T23:28:56Z",
+      "old_enough": true
+    },
+    {
+      "name": "icu_normalizer_data",
+      "version": "2.3.0",
+      "published": "2026-08-13T23:28:53Z",
+      "old_enough": true
+    },
+    {
+      "name": "icu_properties",
+      "version": "2.3.0",
+      "published": "2026-08-13T23:28:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "icu_properties_data",
+      "version": "2.3.0",
+      "published": "2026-08-13T23:28:42Z",
+      "old_enough": true
+    },
+    {
+      "name": "icu_provider",
+      "version": "2.3.1",
+      "published": "2026-08-20T23:25:32Z",
+      "old_enough": true
+    },
+    {
+      "name": "ident_case",
+      "version": "1.0.1",
+      "published": "2019-03-18T20:07:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "idna",
+      "version": "1.1.0",
+      "published": "2025-08-21T08:48:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "idna_adapter",
+      "version": "1.2.2",
+      "published": "2026-04-27T17:45:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "image",
+      "version": "0.25.10",
+      "published": "2026-03-10T16:29:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "indexmap",
+      "version": "1.9.3",
+      "published": "2023-03-24T23:54:22Z",
+      "old_enough": true
+    },
+    {
+      "name": "indexmap",
+      "version": "2.14.2",
+      "published": "2026-09-05T01:53:48Z",
+      "old_enough": true
+    },
+    {
+      "name": "infer",
+      "version": "0.19.0",
+      "published": "2025-02-02T01:21:26Z",
+      "old_enough": true
+    },
+    {
+      "name": "inotify",
+      "version": "0.9.6",
+      "published": "2021-11-03T09:52:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "inotify-sys",
+      "version": "0.1.8",
+      "published": "2026-07-07T14:33:29Z",
+      "old_enough": true
+    },
+    {
+      "name": "ipnet",
+      "version": "2.12.1",
+      "published": "2026-08-02T03:20:08Z",
+      "old_enough": true
+    },
+    {
+      "name": "itoa",
+      "version": "1.0.18",
+      "published": "2026-03-20T00:12:37Z",
+      "old_enough": true
+    },
+    {
+      "name": "javascriptcore-rs",
+      "version": "1.1.2",
+      "published": "2023-10-26T05:58:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "javascriptcore-rs-sys",
+      "version": "1.1.1",
+      "published": "2023-10-26T05:57:39Z",
+      "old_enough": true
+    },
+    {
+      "name": "jiff",
+      "version": "0.2.35",
+      "published": "2026-07-25T23:45:35Z",
+      "old_enough": true
+    },
+    {
+      "name": "jiff-core",
+      "version": "0.1.0",
+      "published": "2026-07-19T01:53:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "jiff-static",
+      "version": "0.2.35",
+      "published": "2026-07-25T23:45:30Z",
+      "old_enough": true
+    },
+    {
+      "name": "jiff-tzdb",
+      "version": "0.1.8",
+      "published": "2026-07-09T01:22:38Z",
+      "old_enough": true
+    },
+    {
+      "name": "jiff-tzdb-platform",
+      "version": "0.1.3",
+      "published": "2025-03-23T00:40:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "jni",
+      "version": "0.21.1",
+      "published": "2023-03-15T14:59:48Z",
+      "old_enough": true
+    },
+    {
+      "name": "jni-sys",
+      "version": "0.3.1",
+      "published": "2026-03-22T16:30:17Z",
+      "old_enough": true
+    },
+    {
+      "name": "jni-sys",
+      "version": "0.4.1",
+      "published": "2026-01-09T00:33:31Z",
+      "old_enough": true
+    },
+    {
+      "name": "jni-sys-macros",
+      "version": "0.4.1",
+      "published": "2026-01-09T00:23:44Z",
+      "old_enough": true
+    },
+    {
+      "name": "js-sys",
+      "version": "0.3.105",
+      "published": "2026-09-04T23:58:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "json-patch",
+      "version": "3.0.1",
+      "published": "2024-10-07T14:38:27Z",
+      "old_enough": true
+    },
+    {
+      "name": "jsonptr",
+      "version": "0.6.3",
+      "published": "2024-10-01T18:15:32Z",
+      "old_enough": true
+    },
+    {
+      "name": "keyboard-types",
+      "version": "0.7.0",
+      "published": "2023-08-19T16:30:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "kqueue",
+      "version": "1.2.1",
+      "published": "2026-08-04T14:04:27Z",
+      "old_enough": true
+    },
+    {
+      "name": "kqueue-sys",
+      "version": "1.1.2",
+      "published": "2026-05-14T08:11:34Z",
+      "old_enough": true
+    },
+    {
+      "name": "libappindicator",
+      "version": "0.9.0",
+      "published": "2023-10-01T11:57:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "libappindicator-sys",
+      "version": "0.9.0",
+      "published": "2023-10-01T11:55:16Z",
+      "old_enough": true
+    },
+    {
+      "name": "libc",
+      "version": "0.2.189",
+      "published": "2026-07-21T21:33:28Z",
+      "old_enough": true
+    },
+    {
+      "name": "libdbus-sys",
+      "version": "0.2.7",
+      "published": "2025-12-11T07:27:13Z",
+      "old_enough": true
+    },
+    {
+      "name": "libloading",
+      "version": "0.7.4",
+      "published": "2022-11-06T23:43:17Z",
+      "old_enough": true
+    },
+    {
+      "name": "libredox",
+      "version": "0.1.23",
+      "published": "2026-09-01T16:28:56Z",
+      "old_enough": true
+    },
+    {
+      "name": "libsqlite3-sys",
+      "version": "0.30.1",
+      "published": "2024-07-26T17:08:49Z",
+      "old_enough": true
+    },
+    {
+      "name": "linux-raw-sys",
+      "version": "0.12.1",
+      "published": "2025-12-23T00:00:07Z",
+      "old_enough": true
+    },
+    {
+      "name": "litemap",
+      "version": "0.8.3",
+      "published": "2026-08-13T23:27:57Z",
+      "old_enough": true
+    },
+    {
+      "name": "lock_api",
+      "version": "0.4.14",
+      "published": "2025-10-03T23:33:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "log",
+      "version": "0.4.34",
+      "published": "2026-08-22T11:44:27Z",
+      "old_enough": true
+    },
+    {
+      "name": "markup5ever",
+      "version": "0.38.0",
+      "published": "2026-01-22T12:33:55Z",
+      "old_enough": true
+    },
+    {
+      "name": "memchr",
+      "version": "2.8.3",
+      "published": "2026-07-08T00:49:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "memoffset",
+      "version": "0.9.1",
+      "published": "2024-03-26T19:58:31Z",
+      "old_enough": true
+    },
+    {
+      "name": "mime",
+      "version": "0.3.17",
+      "published": "2023-03-20T15:05:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "minisign-verify",
+      "version": "0.2.5",
+      "published": "2026-03-03T11:54:47Z",
+      "old_enough": true
+    },
+    {
+      "name": "miniz_oxide",
+      "version": "0.8.9",
+      "published": "2025-06-09T22:26:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "miniz_oxide",
+      "version": "0.9.1",
+      "published": "2026-03-13T00:19:26Z",
+      "old_enough": true
+    },
+    {
+      "name": "mio",
+      "version": "0.8.11",
+      "published": "2024-03-01T20:46:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "mio",
+      "version": "1.2.3",
+      "published": "2026-09-02T13:22:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "moxcms",
+      "version": "0.8.1",
+      "published": "2026-03-07T15:47:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "muda",
+      "version": "0.19.3",
+      "published": "2026-06-17T09:46:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "native-tls",
+      "version": "0.2.18",
+      "published": "2026-02-18T17:46:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "ndk",
+      "version": "0.9.0",
+      "published": "2024-04-26T15:15:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "ndk-sys",
+      "version": "0.6.0+11769913",
+      "published": "2024-04-26T15:14:59Z",
+      "old_enough": true
+    },
+    {
+      "name": "new_debug_unreachable",
+      "version": "1.0.6",
+      "published": "2024-03-15T17:26:05Z",
+      "old_enough": true
+    },
+    {
+      "name": "notify",
+      "version": "6.1.1",
+      "published": "2023-08-21T09:32:26Z",
+      "old_enough": true
+    },
+    {
+      "name": "num-conv",
+      "version": "0.2.2",
+      "published": "2026-05-18T18:35:52Z",
+      "old_enough": true
+    },
+    {
+      "name": "num-traits",
+      "version": "0.2.19",
+      "published": "2024-05-03T21:27:39Z",
+      "old_enough": true
+    },
+    {
+      "name": "num_enum",
+      "version": "0.7.6",
+      "published": "2026-03-15T21:29:40Z",
+      "old_enough": true
+    },
+    {
+      "name": "num_enum_derive",
+      "version": "0.7.6",
+      "published": "2026-03-15T21:29:38Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2",
+      "version": "0.6.4",
+      "published": "2026-02-26T15:35:34Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-app-kit",
+      "version": "0.3.2",
+      "published": "2025-10-04T16:16:50Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-cloud-kit",
+      "version": "0.3.2",
+      "published": "2025-10-04T15:48:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-core-data",
+      "version": "0.3.2",
+      "published": "2025-10-04T16:14:39Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-core-foundation",
+      "version": "0.3.2",
+      "published": "2025-10-04T15:46:51Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-core-graphics",
+      "version": "0.3.2",
+      "published": "2025-10-04T15:47:47Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-core-image",
+      "version": "0.3.2",
+      "published": "2025-10-04T16:15:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-core-location",
+      "version": "0.3.2",
+      "published": "2025-10-04T15:48:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-core-text",
+      "version": "0.3.2",
+      "published": "2025-10-04T16:15:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-encode",
+      "version": "4.1.0",
+      "published": "2025-01-22T23:40:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-exception-helper",
+      "version": "0.1.1",
+      "published": "2025-01-22T23:40:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-foundation",
+      "version": "0.3.2",
+      "published": "2025-10-04T15:47:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-io-surface",
+      "version": "0.3.2",
+      "published": "2025-10-04T15:47:28Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-osa-kit",
+      "version": "0.3.2",
+      "published": "2025-10-04T16:19:22Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-quartz-core",
+      "version": "0.3.2",
+      "published": "2025-10-04T16:15:28Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-ui-kit",
+      "version": "0.3.2",
+      "published": "2025-10-04T16:16:02Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-user-notifications",
+      "version": "0.3.2",
+      "published": "2025-10-04T16:15:39Z",
+      "old_enough": true
+    },
+    {
+      "name": "objc2-web-kit",
+      "version": "0.3.2",
+      "published": "2025-10-04T16:35:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "once_cell",
+      "version": "1.21.4",
+      "published": "2026-03-12T10:59:52Z",
+      "old_enough": true
+    },
+    {
+      "name": "openssl",
+      "version": "0.10.81",
+      "published": "2026-06-12T18:11:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "openssl-macros",
+      "version": "0.1.1",
+      "published": "2023-04-01T13:58:02Z",
+      "old_enough": true
+    },
+    {
+      "name": "openssl-probe",
+      "version": "0.2.1",
+      "published": "2026-01-20T19:53:29Z",
+      "old_enough": true
+    },
+    {
+      "name": "openssl-sys",
+      "version": "0.9.117",
+      "published": "2026-06-12T18:11:16Z",
+      "old_enough": true
+    },
+    {
+      "name": "option-ext",
+      "version": "0.2.0",
+      "published": "2023-01-11T19:28:05Z",
+      "old_enough": true
+    },
+    {
+      "name": "ordered-stream",
+      "version": "0.2.0",
+      "published": "2023-02-11T15:42:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "osakit",
+      "version": "0.3.1",
+      "published": "2025-03-01T13:22:31Z",
+      "old_enough": true
+    },
+    {
+      "name": "pango",
+      "version": "0.18.3",
+      "published": "2023-11-03T08:42:31Z",
+      "old_enough": true
+    },
+    {
+      "name": "pango-sys",
+      "version": "0.18.0",
+      "published": "2023-07-23T21:09:55Z",
+      "old_enough": true
+    },
+    {
+      "name": "parking",
+      "version": "2.2.1",
+      "published": "2024-09-07T17:39:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "parking_lot",
+      "version": "0.12.5",
+      "published": "2025-10-03T23:34:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "parking_lot_core",
+      "version": "0.9.12",
+      "published": "2025-10-03T23:33:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "percent-encoding",
+      "version": "2.3.2",
+      "published": "2025-08-21T08:46:50Z",
+      "old_enough": true
+    },
+    {
+      "name": "phf",
+      "version": "0.13.1",
+      "published": "2025-08-23T11:06:34Z",
+      "old_enough": true
+    },
+    {
+      "name": "phf_codegen",
+      "version": "0.13.1",
+      "published": "2025-08-23T11:06:57Z",
+      "old_enough": true
+    },
+    {
+      "name": "phf_generator",
+      "version": "0.13.1",
+      "published": "2025-08-23T11:06:08Z",
+      "old_enough": true
+    },
+    {
+      "name": "phf_macros",
+      "version": "0.13.1",
+      "published": "2025-08-23T11:06:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "phf_shared",
+      "version": "0.13.1",
+      "published": "2025-08-23T11:05:56Z",
+      "old_enough": true
+    },
+    {
+      "name": "pin-project-lite",
+      "version": "0.2.17",
+      "published": "2026-02-27T15:19:08Z",
+      "old_enough": true
+    },
+    {
+      "name": "piper",
+      "version": "0.2.5",
+      "published": "2026-02-28T06:00:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "pkg-config",
+      "version": "0.3.34",
+      "published": "2026-08-14T08:27:51Z",
+      "old_enough": true
+    },
+    {
+      "name": "plist",
+      "version": "1.10.0",
+      "published": "2026-07-04T12:17:39Z",
+      "old_enough": true
+    },
+    {
+      "name": "png",
+      "version": "0.17.16",
+      "published": "2024-12-20T07:54:34Z",
+      "old_enough": true
+    },
+    {
+      "name": "png",
+      "version": "0.18.1",
+      "published": "2026-02-14T16:24:10Z",
+      "old_enough": true
+    },
+    {
+      "name": "polling",
+      "version": "3.11.0",
+      "published": "2025-09-14T14:00:51Z",
+      "old_enough": true
+    },
+    {
+      "name": "portable-atomic",
+      "version": "1.15.0",
+      "published": "2026-08-09T17:31:27Z",
+      "old_enough": true
+    },
+    {
+      "name": "portable-atomic-util",
+      "version": "0.2.8",
+      "published": "2026-09-04T14:36:47Z",
+      "old_enough": true
+    },
+    {
+      "name": "potential_utf",
+      "version": "0.1.6",
+      "published": "2026-08-13T23:28:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "powerfmt",
+      "version": "0.2.0",
+      "published": "2023-10-13T22:04:23Z",
+      "old_enough": true
+    },
+    {
+      "name": "precomputed-hash",
+      "version": "0.1.1",
+      "published": "2017-09-29T20:25:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "proc-macro-crate",
+      "version": "1.3.1",
+      "published": "2023-02-27T09:32:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "proc-macro-crate",
+      "version": "2.0.2",
+      "published": "2024-01-29T14:07:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "proc-macro-crate",
+      "version": "3.5.0",
+      "published": "2026-03-04T11:12:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "proc-macro-error",
+      "version": "1.0.4",
+      "published": "2020-07-31T18:08:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "proc-macro-error-attr",
+      "version": "1.0.4",
+      "published": "2020-07-31T18:06:37Z",
+      "old_enough": true
+    },
+    {
+      "name": "proc-macro2",
+      "version": "1.0.107",
+      "published": "2026-07-19T00:18:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "pxfm",
+      "version": "0.1.30",
+      "published": "2026-07-06T06:43:55Z",
+      "old_enough": true
+    },
+    {
+      "name": "quick-xml",
+      "version": "0.41.0",
+      "published": "2026-06-29T18:04:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "quote",
+      "version": "1.0.47",
+      "published": "2026-07-19T00:16:57Z",
+      "old_enough": true
+    },
+    {
+      "name": "r-efi",
+      "version": "5.3.0",
+      "published": "2025-06-17T09:12:38Z",
+      "old_enough": true
+    },
+    {
+      "name": "r-efi",
+      "version": "6.0.0",
+      "published": "2026-02-03T09:53:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "raw-window-handle",
+      "version": "0.6.2",
+      "published": "2024-05-17T19:41:38Z",
+      "old_enough": true
+    },
+    {
+      "name": "redox_syscall",
+      "version": "0.5.18",
+      "published": "2025-10-04T14:57:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "redox_users",
+      "version": "0.4.6",
+      "published": "2024-08-19T15:19:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "redox_users",
+      "version": "0.5.2",
+      "published": "2025-07-31T15:00:26Z",
+      "old_enough": true
+    },
+    {
+      "name": "ref-cast",
+      "version": "1.0.27",
+      "published": "2026-08-19T04:27:28Z",
+      "old_enough": true
+    },
+    {
+      "name": "ref-cast-impl",
+      "version": "1.0.27",
+      "published": "2026-08-19T04:27:24Z",
+      "old_enough": true
+    },
+    {
+      "name": "regex",
+      "version": "1.13.1",
+      "published": "2026-07-15T20:19:35Z",
+      "old_enough": true
+    },
+    {
+      "name": "regex-automata",
+      "version": "0.4.18",
+      "published": "2026-08-04T13:10:37Z",
+      "old_enough": true
+    },
+    {
+      "name": "regex-syntax",
+      "version": "0.8.11",
+      "published": "2026-06-09T15:00:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "reqwest",
+      "version": "0.13.4",
+      "published": "2026-05-25T17:12:48Z",
+      "old_enough": true
+    },
+    {
+      "name": "ring",
+      "version": "0.17.14",
+      "published": "2025-03-11T19:42:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "rusqlite",
+      "version": "0.32.1",
+      "published": "2024-07-26T17:09:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "rustc-hash",
+      "version": "2.1.3",
+      "published": "2026-07-02T19:13:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "rustc_version",
+      "version": "0.4.1",
+      "published": "2024-08-28T09:21:22Z",
+      "old_enough": true
+    },
+    {
+      "name": "rustix",
+      "version": "1.1.4",
+      "published": "2026-02-22T16:22:51Z",
+      "old_enough": true
+    },
+    {
+      "name": "rustls",
+      "version": "0.23.43",
+      "published": "2026-07-29T16:14:13Z",
+      "old_enough": true
+    },
+    {
+      "name": "rustls-pki-types",
+      "version": "1.15.1",
+      "published": "2026-07-23T09:56:11Z",
+      "old_enough": true
+    },
+    {
+      "name": "rustls-webpki",
+      "version": "0.103.15",
+      "published": "2026-08-21T16:40:00Z",
+      "old_enough": true
+    },
+    {
+      "name": "rustversion",
+      "version": "1.0.23",
+      "published": "2026-07-07T02:10:26Z",
+      "old_enough": true
+    },
+    {
+      "name": "same-file",
+      "version": "1.0.6",
+      "published": "2020-01-11T17:02:30Z",
+      "old_enough": true
+    },
+    {
+      "name": "schannel",
+      "version": "0.1.29",
+      "published": "2026-03-10T09:17:10Z",
+      "old_enough": true
+    },
+    {
+      "name": "schemars",
+      "version": "0.8.22",
+      "published": "2025-02-25T12:19:02Z",
+      "old_enough": true
+    },
+    {
+      "name": "schemars",
+      "version": "0.9.0",
+      "published": "2025-05-26T19:46:52Z",
+      "old_enough": true
+    },
+    {
+      "name": "schemars",
+      "version": "1.2.2",
+      "published": "2026-07-27T14:35:28Z",
+      "old_enough": true
+    },
+    {
+      "name": "schemars_derive",
+      "version": "0.8.22",
+      "published": "2025-02-25T12:18:32Z",
+      "old_enough": true
+    },
+    {
+      "name": "scopeguard",
+      "version": "1.2.0",
+      "published": "2023-07-17T13:47:53Z",
+      "old_enough": true
+    },
+    {
+      "name": "security-framework",
+      "version": "3.7.0",
+      "published": "2026-02-20T00:28:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "security-framework-sys",
+      "version": "2.17.0",
+      "published": "2026-02-20T00:27:26Z",
+      "old_enough": true
+    },
+    {
+      "name": "selectors",
+      "version": "0.36.1",
+      "published": "2026-03-18T19:31:15Z",
+      "old_enough": true
+    },
+    {
+      "name": "semver",
+      "version": "1.0.28",
+      "published": "2026-04-04T00:25:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "serde",
+      "version": "1.0.229",
+      "published": "2026-07-18T23:05:13Z",
+      "old_enough": true
+    },
+    {
+      "name": "serde-untagged",
+      "version": "0.1.9",
+      "published": "2025-09-14T16:02:35Z",
+      "old_enough": true
+    },
+    {
+      "name": "serde_core",
+      "version": "1.0.229",
+      "published": "2026-07-18T23:05:10Z",
+      "old_enough": true
+    },
+    {
+      "name": "serde_derive",
+      "version": "1.0.229",
+      "published": "2026-07-18T23:05:07Z",
+      "old_enough": true
+    },
+    {
+      "name": "serde_derive_internals",
+      "version": "0.29.1",
+      "published": "2024-05-15T07:36:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0.151",
+      "published": "2026-07-20T05:54:44Z",
+      "old_enough": true
+    },
+    {
+      "name": "serde_repr",
+      "version": "0.1.21",
+      "published": "2026-07-18T21:51:01Z",
+      "old_enough": true
+    },
+    {
+      "name": "serde_spanned",
+      "version": "0.6.9",
+      "published": "2025-06-06T15:03:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "serde_spanned",
+      "version": "1.1.1",
+      "published": "2026-03-31T19:06:07Z",
+      "old_enough": true
+    },
+    {
+      "name": "serde_with",
+      "version": "3.22.0",
+      "published": "2026-08-09T12:48:50Z",
+      "old_enough": true
+    },
+    {
+      "name": "serde_with_macros",
+      "version": "3.22.0",
+      "published": "2026-08-09T12:48:38Z",
+      "old_enough": true
+    },
+    {
+      "name": "serialize-to-javascript",
+      "version": "0.1.2",
+      "published": "2024-08-04T08:36:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "serialize-to-javascript-impl",
+      "version": "0.1.2",
+      "published": "2024-08-04T08:36:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "servo_arc",
+      "version": "0.4.3",
+      "published": "2025-11-12T14:54:32Z",
+      "old_enough": true
+    },
+    {
+      "name": "sha2",
+      "version": "0.10.9",
+      "published": "2025-04-30T14:38:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "shlex",
+      "version": "2.0.1",
+      "published": "2026-05-17T18:56:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "signal-hook-registry",
+      "version": "1.4.8",
+      "published": "2025-12-25T17:35:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "simd-adler32",
+      "version": "0.3.10",
+      "published": "2026-07-14T17:42:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "siphasher",
+      "version": "1.0.3",
+      "published": "2026-05-03T20:58:08Z",
+      "old_enough": true
+    },
+    {
+      "name": "slab",
+      "version": "0.4.12",
+      "published": "2026-01-31T12:59:22Z",
+      "old_enough": true
+    },
+    {
+      "name": "smallvec",
+      "version": "1.16.0",
+      "published": "2026-09-01T15:26:29Z",
+      "old_enough": true
+    },
+    {
+      "name": "socket2",
+      "version": "0.6.5",
+      "published": "2026-07-13T19:45:58Z",
+      "old_enough": true
+    },
+    {
+      "name": "softbuffer",
+      "version": "0.4.8",
+      "published": "2025-12-13T22:00:22Z",
+      "old_enough": true
+    },
+    {
+      "name": "soup3",
+      "version": "0.5.0",
+      "published": "2023-08-01T21:15:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "soup3-sys",
+      "version": "0.5.0",
+      "published": "2023-08-01T21:10:39Z",
+      "old_enough": true
+    },
+    {
+      "name": "stable_deref_trait",
+      "version": "1.2.1",
+      "published": "2025-10-09T05:24:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "string_cache",
+      "version": "0.9.0",
+      "published": "2025-08-26T07:52:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "string_cache_codegen",
+      "version": "0.6.1",
+      "published": "2025-09-08T13:54:40Z",
+      "old_enough": true
+    },
+    {
+      "name": "strsim",
+      "version": "0.11.1",
+      "published": "2024-04-02T22:18:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "subtle",
+      "version": "2.6.1",
+      "published": "2024-06-24T17:25:24Z",
+      "old_enough": true
+    },
+    {
+      "name": "swift-rs",
+      "version": "1.0.8",
+      "published": "2026-08-20T10:04:19Z",
+      "old_enough": true
+    },
+    {
+      "name": "syn",
+      "version": "1.0.109",
+      "published": "2023-02-24T09:58:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "syn",
+      "version": "2.0.119",
+      "published": "2026-07-15T00:23:48Z",
+      "old_enough": true
+    },
+    {
+      "name": "syn",
+      "version": "3.0.5",
+      "published": "2026-09-04T19:32:02Z",
+      "old_enough": true
+    },
+    {
+      "name": "sync_wrapper",
+      "version": "1.0.2",
+      "published": "2024-11-20T16:29:59Z",
+      "old_enough": true
+    },
+    {
+      "name": "synstructure",
+      "version": "0.13.2",
+      "published": "2025-04-30T16:37:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "system-deps",
+      "version": "6.2.2",
+      "published": "2024-03-19T07:21:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "tao",
+      "version": "0.35.3",
+      "published": "2026-05-23T03:05:07Z",
+      "old_enough": true
+    },
+    {
+      "name": "tao-macros",
+      "version": "0.1.4",
+      "published": "2026-07-29T02:09:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "tar",
+      "version": "0.4.46",
+      "published": "2026-05-18T19:12:11Z",
+      "old_enough": true
+    },
+    {
+      "name": "target-lexicon",
+      "version": "0.12.16",
+      "published": "2024-07-30T22:40:30Z",
+      "old_enough": true
+    },
+    {
+      "name": "tauri",
+      "version": "2.11.5",
+      "published": "2026-07-01T13:56:38Z",
+      "old_enough": true
+    },
+    {
+      "name": "tauri-build",
+      "version": "2.6.3",
+      "published": "2026-06-17T13:45:31Z",
+      "old_enough": true
+    },
+    {
+      "name": "tauri-codegen",
+      "version": "2.6.3",
+      "published": "2026-06-17T13:44:30Z",
+      "old_enough": true
+    },
+    {
+      "name": "tauri-macros",
+      "version": "2.6.3",
+      "published": "2026-06-17T13:45:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "tauri-plugin",
+      "version": "2.6.3",
+      "published": "2026-06-17T13:45:16Z",
+      "old_enough": true
+    },
+    {
+      "name": "tauri-plugin-single-instance",
+      "version": "2.4.4",
+      "published": "2026-08-31T11:21:29Z",
+      "old_enough": true
+    },
+    {
+      "name": "tauri-plugin-updater",
+      "version": "2.11.0",
+      "published": "2026-08-31T11:21:56Z",
+      "old_enough": true
+    },
+    {
+      "name": "tauri-runtime",
+      "version": "2.11.3",
+      "published": "2026-06-17T13:43:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "tauri-runtime-wry",
+      "version": "2.11.4",
+      "published": "2026-06-30T15:13:08Z",
+      "old_enough": true
+    },
+    {
+      "name": "tauri-utils",
+      "version": "2.9.3",
+      "published": "2026-06-17T13:41:56Z",
+      "old_enough": true
+    },
+    {
+      "name": "tauri-winres",
+      "version": "0.3.6",
+      "published": "2026-04-27T03:06:53Z",
+      "old_enough": true
+    },
+    {
+      "name": "tempfile",
+      "version": "3.27.0",
+      "published": "2026-03-11T00:20:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "tendril",
+      "version": "0.5.1",
+      "published": "2026-07-06T14:29:34Z",
+      "old_enough": true
+    },
+    {
+      "name": "thiserror",
+      "version": "1.0.69",
+      "published": "2024-11-10T06:24:10Z",
+      "old_enough": true
+    },
+    {
+      "name": "thiserror",
+      "version": "2.0.20",
+      "published": "2026-08-08T06:22:23Z",
+      "old_enough": true
+    },
+    {
+      "name": "thiserror-impl",
+      "version": "1.0.69",
+      "published": "2024-11-10T06:24:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "thiserror-impl",
+      "version": "2.0.20",
+      "published": "2026-08-08T06:22:19Z",
+      "old_enough": true
+    },
+    {
+      "name": "time",
+      "version": "0.3.55",
+      "published": "2026-08-01T08:08:34Z",
+      "old_enough": true
+    },
+    {
+      "name": "time-core",
+      "version": "0.1.9",
+      "published": "2026-06-12T08:14:02Z",
+      "old_enough": true
+    },
+    {
+      "name": "time-macros",
+      "version": "0.2.32",
+      "published": "2026-07-20T08:27:37Z",
+      "old_enough": true
+    },
+    {
+      "name": "tiny_http",
+      "version": "0.12.0",
+      "published": "2022-10-06T16:24:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "tinystr",
+      "version": "0.8.4",
+      "published": "2026-08-13T23:28:07Z",
+      "old_enough": true
+    },
+    {
+      "name": "tinyvec",
+      "version": "1.13.2",
+      "published": "2026-09-04T02:29:11Z",
+      "old_enough": true
+    },
+    {
+      "name": "tinyvec_macros",
+      "version": "0.1.1",
+      "published": "2023-02-02T23:03:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "tokio",
+      "version": "1.53.1",
+      "published": "2026-07-20T17:06:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "tokio-native-tls",
+      "version": "0.3.1",
+      "published": "2023-02-07T17:08:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "tokio-util",
+      "version": "0.7.19",
+      "published": "2026-07-21T12:10:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "toml",
+      "version": "0.8.2",
+      "published": "2023-10-03T00:29:11Z",
+      "old_enough": true
+    },
+    {
+      "name": "toml",
+      "version": "0.9.12+spec-1.1.0",
+      "published": "2026-02-10T18:10:32Z",
+      "old_enough": true
+    },
+    {
+      "name": "toml",
+      "version": "1.1.5+spec-1.1.0",
+      "published": "2026-09-02T13:52:08Z",
+      "old_enough": true
+    },
+    {
+      "name": "toml_datetime",
+      "version": "0.6.3",
+      "published": "2023-06-24T00:51:36Z",
+      "old_enough": true
+    },
+    {
+      "name": "toml_datetime",
+      "version": "0.7.5+spec-1.1.0",
+      "published": "2025-12-18T13:26:19Z",
+      "old_enough": true
+    },
+    {
+      "name": "toml_datetime",
+      "version": "1.1.1+spec-1.1.0",
+      "published": "2026-03-31T19:06:07Z",
+      "old_enough": true
+    },
+    {
+      "name": "toml_edit",
+      "version": "0.19.15",
+      "published": "2023-09-08T02:09:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "toml_edit",
+      "version": "0.20.2",
+      "published": "2023-10-03T00:28:42Z",
+      "old_enough": true
+    },
+    {
+      "name": "toml_edit",
+      "version": "0.25.13+spec-1.1.0",
+      "published": "2026-07-14T13:09:48Z",
+      "old_enough": true
+    },
+    {
+      "name": "toml_parser",
+      "version": "1.1.3+spec-1.1.0",
+      "published": "2026-07-27T14:53:02Z",
+      "old_enough": true
+    },
+    {
+      "name": "toml_writer",
+      "version": "1.1.2+spec-1.1.0",
+      "published": "2026-07-14T13:09:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "tower",
+      "version": "0.5.3",
+      "published": "2026-01-12T18:43:05Z",
+      "old_enough": true
+    },
+    {
+      "name": "tower-http",
+      "version": "0.6.11",
+      "published": "2026-05-18T12:51:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "tower-layer",
+      "version": "0.3.3",
+      "published": "2024-08-13T16:53:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "tower-service",
+      "version": "0.3.3",
+      "published": "2024-08-13T16:23:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "tracing",
+      "version": "0.1.44",
+      "published": "2025-12-18T14:26:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "tracing-attributes",
+      "version": "0.1.31",
+      "published": "2025-11-26T11:23:01Z",
+      "old_enough": true
+    },
+    {
+      "name": "tracing-core",
+      "version": "0.1.36",
+      "published": "2025-12-18T14:13:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "tray-icon",
+      "version": "0.24.2",
+      "published": "2026-07-27T09:24:58Z",
+      "old_enough": true
+    },
+    {
+      "name": "try-lock",
+      "version": "0.2.5",
+      "published": "2023-12-07T16:13:16Z",
+      "old_enough": true
+    },
+    {
+      "name": "typeid",
+      "version": "1.0.3",
+      "published": "2025-03-04T00:22:40Z",
+      "old_enough": true
+    },
+    {
+      "name": "typenum",
+      "version": "1.20.1",
+      "published": "2026-05-29T16:00:41Z",
+      "old_enough": true
+    },
+    {
+      "name": "uds_windows",
+      "version": "1.2.1",
+      "published": "2026-03-14T15:31:37Z",
+      "old_enough": true
+    },
+    {
+      "name": "unic-char-property",
+      "version": "0.9.0",
+      "published": "2019-03-03T04:58:16Z",
+      "old_enough": true
+    },
+    {
+      "name": "unic-char-range",
+      "version": "0.9.0",
+      "published": "2019-03-03T04:58:08Z",
+      "old_enough": true
+    },
+    {
+      "name": "unic-common",
+      "version": "0.9.0",
+      "published": "2019-03-03T04:57:59Z",
+      "old_enough": true
+    },
+    {
+      "name": "unic-ucd-ident",
+      "version": "0.9.0",
+      "published": "2019-03-03T05:11:39Z",
+      "old_enough": true
+    },
+    {
+      "name": "unic-ucd-version",
+      "version": "0.9.0",
+      "published": "2019-03-03T04:58:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "unicode-ident",
+      "version": "1.0.24",
+      "published": "2026-02-16T02:46:44Z",
+      "old_enough": true
+    },
+    {
+      "name": "unicode-segmentation",
+      "version": "1.13.3",
+      "published": "2026-06-01T15:58:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "untrusted",
+      "version": "0.9.0",
+      "published": "2021-07-13T22:13:26Z",
+      "old_enough": true
+    },
+    {
+      "name": "ureq",
+      "version": "2.12.1",
+      "published": "2024-12-04T08:47:51Z",
+      "old_enough": true
+    },
+    {
+      "name": "url",
+      "version": "2.5.8",
+      "published": "2026-01-05T22:14:31Z",
+      "old_enough": true
+    },
+    {
+      "name": "urlpattern",
+      "version": "0.3.0",
+      "published": "2024-07-31T14:45:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "utf8_iter",
+      "version": "1.0.4",
+      "published": "2023-12-01T17:26:51Z",
+      "old_enough": true
+    },
+    {
+      "name": "uuid",
+      "version": "1.26.0",
+      "published": "2026-08-26T22:08:30Z",
+      "old_enough": true
+    },
+    {
+      "name": "vcpkg",
+      "version": "0.2.15",
+      "published": "2021-06-19T16:35:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "version-compare",
+      "version": "0.2.1",
+      "published": "2025-10-31T15:57:40Z",
+      "old_enough": true
+    },
+    {
+      "name": "version_check",
+      "version": "0.9.5",
+      "published": "2024-07-25T23:38:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "vswhom",
+      "version": "0.1.0",
+      "published": "2019-01-17T20:30:57Z",
+      "old_enough": true
+    },
+    {
+      "name": "vswhom-sys",
+      "version": "0.1.3",
+      "published": "2025-02-20T17:45:22Z",
+      "old_enough": true
+    },
+    {
+      "name": "walkdir",
+      "version": "2.5.0",
+      "published": "2024-03-01T17:55:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "want",
+      "version": "0.3.1",
+      "published": "2023-06-14T21:50:52Z",
+      "old_enough": true
+    },
+    {
+      "name": "wasi",
+      "version": "0.11.1+wasi-snapshot-preview1",
+      "published": "2025-06-10T14:23:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "wasip2",
+      "version": "1.0.4+wasi-0.2.12",
+      "published": "2026-06-12T17:42:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "wasm-bindgen",
+      "version": "0.2.128",
+      "published": "2026-09-04T23:58:10Z",
+      "old_enough": true
+    },
+    {
+      "name": "wasm-bindgen-futures",
+      "version": "0.4.78",
+      "published": "2026-09-04T23:58:17Z",
+      "old_enough": true
+    },
+    {
+      "name": "wasm-bindgen-macro",
+      "version": "0.2.128",
+      "published": "2026-09-04T23:58:08Z",
+      "old_enough": true
+    },
+    {
+      "name": "wasm-bindgen-macro-support",
+      "version": "0.2.128",
+      "published": "2026-09-04T23:58:06Z",
+      "old_enough": true
+    },
+    {
+      "name": "wasm-bindgen-shared",
+      "version": "0.2.128",
+      "published": "2026-09-04T23:58:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "wasm-streams",
+      "version": "0.5.0",
+      "published": "2026-01-22T08:14:59Z",
+      "old_enough": true
+    },
+    {
+      "name": "web-sys",
+      "version": "0.3.105",
+      "published": "2026-09-04T23:58:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "web_atoms",
+      "version": "0.2.6",
+      "published": "2026-08-09T14:09:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "webkit2gtk",
+      "version": "2.0.2",
+      "published": "2025-12-16T11:13:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "webkit2gtk-sys",
+      "version": "2.0.2",
+      "published": "2025-12-16T11:12:19Z",
+      "old_enough": true
+    },
+    {
+      "name": "webpki-roots",
+      "version": "0.26.11",
+      "published": "2025-05-06T14:05:11Z",
+      "old_enough": true
+    },
+    {
+      "name": "webpki-roots",
+      "version": "1.0.9",
+      "published": "2026-07-18T09:30:44Z",
+      "old_enough": true
+    },
+    {
+      "name": "webview2-com",
+      "version": "0.38.2",
+      "published": "2026-01-07T20:35:10Z",
+      "old_enough": true
+    },
+    {
+      "name": "webview2-com-macros",
+      "version": "0.8.1",
+      "published": "2026-01-07T19:50:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "webview2-com-sys",
+      "version": "0.38.2",
+      "published": "2026-01-07T20:34:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "winapi",
+      "version": "0.3.9",
+      "published": "2020-06-26T11:34:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "winapi-i686-pc-windows-gnu",
+      "version": "0.4.0",
+      "published": "2018-01-18T00:55:38Z",
+      "old_enough": true
+    },
+    {
+      "name": "winapi-util",
+      "version": "0.1.11",
+      "published": "2025-09-07T12:24:31Z",
+      "old_enough": true
+    },
+    {
+      "name": "winapi-x86_64-pc-windows-gnu",
+      "version": "0.4.0",
+      "published": "2018-01-18T00:55:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "window-vibrancy",
+      "version": "0.6.0",
+      "published": "2025-02-21T15:29:35Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows",
+      "version": "0.58.0",
+      "published": "2024-07-03T19:48:34Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows",
+      "version": "0.61.3",
+      "published": "2025-06-12T18:58:32Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-collections",
+      "version": "0.2.0",
+      "published": "2025-03-18T19:10:56Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-core",
+      "version": "0.58.0",
+      "published": "2024-07-03T19:47:47Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-core",
+      "version": "0.61.2",
+      "published": "2025-05-19T16:08:28Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-core",
+      "version": "0.62.2",
+      "published": "2025-10-06T19:15:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-future",
+      "version": "0.2.1",
+      "published": "2025-05-15T19:41:41Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-implement",
+      "version": "0.58.0",
+      "published": "2024-07-03T19:47:31Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-implement",
+      "version": "0.60.2",
+      "published": "2025-10-06T19:13:31Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-interface",
+      "version": "0.58.0",
+      "published": "2024-07-03T19:47:19Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-interface",
+      "version": "0.59.3",
+      "published": "2025-10-06T19:14:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-link",
+      "version": "0.1.3",
+      "published": "2025-06-12T18:57:32Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-link",
+      "version": "0.2.1",
+      "published": "2025-10-06T17:35:08Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-numerics",
+      "version": "0.2.0",
+      "published": "2025-03-18T14:26:15Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-result",
+      "version": "0.2.0",
+      "published": "2024-07-03T19:46:24Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-result",
+      "version": "0.3.4",
+      "published": "2025-05-19T16:08:17Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-result",
+      "version": "0.4.1",
+      "published": "2025-10-06T19:14:39Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-strings",
+      "version": "0.1.0",
+      "published": "2024-07-03T19:46:43Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-strings",
+      "version": "0.4.2",
+      "published": "2025-05-19T16:08:08Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-strings",
+      "version": "0.5.1",
+      "published": "2025-10-06T19:15:01Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.45.0",
+      "published": "2023-01-21T00:11:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.48.0",
+      "published": "2023-03-31T12:59:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.52.0",
+      "published": "2023-11-15T18:55:55Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.59.0",
+      "published": "2024-07-30T15:26:17Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.60.2",
+      "published": "2025-06-12T18:59:32Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.61.2",
+      "published": "2025-10-06T19:18:30Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-targets",
+      "version": "0.42.2",
+      "published": "2023-03-13T14:51:19Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-targets",
+      "version": "0.48.5",
+      "published": "2023-08-18T17:48:34Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-targets",
+      "version": "0.52.6",
+      "published": "2024-07-03T19:44:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-targets",
+      "version": "0.53.5",
+      "published": "2025-10-06T19:18:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-threading",
+      "version": "0.1.0",
+      "published": "2025-05-15T19:38:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows-version",
+      "version": "0.1.7",
+      "published": "2025-10-06T19:19:30Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_aarch64_gnullvm",
+      "version": "0.42.2",
+      "published": "2023-03-13T14:50:12Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_aarch64_gnullvm",
+      "version": "0.48.5",
+      "published": "2023-08-18T17:46:06Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_aarch64_gnullvm",
+      "version": "0.52.6",
+      "published": "2024-07-03T19:43:36Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_aarch64_gnullvm",
+      "version": "0.53.1",
+      "published": "2025-10-06T17:33:29Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_aarch64_msvc",
+      "version": "0.42.2",
+      "published": "2023-03-13T14:48:58Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_aarch64_msvc",
+      "version": "0.48.5",
+      "published": "2023-08-18T17:46:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_aarch64_msvc",
+      "version": "0.52.6",
+      "published": "2024-07-03T19:43:40Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_aarch64_msvc",
+      "version": "0.53.1",
+      "published": "2025-10-06T17:33:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_i686_gnu",
+      "version": "0.42.2",
+      "published": "2023-03-13T14:49:06Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_i686_gnu",
+      "version": "0.48.5",
+      "published": "2023-08-18T17:46:48Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_i686_gnu",
+      "version": "0.52.6",
+      "published": "2024-07-03T19:43:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_i686_gnu",
+      "version": "0.53.1",
+      "published": "2025-10-06T17:33:40Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_i686_gnullvm",
+      "version": "0.52.6",
+      "published": "2024-07-03T19:43:50Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_i686_gnullvm",
+      "version": "0.53.1",
+      "published": "2025-10-06T17:33:44Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_i686_msvc",
+      "version": "0.42.2",
+      "published": "2023-03-13T14:49:15Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_i686_msvc",
+      "version": "0.48.5",
+      "published": "2023-08-18T17:47:01Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_i686_msvc",
+      "version": "0.52.6",
+      "published": "2024-07-03T19:43:54Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_i686_msvc",
+      "version": "0.53.1",
+      "published": "2025-10-06T17:33:49Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_gnu",
+      "version": "0.42.2",
+      "published": "2023-03-13T14:49:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_gnu",
+      "version": "0.48.5",
+      "published": "2023-08-18T17:47:19Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_gnu",
+      "version": "0.52.6",
+      "published": "2024-07-03T19:43:58Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_gnu",
+      "version": "0.53.1",
+      "published": "2025-10-06T17:33:55Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_gnullvm",
+      "version": "0.42.2",
+      "published": "2023-03-13T14:49:34Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_gnullvm",
+      "version": "0.48.5",
+      "published": "2023-08-18T17:47:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_gnullvm",
+      "version": "0.52.6",
+      "published": "2024-07-03T19:44:03Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_gnullvm",
+      "version": "0.53.1",
+      "published": "2025-10-06T17:34:01Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_msvc",
+      "version": "0.42.2",
+      "published": "2023-03-13T14:49:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_msvc",
+      "version": "0.48.5",
+      "published": "2023-08-18T17:47:56Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_msvc",
+      "version": "0.52.6",
+      "published": "2024-07-03T19:44:07Z",
+      "old_enough": true
+    },
+    {
+      "name": "windows_x86_64_msvc",
+      "version": "0.53.1",
+      "published": "2025-10-06T17:34:07Z",
+      "old_enough": true
+    },
+    {
+      "name": "winnow",
+      "version": "0.5.40",
+      "published": "2024-02-12T21:23:34Z",
+      "old_enough": true
+    },
+    {
+      "name": "winnow",
+      "version": "0.7.15",
+      "published": "2026-03-05T19:00:42Z",
+      "old_enough": true
+    },
+    {
+      "name": "winnow",
+      "version": "1.0.4",
+      "published": "2026-07-13T14:31:41Z",
+      "old_enough": true
+    },
+    {
+      "name": "winreg",
+      "version": "0.55.0",
+      "published": "2025-01-12T22:15:39Z",
+      "old_enough": true
+    },
+    {
+      "name": "wit-bindgen",
+      "version": "0.57.1",
+      "published": "2026-04-17T17:49:55Z",
+      "old_enough": true
+    },
+    {
+      "name": "writeable",
+      "version": "0.6.4",
+      "published": "2026-08-13T23:28:09Z",
+      "old_enough": true
+    },
+    {
+      "name": "wry",
+      "version": "0.55.1",
+      "published": "2026-05-04T15:34:32Z",
+      "old_enough": true
+    },
+    {
+      "name": "x11",
+      "version": "2.21.0",
+      "published": "2023-01-18T20:43:21Z",
+      "old_enough": true
+    },
+    {
+      "name": "x11-dl",
+      "version": "2.21.0",
+      "published": "2023-01-18T20:43:48Z",
+      "old_enough": true
+    },
+    {
+      "name": "xattr",
+      "version": "1.6.1",
+      "published": "2025-09-21T02:52:23Z",
+      "old_enough": true
+    },
+    {
+      "name": "yoke",
+      "version": "0.8.3",
+      "published": "2026-06-03T20:59:17Z",
+      "old_enough": true
+    },
+    {
+      "name": "yoke-derive",
+      "version": "0.8.2",
+      "published": "2026-04-01T16:46:42Z",
+      "old_enough": true
+    },
+    {
+      "name": "zbus",
+      "version": "5.19.0",
+      "published": "2026-08-09T17:48:33Z",
+      "old_enough": true
+    },
+    {
+      "name": "zbus_macros",
+      "version": "5.19.0",
+      "published": "2026-08-09T17:48:14Z",
+      "old_enough": true
+    },
+    {
+      "name": "zbus_names",
+      "version": "4.3.4",
+      "published": "2026-07-17T20:50:13Z",
+      "old_enough": true
+    },
+    {
+      "name": "zcheapstr",
+      "version": "1.1.0",
+      "published": "2026-08-10T12:59:25Z",
+      "old_enough": true
+    },
+    {
+      "name": "zerocopy",
+      "version": "0.8.56",
+      "published": "2026-08-06T11:23:48Z",
+      "old_enough": true
+    },
+    {
+      "name": "zerocopy-derive",
+      "version": "0.8.56",
+      "published": "2026-08-06T11:23:42Z",
+      "old_enough": true
+    },
+    {
+      "name": "zerofrom",
+      "version": "0.1.8",
+      "published": "2026-05-12T09:08:18Z",
+      "old_enough": true
+    },
+    {
+      "name": "zerofrom-derive",
+      "version": "0.1.7",
+      "published": "2026-04-01T16:46:45Z",
+      "old_enough": true
+    },
+    {
+      "name": "zeroize",
+      "version": "1.9.0",
+      "published": "2026-06-12T18:42:35Z",
+      "old_enough": true
+    },
+    {
+      "name": "zerotrie",
+      "version": "0.2.5",
+      "published": "2026-08-13T23:28:19Z",
+      "old_enough": true
+    },
+    {
+      "name": "zerovec",
+      "version": "0.11.8",
+      "published": "2026-08-19T22:32:16Z",
+      "old_enough": true
+    },
+    {
+      "name": "zerovec-derive",
+      "version": "0.11.6",
+      "published": "2026-08-20T23:25:28Z",
+      "old_enough": true
+    },
+    {
+      "name": "zip",
+      "version": "4.6.1",
+      "published": "2025-09-03T08:17:46Z",
+      "old_enough": true
+    },
+    {
+      "name": "zlib-rs",
+      "version": "0.6.7",
+      "published": "2026-08-03T13:07:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "zmij",
+      "version": "1.0.23",
+      "published": "2026-07-13T12:58:53Z",
+      "old_enough": true
+    },
+    {
+      "name": "zvariant",
+      "version": "5.15.0",
+      "published": "2026-08-18T11:46:20Z",
+      "old_enough": true
+    },
+    {
+      "name": "zvariant_derive",
+      "version": "5.15.0",
+      "published": "2026-08-18T11:46:04Z",
+      "old_enough": true
+    },
+    {
+      "name": "zvariant_utils",
+      "version": "4.2.0",
+      "published": "2026-08-18T11:45:57Z",
+      "old_enough": true
+    }
+  ]
+}

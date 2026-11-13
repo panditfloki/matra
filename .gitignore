@@ -36,3 +36,7 @@ artifacts/
 Matra Notch/
 
 .DS_Store
+
+# Contained development toolchains, fixtures, logs and package outputs.
+.build/
+.platform-build/

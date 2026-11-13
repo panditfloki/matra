@@ -1781,8 +1781,9 @@ pub fn get_activity_report(
     let settings = load_settings(&dir);
     let prices = price_table(&dir, &settings);
     let plans = load_plans(&dir);
-    let home = dirs::home_dir();
-    let sources = discover_sources(home.as_deref(), &crate::usage::profile_dirs());
+    let preview = crate::platform::preview();
+    let home = if preview { None } else { dirs::home_dir() };
+    let sources = if preview { Vec::new() } else { discover_sources(home.as_deref(), &crate::usage::profile_dirs()) };
     let home_text = home.as_ref().map(|h| h.to_string_lossy().into_owned());
     let limits = Limits::default();
     let input = ReportInput {
@@ -1794,7 +1795,9 @@ pub fn get_activity_report(
         limits: &limits,
     };
     let query = Query { range: &range, account: account.as_deref(), project: project.as_deref(), date: date.as_deref() };
-    engine().report(&input, &query, Local::now())
+    let mut report = engine().report(&input, &query, Local::now())?;
+    if preview { report.note = "SYNTHETIC PREVIEW: empty sample history; no real transcripts or accounts were read.".into(); }
+    Ok(report)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -1806,6 +1809,7 @@ pub struct PriceRefresh {
 /// Runs only when the owner asks. Sends no key and no account data, and leaves the exchange rate alone.
 #[tauri::command(async)]
 pub fn refresh_cost_prices() -> Result<PriceRefresh, String> {
+    crate::platform::require_live("Fetching model prices")?;
     const FAILED: &str = "Could not refresh prices";
     let response = crate::http::agent().get(OPENROUTER_MODELS_URL).call().map_err(|_| FAILED.to_string())?;
     let mut raw = Vec::new();

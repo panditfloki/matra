@@ -1,8 +1,8 @@
 [package]
 name = "matra"
-version = "1.9.0"
+version = "0.2.0"
 edition = "2021"
-description = "Matra for Windows: AI usage and activity notch"
+description = "Matra Development: Windows and Linux desktop adapters"
 license = "MIT"
 repository = "https://github.com/panditfloki/matra"
 
@@ -11,7 +11,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 matra-core = { path = "../matra-core" }
-tauri = { version = "2.11", features = ["tray-icon", "image-png"] }
+tauri = { version = "=2.11.5", features = ["tray-icon", "image-png"] }
 tauri-plugin-single-instance = "2"
 # native-tls rather than the default rustls: on Windows that is schannel, the
 # OS's own stack, which is what should be trusted to fetch something the machine
@@ -55,3 +55,10 @@ windows = { version = "0.58", features = [
   "Win32_System_Console",
   "Win32_System_Registry",
 ] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+raw-window-handle = "=0.6.2"
+
+# Host Rust checks on macOS need the API feature; shipping Mac entry remains native Swift.
+[target.'cfg(target_os = "macos")'.dependencies]
+tauri = { version = "=2.11.5", features = ["macos-private-api"] }

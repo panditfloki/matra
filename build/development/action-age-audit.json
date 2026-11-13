@@ -1,0 +1,24 @@
+{
+  "as_of": "2026-11-13",
+  "actions": [
+    {
+      "repository": "actions/checkout",
+      "commit": "11bd71901bbe5b1630ceea73d27597364c9af683",
+      "committed_at": "2024-10-23T14:24:28Z"
+    },
+    {
+      "repository": "actions/setup-node",
+      "commit": "49933ea5288caeca8642d1e84afbd3f7d6820020",
+      "committed_at": "2025-04-02T19:20:51Z"
+    },
+    {
+      "repository": "actions/upload-artifact",
+      "commit": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+      "committed_at": "2025-03-19T17:34:59Z"
+    }
+  ],
+  "rust": {
+    "version": "1.97.1",
+    "distribution_manifest_date": "2026-07-16"
+  }
+}

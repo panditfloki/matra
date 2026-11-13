@@ -58,6 +58,7 @@ pub fn get_extra_usage() -> BTreeMap<String, UsageSnapshot> {
 }
 #[tauri::command]
 pub fn set_extra_provider(app: AppHandle, id: String, on: bool) -> Result<(), String> {
+    crate::platform::require_live("Changing provider access")?;
     if !IDS.contains(&id.as_str()) {
         return Err("Unknown provider.".into());
     }
@@ -519,6 +520,7 @@ fn fetch(id: &str) -> Result<Vec<LimitWindow>, Failure> {
     Ok(parse(id, &read_json(endpoint, &token, false)?))
 }
 pub fn start(app: AppHandle) {
+    if crate::platform::preview() { return; }
     let enabled = app
         .state::<crate::AppState>()
         .cfg

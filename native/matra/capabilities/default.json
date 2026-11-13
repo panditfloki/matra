@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Matra notch & settings windows: allow core APIs (event.listen is required for state broadcasts), plus dragging and closing the frameless settings window, and the updater the About pane checks with",
+  "description": "Matra development windows: core events, explicit settings-window dragging and close.",
   "windows": [
     "notch",
     "settings",
@@ -10,7 +10,6 @@
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
-    "core:window:allow-close",
-    "updater:default"
+    "core:window:allow-close"
   ]
 }

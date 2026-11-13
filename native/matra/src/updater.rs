@@ -16,7 +16,7 @@ const FEED: &str = "https://api.github.com/repos/panditfloki/matra/releases/late
 const MAX_BYTES: u64 = 100 * 1024 * 1024;
 
 fn automatic_enabled(app: &AppHandle) -> bool {
-    app.state::<crate::AppState>().cfg.lock().unwrap().automatic_updates
+    crate::platform::updates_available() && app.state::<crate::AppState>().cfg.lock().unwrap().automatic_updates
 }
 
 #[tauri::command]
@@ -24,6 +24,7 @@ pub fn get_automatic_updates(app: AppHandle) -> bool { automatic_enabled(&app) }
 
 #[tauri::command]
 pub fn set_automatic_updates(app: AppHandle, on: bool) -> Result<bool, String> {
+    if !crate::platform::updates_available() { return Err(unavailable_message().into()); }
     {
         let state = app.state::<crate::AppState>();
         let mut cfg = state.cfg.lock().unwrap();
@@ -135,6 +136,9 @@ fn confirmation(current: &str, target: &str) -> Option<String> {
 }
 #[tauri::command]
 pub fn get_update_state() -> UpdateState {
+    if !crate::platform::updates_available() {
+        return UpdateState { phase: "unavailable".into(), message: Some(unavailable_message().into()), ..Default::default() };
+    }
     with_store(|s| {
         if s.ui.phase.is_empty() {
             s.ui.phase = "idle".into();
@@ -225,6 +229,7 @@ pub fn check_for_update(app: AppHandle) {
     check(app, false);
 }
 fn check(app: AppHandle, startup: bool) {
+    if !crate::platform::updates_available() { fail(&app, unavailable_message()); return; }
     let Some(guard) = acquire() else { return };
     with_store(|s| {
         s.offer = None;
@@ -365,6 +370,7 @@ fn verify_file(path: &std::path::Path, offer: &Offer) -> Result<(), String> {
 }
 #[tauri::command]
 pub fn download_update(app: AppHandle) {
+    if !crate::platform::updates_available() { fail(&app, unavailable_message()); return; }
     let Some(guard) = acquire() else { return };
     let Some(offer) = with_store(|s| s.offer.clone()) else {
         return;
@@ -382,9 +388,7 @@ pub fn download_update(app: AppHandle) {
     std::thread::spawn(move || {
         let _guard = guard;
         let result: Result<PathBuf, String> = (|| {
-            let directory = dirs::cache_dir()
-                .ok_or("No user cache directory.")?
-                .join("matra-notch")
+            let directory = crate::config::cache_dir()
                 .join("updates")
                 .join(&offer.version);
             std::fs::create_dir_all(&directory)
@@ -454,6 +458,7 @@ pub fn install_update(app: AppHandle) {
 }
 
 fn install(app: AppHandle, automatic: bool) {
+    if !crate::platform::updates_available() { fail(&app, unavailable_message()); return; }
     let Some(guard) = acquire() else { return };
     let (offer, path) = with_store(|s| (s.offer.clone(), s.ready.clone()));
     let (Some(offer), Some(path)) = (offer, path) else {
@@ -527,6 +532,7 @@ fn should_check_on_launch(phase: &str) -> bool {
     matches!(phase, "idle" | "updated")
 }
 pub fn check_on_launch(app: &AppHandle) {
+    if !crate::platform::updates_available() { return; }
     let app = app.clone();
     std::thread::spawn(move || {
         // Give the meter time to start. Automatic installation requires the
@@ -543,6 +549,12 @@ pub fn check_on_launch(app: &AppHandle) {
             }
         }
     });
+}
+
+fn unavailable_message() -> &'static str {
+    if crate::platform::preview() { "Updates are disabled in the isolated preview. No update request or installation was started." }
+    else if !cfg!(windows) { "This shared build has no installer updater for this operating system. Install a separately verified platform package." }
+    else { "Installer updates are disabled for this preview channel. Install a separately verified review package." }
 }
 
 #[cfg(test)]

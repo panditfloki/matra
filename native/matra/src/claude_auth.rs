@@ -37,6 +37,7 @@ pub fn usage_succeeded() {
 // No interpolated shell input: even paths containing apostrophes arrive in env.
 const LOGIN_SCRIPT: &str = "$Host.UI.RawUI.WindowTitle = 'Matra - Claude sign-in'; Write-Host 'Complete sign-in in your browser. Paste any code in this window.'; & $env:MATRA_CLAUDE_CLI auth login --claudeai; $loginResult = $LASTEXITCODE; if ($loginResult -eq 0) { Write-Host 'Sign-in complete. Matra will refresh automatically.'; Start-Sleep -Seconds 2 } else { Write-Host 'Sign-in failed or cancelled. Retry from Matra.'; Start-Sleep -Seconds 8 }; exit $loginResult";
 
+#[cfg(windows)]
 fn login_command(cli: &std::path::Path) -> Result<Command, String> {
     let root = std::env::var_os("SystemRoot").ok_or("Windows directory unavailable.")?;
     let mut cmd = Command::new(std::path::PathBuf::from(root).join("System32/WindowsPowerShell/v1.0/powershell.exe"));
@@ -56,6 +57,11 @@ fn login_command(cli: &std::path::Path) -> Result<Command, String> {
         cmd.creation_flags(0x0000_0010); // visible console only after a user's click
     }
     Ok(cmd)
+}
+
+#[cfg(not(windows))]
+fn login_command(_cli: &std::path::Path) -> Result<Command, String> {
+    Err("Open your own terminal and run: claude auth login --claudeai. Complete sign-in there, then refresh Mātrā. This build does not open an interactive terminal for you.".into())
 }
 
 fn terminate(child: &mut Child) {
@@ -84,6 +90,7 @@ fn wait_child(child: &mut Child, timeout: Duration) -> bool {
 }
 
 pub fn start_login() -> Result<(), String> {
+    crate::platform::require_live("Provider sign-in")?;
     let cli = crate::usage::find_cli().ok_or("Claude Code CLI not found. Install the standalone CLI first.")?;
     let guard = try_acquire().ok_or("Claude sign-in or renewal is already running.")?;
     let mut cmd = login_command(&cli)?;

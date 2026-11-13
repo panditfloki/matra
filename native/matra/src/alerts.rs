@@ -18,6 +18,11 @@ use tauri::{AppHandle, Emitter, Manager};
 /// The installed shortcut's identity, equal to `identifier` in tauri.conf.json.
 pub const APP_USER_MODEL_ID: &str = "com.dydxfx.matra.notch";
 
+fn notification_identity() -> &'static str {
+    if crate::platform::review_build() { crate::release_channel::BUNDLE_ID }
+    else { APP_USER_MODEL_ID }
+}
+
 const POLL: Duration = Duration::from_secs(2);
 /// A level holds until usage falls this far below it, so a reading that jitters around a threshold
 /// does not announce the same crossing again.
@@ -559,13 +564,13 @@ impl Availability {
 
 pub trait NotificationSink: Send + Sync {
     fn availability(&self) -> Availability;
-    /// Ok only when the operating system accepted the notification.
+    /// Ok when the OS API or desktop helper accepted the submission. Visibility is not guaranteed.
     fn show(&self, toast: &Toast) -> Result<(), String>;
 }
 
 #[cfg(windows)]
 mod windows_sink {
-    use super::{toast_xml, Availability, NotificationSink, Toast, APP_USER_MODEL_ID};
+    use super::{notification_identity, toast_xml, Availability, NotificationSink, Toast};
     use std::time::Duration;
     use windows::core::{Result as WinResult, HSTRING, PCWSTR};
     use windows::Data::Xml::Dom::XmlDocument;
@@ -597,12 +602,12 @@ mod windows_sink {
     /// Windows accepts a notification for an unregistered identity and shows nothing, so the identity
     /// has to be confirmed first: the Start Menu shortcut's AUMID is what puts it in AppsFolder.
     fn identity_registered() -> bool {
-        let path = HSTRING::from(format!("shell:AppsFolder\\{APP_USER_MODEL_ID}"));
+        let path = HSTRING::from(format!("shell:AppsFolder\\{}", notification_identity()));
         unsafe { SHCreateItemFromParsingName::<_, _, IShellItem>(PCWSTR(path.as_ptr()), None::<&IBindCtx>) }.is_ok()
     }
 
     fn notifier() -> WinResult<ToastNotifier> {
-        ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(APP_USER_MODEL_ID))
+        ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(notification_identity()))
     }
 
     fn process_elevated() -> Option<bool> {
@@ -703,24 +708,92 @@ mod windows_sink {
     }
 }
 
-#[cfg(not(windows))]
-struct UnsupportedSink;
-
-#[cfg(not(windows))]
-impl NotificationSink for UnsupportedSink {
+struct PreviewSink;
+impl NotificationSink for PreviewSink {
     fn availability(&self) -> Availability {
-        Availability::new("unsupported", false, "Notifications from this module are available on Windows only.")
+        Availability::new("preview", false, "Notifications are disabled in the isolated preview. No operating-system notification was submitted.")
     }
     fn show(&self, _toast: &Toast) -> Result<(), String> {
         Err(self.availability().message)
     }
 }
 
+#[cfg(not(windows))]
+struct DesktopSink;
+
+#[cfg(target_os = "linux")]
+fn notify_send() -> Option<&'static str> {
+    ["/usr/bin/notify-send", "/bin/notify-send"].into_iter()
+        .find(|path| crate::platform::executable(std::path::Path::new(path)))
+}
+
+pub fn notifications_available() -> bool {
+    #[cfg(windows)]
+    return true;
+    #[cfg(target_os = "macos")]
+    return crate::platform::executable(std::path::Path::new("/usr/bin/osascript"));
+    #[cfg(target_os = "linux")]
+    return notify_send().is_some();
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+    return false;
+}
+
+#[cfg(target_os = "macos")]
+fn applescript_string(value: &str) -> String {
+    let mut result = String::from("\"");
+    for c in value.chars().take(4096) {
+        match c {
+            '\\' => result.push_str("\\\\"),
+            '"' => result.push_str("\\\""),
+            c if c.is_control() => result.push(' '),
+            c => result.push(c),
+        }
+    }
+    result.push('"'); result
+}
+
+#[cfg(not(windows))]
+impl NotificationSink for DesktopSink {
+    fn availability(&self) -> Availability {
+        if !notifications_available() {
+            return Availability::new("helper_missing", false,
+                "This desktop's notification helper is unavailable. Linux requires notify-send and a running notification service.");
+        }
+        let message = if cfg!(target_os = "macos") {
+            "Notification submissions use macOS osascript and its notification identity, rather than Mātrā's native identity. Counts mean accepted submissions; permission, Focus and actual display are not verified."
+        } else {
+            "Notification submissions use notify-send and the desktop notification service. Counts mean accepted submissions; desktop permission, Do Not Disturb and actual display are not verified."
+        };
+        Availability::new("submission_only", true, message)
+    }
+    fn show(&self, toast: &Toast) -> Result<(), String> {
+        crate::platform::require_live("Submitting notifications")?;
+        let available = self.availability();
+        if !available.can_deliver { return Err(available.message); }
+        #[cfg(target_os = "macos")]
+        {
+            let script = format!("display notification {} with title {}\n", applescript_string(&toast.body), applescript_string(&toast.title));
+            let mut command = std::process::Command::new("/usr/bin/osascript");
+            command.arg("-");
+            crate::platform::submit(command, Some(script.as_bytes()))
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let mut command = std::process::Command::new(notify_send().ok_or("notify-send is unavailable.")?);
+            command.args(["--app-name=Matra Development 0.2.0", "--", &toast.title, &toast.body]);
+            crate::platform::submit(command, None)
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+        Err("Notifications are unavailable on this operating system.".into())
+    }
+}
+
 fn platform_sink() -> Box<dyn NotificationSink> {
+    if crate::platform::preview() { return Box::new(PreviewSink); }
     #[cfg(windows)]
     return Box::new(windows_sink::ToastSink);
     #[cfg(not(windows))]
-    return Box::new(UnsupportedSink);
+    return Box::new(DesktopSink);
 }
 
 // ---- Delivery records ----
@@ -909,6 +982,7 @@ pub fn start(app: AppHandle) {
         stats: Mutex::new(Stats::default()),
         sink: platform_sink(),
     });
+    if crate::platform::preview() { return; }
     let spawned = std::thread::Builder::new().name("matra-alerts".into()).spawn(move || {
         let mut engine = Engine::new(started_at);
         loop {
@@ -968,6 +1042,7 @@ pub fn get_alert_status(app: AppHandle) -> Result<AlertStatus, String> {
 /// The explicit button only. Works with the master switch off, as the Mac's test does.
 #[tauri::command(async)]
 pub fn send_test_alert(app: AppHandle) -> Result<AlertStatus, String> {
+    crate::platform::require_live("Submitting notifications")?;
     let runtime = runtime(&app)?;
     let settings = runtime.settings.lock().unwrap().clone();
     let event = AlertEvent {
@@ -1444,8 +1519,8 @@ mod tests {
 
     #[cfg(not(windows))]
     #[test]
-    fn an_unsupported_platform_says_so() {
-        let sink = UnsupportedSink;
+    fn preview_never_submits_to_an_operating_system_helper() {
+        let sink = PreviewSink;
         assert!(!sink.availability().can_deliver);
         assert!(sink.show(&toast_for(&work_event(), &all_on(), &|_| None)).is_err());
     }

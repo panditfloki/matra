@@ -551,6 +551,7 @@ fn sleep_interruptible(secs: u64) {
 }
 
 pub fn start(app: AppHandle) {
+    if crate::platform::preview() { return; }
     std::thread::spawn(move || {
         {
             let st = app.state::<AppState>();

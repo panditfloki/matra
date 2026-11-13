@@ -45,6 +45,7 @@ pub fn send(
     body: Option<&str>,
     timeout: Duration,
 ) -> Result<Reply, NetError> {
+    if crate::platform::preview() { return Err(NetError::Unreachable); }
     let agent = crate::http::builder()
         .redirects(0)
         .timeout(timeout)

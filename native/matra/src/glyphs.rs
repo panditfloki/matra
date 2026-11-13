@@ -275,6 +275,7 @@ fn encode_png(w: u32, h: u32, rgba: &[u8]) -> Option<Vec<u8>> {
 
 /// Collects every provider glyph (once at startup, again on the tray's refresh)
 pub fn collect() -> HashMap<String, Glyph> {
+    if crate::platform::preview() { return HashMap::new(); }
     let mut map = HashMap::new();
     let dirs = glyph_dirs();
     for id in IDS {

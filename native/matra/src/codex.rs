@@ -166,6 +166,7 @@ fn persist(s: &UsageSnapshot) {
 /// Candidates in order: the native exe inside the global npm package (cleanest — no cmd/node
 /// wrapper) → ~/.codex/bin → codex.exe / codex.cmd on PATH.
 pub fn find_executable() -> Option<PathBuf> {
+    if crate::platform::preview() { return None; }
     let mut cands: Vec<PathBuf> = Vec::new();
     if let Some(appdata) = dirs::config_dir() {
         let pkg = appdata.join("npm").join("node_modules").join("@openai").join("codex");
@@ -194,11 +195,17 @@ pub fn find_executable() -> Option<PathBuf> {
     }
     if let Some(path) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&path) {
+            #[cfg(unix)]
+            if dir.is_absolute() { cands.push(dir.join("codex")); }
             cands.push(dir.join("codex.exe"));
             cands.push(dir.join("codex.cmd"));
         }
     }
-    cands.into_iter().find(|p| p.is_file())
+    cands.into_iter().find(|p| {
+        if cfg!(unix) {
+            !matches!(p.extension().and_then(|e| e.to_str()), Some("exe" | "cmd")) && crate::platform::executable(p)
+        } else { p.is_file() }
+    })
 }
 
 // ---------------- Live: the usage endpoint ----------------
@@ -842,6 +849,10 @@ pub fn snapshot_from_rollout(text: &str) -> Option<(Vec<LimitWindow>, Option<u64
 /// Prefer the installed native Codex client: it understands the desktop's managed sign-in.
 /// Only initialize + account/rateLimits/read are sent; no login or inference commands.
 fn native_codex() -> Option<PathBuf> {
+    #[cfg(unix)]
+    return find_executable().filter(|p| crate::platform::executable(p));
+    #[cfg(not(unix))]
+    {
     if let Some(local) = dirs::data_local_dir() {
         let mut bins = list_dirs(&local.join("OpenAI/Codex/bin"));
         bins.sort_by_key(|p| std::cmp::Reverse(std::fs::metadata(p).and_then(|m| m.modified()).ok()));
@@ -850,6 +861,7 @@ fn native_codex() -> Option<PathBuf> {
         }
     }
     find_executable().filter(|p| p.extension().and_then(|x| x.to_str()) == Some("exe"))
+    }
 }
 
 fn app_server_snapshot(result: &serde_json::Value) -> Option<UsageSnapshot> {
@@ -1093,6 +1105,7 @@ fn broadcast(app: &AppHandle, snap: UsageSnapshot) {
 }
 
 pub fn start(app: AppHandle) {
+    if crate::platform::preview() { return; }
     std::thread::spawn(move || {
         {
             let st = app.state::<AppState>();

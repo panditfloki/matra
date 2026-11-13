@@ -7,6 +7,7 @@ use std::io::Read;
 use tauri::{AppHandle, Manager};
 
 pub fn start(app: AppHandle, port: u16) {
+    if crate::platform::preview() { return; }
     std::thread::spawn(move || {
         let server = match tiny_http::Server::http(("127.0.0.1", port)) {
             Ok(s) => s,
@@ -28,7 +29,7 @@ pub fn start(app: AppHandle, port: u16) {
                 }
                 // Cross-Origin / CSRF protection:
                 // Reject untrusted browser requests attempting to forge events or poison local state.
-                if is_forbidden(&req) {
+                if is_forbidden(&req) || !channel_matches(req.headers()) {
                     let _ = req.respond(
                         tiny_http::Response::from_string("forbidden").with_status_code(403),
                     );
@@ -51,6 +52,12 @@ pub fn start(app: AppHandle, port: u16) {
             let _ = req.respond(tiny_http::Response::from_string("ok"));
         }
     });
+}
+
+fn channel_matches(headers: &[tiny_http::Header]) -> bool {
+    if !crate::release_channel::REVIEW_BUILD { return true; }
+    let mut values = headers.iter().filter(|h| h.field.equiv("X-Matra-Channel"));
+    values.next().is_some_and(|h| h.value.as_str() == crate::release_channel::BUNDLE_ID) && values.next().is_none()
 }
 
 fn query_param(url: &str, key: &str) -> String {
@@ -366,5 +373,17 @@ mod tests {
         assert_eq!(resp.status(), 200);
 
         handle.join().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod development_channel_tests {
+    #[test]
+    fn development_events_require_exact_single_channel() {
+        let make = |value: &str| tiny_http::Header::from_bytes("X-Matra-Channel", value).unwrap();
+        assert!(!super::channel_matches(&[]));
+        assert!(!super::channel_matches(&[make("com.dydxfx.matra.notch")]));
+        assert!(super::channel_matches(&[make(crate::release_channel::BUNDLE_ID)]));
+        assert!(!super::channel_matches(&[make(crate::release_channel::BUNDLE_ID), make(crate::release_channel::BUNDLE_ID)]));
     }
 }

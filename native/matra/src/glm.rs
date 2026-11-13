@@ -435,6 +435,7 @@ fn broadcast(app: &AppHandle, snap: UsageSnapshot) {
 }
 
 pub fn start(app: AppHandle) {
+    if crate::platform::preview() { return; }
     std::thread::spawn(move || {
         {
             let st = app.state::<AppState>();

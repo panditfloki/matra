@@ -92,6 +92,7 @@ fn claim_look(last: &mut Option<u64>, now: u64) -> bool {
 /// Looking never overrides a provider's own retry/backoff state.
 #[tauri::command]
 pub fn refresh_on_look(app: AppHandle) -> bool {
+    if crate::platform::preview() { return false; }
     if !claim_look(&mut LAST_LOOK.lock().unwrap(), crate::now_ms()) { return false; }
     let now = crate::now_ms();
     for id in crate::provider_ids() {
@@ -124,9 +125,13 @@ pub fn open_dashboard_window(app: &AppHandle) {
                 .map(|m| ((m.size().width as f64 / m.scale_factor() - 64.0).clamp(820.0, 1080.0),
                     (m.size().height as f64 / m.scale_factor() - 100.0).clamp(600.0, 760.0)))
                 .unwrap_or((1080.0, 760.0));
-            match tauri::WebviewWindowBuilder::new(&app, "dashboard", tauri::WebviewUrl::App("dashboard.html".into()))
+            let builder = tauri::WebviewWindowBuilder::new(&app, "dashboard", tauri::WebviewUrl::App("dashboard.html".into()))
+                .incognito(crate::platform::preview())
                 .title("Mātrā Dashboard").inner_size(size.0, size.1)
-                .min_inner_size(820.0, 600.0).center().build() {
+                .min_inner_size(820.0, 600.0).center();
+            #[cfg(not(target_os = "macos"))]
+            let builder = builder.data_directory(crate::config::cache_dir().join("webview/dashboard"));
+            match builder.build() {
                 Ok(window) => { let _ = window.set_focus(); }
                 Err(_) => crate::applog("Could not open Dashboard."),
             }
@@ -144,9 +149,13 @@ pub fn open_activity_window(app: &AppHandle) {
                 let _ = window.unminimize(); let _ = window.show(); let _ = window.set_focus();
                 return;
             }
-            match tauri::WebviewWindowBuilder::new(&app, "activity", tauri::WebviewUrl::App("activity.html".into()))
+            let builder = tauri::WebviewWindowBuilder::new(&app, "activity", tauri::WebviewUrl::App("activity.html".into()))
+                .incognito(crate::platform::preview())
                 .title("Mātrā · Project Activity").inner_size(1000.0, 720.0)
-                .min_inner_size(760.0, 520.0).center().build() {
+                .min_inner_size(760.0, 520.0).center();
+            #[cfg(not(target_os = "macos"))]
+            let builder = builder.data_directory(crate::config::cache_dir().join("webview/activity"));
+            match builder.build() {
                 Ok(window) => { let _ = window.set_focus(); }
                 Err(_) => crate::applog("Could not open Project Activity."),
             }

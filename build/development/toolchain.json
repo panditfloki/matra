@@ -1,0 +1,8 @@
+{
+  "rust": "1.97.1",
+  "node": "22.20.0",
+  "tauri_cli": "2.11.4",
+  "minimum_age_days": 14,
+  "dependency_snapshot": "2026-11-13",
+  "linux_apt_snapshot": "20261029T000000Z"
+}

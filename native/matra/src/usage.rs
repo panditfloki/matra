@@ -98,6 +98,7 @@ fn has_credential(dir: &Path) -> bool {
 /// directory counts only once it holds a credential, so a half-made one never shows up on the card as
 /// an account waiting to be signed in.
 fn profiles() -> Vec<Profile> {
+    if crate::platform::preview() { return Vec::new(); }
     let Some(home) = dirs::home_dir() else {
         return Vec::new();
     };
@@ -313,6 +314,21 @@ fn is_desktop_owned(p: &std::path::Path) -> bool {
 
 /// The standalone Claude Code command: its own installer's location first, then global npm/pnpm/Volta, then PATH
 pub(crate) fn find_cli() -> Option<std::path::PathBuf> {
+    if crate::platform::preview() { return None; }
+    #[cfg(unix)]
+    {
+        let mut paths = Vec::new();
+        if let Some(home) = dirs::home_dir() {
+            paths.push(home.join(".local/bin/claude"));
+            paths.push(home.join(".volta/bin/claude"));
+        }
+        if let Some(path) = std::env::var_os("PATH") {
+            paths.extend(std::env::split_paths(&path).filter(|p| p.is_absolute()).map(|p| p.join("claude")));
+        }
+        return paths.into_iter().find(|p| crate::platform::executable(p) && !is_desktop_owned(p));
+    }
+    #[cfg(not(unix))]
+    {
     let mut v = Vec::new();
     if let Some(h) = dirs::home_dir() {
         v.push(h.join(".local").join("bin").join("claude.exe"));
@@ -333,6 +349,7 @@ pub(crate) fn find_cli() -> Option<std::path::PathBuf> {
         }
     }
     v.into_iter().find(|p| p.is_file() && !is_desktop_owned(p))
+    }
 }
 
 /// Whether a launch is worth making. Pure, so every branch is testable without a clock or a subprocess
@@ -364,6 +381,8 @@ fn retry_wait_ms(failures: u32) -> u64 {
 /// `claude -p` with a null stdin starts up (which is where it renews an aged token), then exits non-zero for want
 /// of a prompt: no conversation, no transcript. Output goes nowhere — a token could in principle be echoed into it.
 fn run_renewal(cli: &std::path::Path, dir: &Path) -> std::io::Result<()> {
+    crate::platform::require_automatic_integration("Automatic account renewal")
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::PermissionDenied, e))?;
     use std::process::{Command, Stdio};
     let mut cmd = Command::new(cli);
     cmd.arg("-p").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
@@ -408,6 +427,7 @@ impl Renewer {
     /// Renews if the token is about to expire. Some(true) = the expiry moved; judged on the outcome, never on the
     /// exit status, because refusing the empty prompt is a non-zero exit and a successful renewal at the same time
     fn maybe_renew(&mut self, cred: &Credential, dir: &Path, who: &str) -> Option<bool> {
+        if crate::platform::preview() || crate::platform::review_build() { return None; }
         let _auth = crate::claude_auth::try_acquire()?;
         let now = now_ms();
         if !should_renew(cred.expires_at, now, self.attempted_for, self.last_attempt, self.failures) {
@@ -766,6 +786,7 @@ fn poll_account(p: &Profile, acc: &mut Account, group: Option<&str>) {
 }
 
 pub fn start(app: AppHandle) {
+    if crate::platform::preview() { return; }
     std::thread::spawn(move || {
         // Broadcast the persisted old reading at startup (stale beats blank)
         let persisted = {
@@ -824,6 +845,14 @@ mod tests {
     use super::*;
 
     const EXP: u64 = 1_000_000_000;
+
+    #[test]
+    fn review_build_refuses_credential_renewal_before_launching_a_process() {
+        if !crate::platform::review_build() { return; }
+        let absent = Path::new("nonexistent-review-cli");
+        let error = run_renewal(absent, Path::new("nonexistent-review-profile")).unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
+    }
 
     #[test]
     fn a_weekly_only_reply_keeps_only_its_week() {

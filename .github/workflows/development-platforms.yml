@@ -1,0 +1,73 @@
+name: Development Windows and Linux
+on:
+  push:
+    branches: [dev/mac-first-0.2.0]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: matra-development-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            platform: windows
+          - os: ubuntu-22.04
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    env:
+      RUSTUP_HOME: ${{ github.workspace }}/.build/rustup
+      CARGO_HOME: ${{ github.workspace }}/.build/development/cargo
+      npm_config_cache: ${{ github.workspace }}/.build/npm
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.20.0'
+      - name: Frozen Linux build and X11 fixture dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo cp /etc/apt/sources.list .build-sources-before.txt
+          sudo sed -i -E 's@https?://([a-z0-9.-]+\.)?(archive|security).ubuntu.com/ubuntu/?@https://snapshot.ubuntu.com/ubuntu/20261029T000000Z/@g' /etc/apt/sources.list
+          printf '%s\n' 'Package: *' 'Pin: origin "snapshot.ubuntu.com"' 'Pin-Priority: 1001' | sudo tee /etc/apt/preferences.d/matra-development-snapshot
+          sudo apt-get update
+          sudo apt-get install -y --allow-downgrades libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libnotify-bin libsecret-1-dev libx11-dev xvfb xdotool openbox imagemagick dbus-x11
+          mkdir -p artifacts/development/linux-environment
+          dpkg-query -W > artifacts/development/linux-environment/packages.txt
+      - name: Pinned Rust, no moving stable toolchain
+        run: rustup toolchain install 1.97.1 --profile minimal
+      - name: Locked age-eligible packaging tools
+        run: npm ci --prefix build/development/tools --ignore-scripts --no-audit --no-fund
+      - name: Age and identity gate
+        run: node scripts/verify-development-inputs.mjs
+      - name: Native tests and development packages
+        run: node scripts/build-development.mjs --bundle --platform ${{ matrix.platform }} --tauri-cli build/development/tools/node_modules/@tauri-apps/cli/tauri.js
+      - name: Installed Windows lifecycle and real WebView2 fixtures
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem artifacts/development/windows-x64/*setup.exe | Select-Object -First 1
+          if (!$installer) { throw 'No development installer' }
+          ./scripts/test-windows-development-installer.ps1 -Installer $installer.FullName
+      - name: Native Linux X11 lifecycle and screenshots
+        if: runner.os == 'Linux'
+        shell: bash
+        run: xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' dbus-run-session -- bash scripts/test-linux-development.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: matra-development-020-${{ matrix.platform }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          path: |
+            artifacts/development/
+            .desktop-test/
+            .build/development-lifecycle/
+            .build/linux-lifecycle/*log
+            .build/linux-lifecycle/*txt
+            .build/linux-lifecycle/screenshots/
+            .build/linux-lifecycle/profile/config.json

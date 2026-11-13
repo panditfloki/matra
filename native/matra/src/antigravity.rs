@@ -667,6 +667,7 @@ fn sleep_interruptible(secs: u64) {
 }
 
 pub fn start(app: AppHandle) {
+    if crate::platform::preview() { return; }
     if crate::agy_cli::find_agy().is_some() {
         start_cli(app);
     } else {

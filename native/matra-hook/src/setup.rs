@@ -36,6 +36,11 @@ pub fn prepare(_: &str) -> Result<(), String> {
     Err("Installer preparation is only available on Windows.".into())
 }
 
+#[cfg(not(windows))]
+pub fn prepare_preview(_: &str) -> Result<(), String> {
+    Err("Installer preparation is only available on Windows.".into())
+}
+
 #[cfg(windows)]
 fn request_close(pid: u32) -> Result<(), String> {
     // Tauri's user windows use this class, including a hidden notch. Its Tao
@@ -115,6 +120,17 @@ fn wait_for_exit(
 
 #[cfg(windows)]
 pub fn prepare(destination: &str) -> Result<(), String> {
+    prepare_scoped(destination, true)
+}
+
+#[cfg(windows)]
+pub fn prepare_preview(destination: &str) -> Result<(), String> {
+    verify_development_destination(std::path::Path::new(destination))?;
+    prepare_scoped(destination, false)
+}
+
+#[cfg(windows)]
+fn prepare_scoped(destination: &str, include_legacy: bool) -> Result<(), String> {
     use windows::core::PWSTR;
     use windows::Win32::Foundation::{
         CloseHandle, ERROR_INVALID_PARAMETER, ERROR_NO_MORE_FILES, HANDLE, WAIT_OBJECT_0,
@@ -131,9 +147,10 @@ pub fn prepare(destination: &str) -> Result<(), String> {
     {
         return Err("Refusing an ambiguous installation directory.".into());
     }
-    let legacy = std::env::var("LOCALAPPDATA")
+    let legacy = if include_legacy { std::env::var("LOCALAPPDATA")
         .map(|root| format!("{root}\\Programs\\MatraNotch"))
-        .map_err(|_| "Cannot resolve the current user's installation directory.".to_string())?;
+        .map_err(|_| "Cannot resolve the current user's installation directory.".to_string())? }
+        else { String::new() };
     struct Handle(HANDLE);
     impl Drop for Handle {
         fn drop(&mut self) {
@@ -248,6 +265,21 @@ pub fn prepare(destination: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preview_install_matches_only_its_exact_destination_without_legacy_scope() {
+        let preview = r"C:\Users\पंडित\Apps\Mātrā Preview";
+        let stable = r"C:\Users\पंडित\Apps\Mātrā";
+        let legacy = r"C:\Users\पंडित\AppData\Local\Programs\MatraNotch";
+        assert!(owned_process(&format!(r"{preview}\matra.exe"), preview, ""));
+        assert!(owned_process(&format!(r"{preview}\matra-hook.exe"), preview, ""));
+        for foreign in [format!(r"{stable}\matra.exe"), format!(r"{legacy}\matra.exe"),
+            format!(r"{legacy}\1.9.0\matra.exe"), format!(r"{preview}\nested\matra.exe")] {
+            assert!(!owned_process(&foreign, preview, ""), "{foreign}");
+        }
+        // Production installation retains its existing legacy migration scope.
+        assert!(owned_process(&format!(r"{legacy}\1.9.0\matra.exe"), stable, legacy));
+    }
 
     // Runs only when spawned by the parent test. No application, profile, hook
     // or startup registry is loaded. The hidden window always expires itself.
@@ -389,4 +421,18 @@ mod tests {
             assert!(!owned_process(&foreign, dest, legacy), "{foreign}");
         }
     }
+}
+
+/// A manual installer path must never overwrite an existing production executable.
+#[cfg(windows)]
+fn verify_development_destination(destination: &std::path::Path) -> Result<(), String> {
+    if !destination.join("matra.exe").exists() { return Ok(()); }
+    let marker = destination.join("development-identity.json");
+    let metadata = std::fs::symlink_metadata(&marker).map_err(|_| "This directory contains another Matra installation. Choose a separate Development 0.2.0 directory.".to_string())?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() { return Err("The development installation marker is invalid; existing files were preserved.".into()); }
+    let identity = std::fs::read_to_string(marker).map_err(|_| "Cannot verify the development installation identity.".to_string())?;
+    if !identity.contains("\"identifier\": \"com.dydxfx.matra.development020\"") {
+        return Err("This installation does not belong to Development 0.2.0; existing files were preserved.".into());
+    }
+    Ok(())
 }

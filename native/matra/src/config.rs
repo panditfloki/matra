@@ -208,7 +208,7 @@ fn default_theme() -> String {
 fn default_accent() -> String { "system".into() }
 
 fn default_port() -> u16 {
-    48676
+    crate::release_channel::EVENT_PORT
 }
 fn default_lang() -> String {
     "auto".into()
@@ -249,18 +249,60 @@ impl Default for Config {
     }
 }
 
-pub fn config_path() -> PathBuf {
+/// MATRA_DATA_DIR is the app-owned data root itself, not a replacement HOME.
+/// Resolve existing ancestors so an override cannot silently change meaning through a symlink.
+fn resolve_data_dir(raw: &std::ffi::OsStr) -> Result<PathBuf, String> {
+    let path = PathBuf::from(raw);
+    if !path.is_absolute() || path.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return Err("MATRA_DATA_DIR must be an absolute directory without '..' components.".into());
+    }
+    let mut ancestor = path.as_path();
+    let mut missing = Vec::new();
+    while !ancestor.exists() {
+        missing.push(ancestor.file_name().ok_or("Cannot resolve MATRA_DATA_DIR.")?.to_os_string());
+        ancestor = ancestor.parent().ok_or("Cannot resolve MATRA_DATA_DIR.")?;
+    }
+    let mut resolved = ancestor.canonicalize().map_err(|_| "Cannot resolve MATRA_DATA_DIR permissions or symlinks.".to_string())?;
+    if !resolved.is_dir() { return Err("MATRA_DATA_DIR must name a directory.".into()); }
+    for component in missing.into_iter().rev() { resolved.push(component); }
+    Ok(resolved)
+}
+
+pub fn data_dir_override() -> Result<Option<PathBuf>, String> {
+    std::env::var_os("MATRA_DATA_DIR").map(|v| resolve_data_dir(&v)).transpose()
+}
+
+pub fn validate_environment() -> Result<(), String> {
+    let root = data_dir_override()?;
+    if crate::platform::preview() && root.is_none() {
+        return Err("MATRA_PREVIEW=1 requires an explicit absolute MATRA_DATA_DIR. Preview will not use the installed app's profile.".into());
+    }
+    Ok(())
+}
+
+pub fn data_dir() -> PathBuf {
+    // main validates before doing any work. Other entry points fail closed too: an invalid
+    // explicit override must never fall back to the real profile.
+    if let Some(root) = data_dir_override().unwrap_or_else(|e| panic!("{e}")) { return root; }
     #[cfg(test)]
     {
         let root = std::env::var_os("MATRA_TEST_WORKSPACE").map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".test-runtime"));
-        return root.join("runtime/matra-notch/config.json");
+        return root.join("runtime").join(crate::release_channel::DATA_NAMESPACE);
     }
     #[cfg(not(test))]
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("matra-notch")
-        .join("config.json")
+        .join(crate::release_channel::DATA_NAMESPACE)
+}
+
+pub fn config_path() -> PathBuf {
+    data_dir().join("config.json")
+}
+
+pub fn cache_dir() -> PathBuf {
+    // Isolating only config leaves downloaded installers and temporary provider output behind.
+    data_dir().join("cache")
 }
 
 pub fn load() -> Config {
@@ -270,6 +312,7 @@ pub fn load() -> Config {
         .as_deref()
         .and_then(|t| serde_json::from_str(t).ok())
         .unwrap_or_default();
+    if crate::platform::review_build() { cfg.port = crate::release_channel::EVENT_PORT; cfg.automatic_updates = false; }
     keep_open_on_upgrade(&mut cfg, raw.as_deref());
 
     // Migration: before slots existed the notch was a plain provider list, one ring each. That is
@@ -333,6 +376,18 @@ mod tests {
     use super::{carry_shared_position, keep_open_on_upgrade, snap_scale, weekly_ring_or_off, Config};
 
     #[test]
+    fn an_explicit_profile_never_silently_falls_back_to_the_real_profile() {
+        use std::{ffi::OsStr, path::PathBuf};
+        assert!(super::resolve_data_dir(OsStr::new("")).is_err());
+        assert!(super::resolve_data_dir(OsStr::new("relative-profile")).is_err());
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).canonicalize().unwrap();
+        let desired = root.join(".isolated-profile-fixture");
+        assert_eq!(super::resolve_data_dir(desired.as_os_str()).unwrap(), desired);
+        assert!(super::resolve_data_dir(root.join("../escape").as_os_str()).is_err());
+        assert!(super::resolve_data_dir(root.join("Cargo.toml").as_os_str()).is_err());
+    }
+
+    #[test]
     fn matra_theme_roundtrips_and_missing_theme_uses_dark_glass() {
         let mut cfg = Config::default();
         for theme in ["system", "light", "dark", "glass", "darkGlass"] {
@@ -345,7 +400,8 @@ mod tests {
         value.as_object_mut().unwrap().remove("theme");
         let restored: Config = serde_json::from_value(value).unwrap();
         assert_eq!(restored.theme, "darkGlass");
-        assert_eq!(restored.port, 48676);
+        assert_eq!(restored.port, crate::release_channel::EVENT_PORT);
+        assert_ne!(restored.port, 48676);
         assert!(restored.notch_on_hover);
     }
 

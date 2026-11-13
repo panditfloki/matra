@@ -1,6 +1,10 @@
 #![cfg_attr(all(not(debug_assertions), windows), windows_subsystem = "windows")]
 
 mod autostart;
+mod platform;
+mod preview;
+#[path = "../../release_channel.rs"]
+mod release_channel;
 mod config;
 mod parity;
 mod alerts;
@@ -46,7 +50,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// and its tail on the left. `fitZoom` in ui/notch.html divides by the same width.
 pub const NOTCH_W: f64 = 460.0;
 /// Hand-bumped build tag, written to run.log at startup so a log can always be matched to the exe that wrote it.
-pub const BUILD: &str = "1.9.0-beta.1-parity";
+pub const BUILD: &str = concat!(env!("CARGO_PKG_VERSION"), "-development");
 /// The notch window's long side: the upright window's height, and both sides of the flat one.
 ///
 /// Five cells make a 447 px pill; its fillets add 38.7 px at each end and the settings orb reaches
@@ -677,6 +681,7 @@ fn get_claude_auth() -> claude_auth::AuthState { claude_auth::state() }
 /// Asks one provider to read again, and says whether a reading is on its way. Claude's rate-limit
 /// wait stands, as on the Mac: asking early spends a request and can double the wait.
 pub(crate) fn refresh_provider(app: &AppHandle, provider: &str) -> bool {
+    if platform::preview() { return false; }
     if providers_plus::is_parity_id(provider) { return providers_plus::request_refresh(provider); }
     match provider {
         "claude" => {
@@ -732,6 +737,7 @@ fn get_glyphs(state: tauri::State<AppState>) -> std::collections::HashMap<String
 
 /// Collects the glyphs again and pushes them to the page (tray refresh, or the user just dropped in an override)
 pub fn reload_glyphs(app: &AppHandle) {
+    if platform::preview() { return; }
     let m = glyphs::collect();
     let st = app.state::<AppState>();
     *st.glyphs.lock().unwrap() = m.clone();
@@ -739,17 +745,10 @@ pub fn reload_glyphs(app: &AppHandle) {
 }
 
 #[tauri::command]
-fn open_data_dir() {
-    let dir = config::config_path().parent().map(|p| p.to_path_buf()).unwrap_or_default();
-    let _ = std::fs::create_dir_all(glyphs::user_dir());
-    let mut cmd = std::process::Command::new("explorer");
-    cmd.arg(dir.as_os_str());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000);
-    }
-    let _ = cmd.spawn();
+fn open_data_dir() -> Result<(), String> {
+    platform::require_live("Opening the data directory")?;
+    std::fs::create_dir_all(glyphs::user_dir()).map_err(|_| "Cannot create the app-owned glyph directory.".to_string())?;
+    platform::open(config::data_dir().as_os_str())
 }
 
 #[tauri::command]
@@ -786,14 +785,7 @@ pub(crate) fn provider_page(provider: &str) -> Option<(&'static str, &'static st
 
 pub(crate) fn open_provider_page(provider: &str) {
     let Some((url, _)) = provider_page(provider) else { return };
-    let mut cmd = std::process::Command::new("cmd");
-    cmd.args(["/C", "start", "", url]);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000);
-    }
-    let _ = cmd.spawn();
+    if let Err(error) = platform::open(std::ffi::OsStr::new(url)) { applog(&error); }
 }
 
 /// Hot rectangles in **physical pixels**, window-relative, as x,y,w,h: the pill, plus the card
@@ -1808,8 +1800,20 @@ fn migrate_setup() -> Result<String, String> {
 const CONSOLE_CMDS: [&str; 6] = ["install-hooks", "uninstall-hooks", "autostart", "doctor", "setup-migrate", "setup-uninstall"];
 
 fn main() {
+    if cfg!(target_os = "macos") {
+        eprintln!("Use the native Swift Mac build entry: scripts/build-development.mjs --platform macos.");
+        std::process::exit(1);
+    }
+    if let Err(error) = config::validate_environment() {
+        eprintln!("{error}");
+        std::process::exit(1);
+    }
     let args: Vec<String> = std::env::args().collect();
     if let Some(cmd) = args.get(1) {
+        if platform::preview() && CONSOLE_CMDS.contains(&cmd.as_str()) {
+            eprintln!("Integration and diagnostics are disabled in the isolated fixture profile.");
+            std::process::exit(1);
+        }
         // Attaching on the GUI path too tied the notch to whatever cmd.exe launched it: closing that
         // window sends CTRL_CLOSE_EVENT to every process on the console, and with no handler the
         // default action ends the process. The exe is already windows_subsystem = "windows", so the
@@ -1862,11 +1866,11 @@ fn main() {
         }
     }
 
-    let cfg = config::load();
+    let mut cfg = config::load();
+    if platform::review_build() { cfg.automatic_updates = false; }
     let port = cfg.port;
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if args.iter().any(|a| a == "--silent") { return; }
             // Opening Matra again while it runs brings Settings forward, as on the Mac: with the
@@ -1877,16 +1881,17 @@ fn main() {
         .manage(AppState {
             store: Mutex::new(Default::default()),
             cfg: Mutex::new(cfg),
-            usage: Mutex::new(usage::load_persisted()),
-            codex: Mutex::new(codex::load_persisted()),
-            cursor: Mutex::new(cursor::load_persisted()),
-            grok: Mutex::new(grok::load_persisted()),
-            antigravity: Mutex::new(antigravity::load_persisted()),
-            glm: Mutex::new(glm::load_persisted()),
+            usage: Mutex::new(preview::or_else("claude", usage::load_persisted)),
+            codex: Mutex::new(preview::or_else("codex", codex::load_persisted)),
+            cursor: Mutex::new(preview::or_else("cursor", cursor::load_persisted)),
+            grok: Mutex::new(preview::or_else("grok", grok::load_persisted)),
+            antigravity: Mutex::new(preview::or_else("gemini", antigravity::load_persisted)),
+            glm: Mutex::new(preview::or_else("glm", glm::load_persisted)),
             glyphs: Mutex::new(Default::default()),
             activity: Mutex::new(Vec::new()),
         })
         .invoke_handler(tauri::generate_handler![
+            platform::get_platform_info,
             parity::get_parity_settings,
             parity::set_parity_settings,
             parity::refresh_on_look,
@@ -2011,10 +2016,26 @@ fn main() {
             if let Some(w) = handle.get_webview_window("notch") {
                 let _ = w.show();
             }
-            tray::setup(&handle)?;
+            if let Err(error) = tray::setup(&handle) {
+                applog(&format!("System tray is unavailable: {error}"));
+                settings_window::open(&handle);
+            }
             tray::start_activity_badges(handle.clone());
             notchmenu::setup(&handle);
             start_menu_updater(handle.clone());
+            if platform::preview() {
+                // Only shared presentation is started here. In particular do not initialise
+                // credential readers, provider discovery/polling, hook servers or update checks.
+                alerts::start(handle.clone());
+                apply_visibility(&handle);
+                start_pointer_watchdog(handle.clone());
+                start_work_area_watch(handle.clone());
+                settings_window::open(&handle);
+                let st = handle.state::<AppState>();
+                config::save_checked(&st.cfg.lock().unwrap()).map_err(std::io::Error::other)?;
+                applog("ISOLATED PREVIEW: synthetic readings; provider and integration services disabled");
+                return Ok(());
+            }
             updater::check_on_launch(&handle);
             // Honours the saved switches: a notch hidden last time stays hidden.
             apply_visibility(&handle);

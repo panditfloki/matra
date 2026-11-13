@@ -505,17 +505,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e4de3bc4ea267985becf712dc6d9eed8b04c953b3fcfb339ebc87acd9804901"
 
 [[package]]
-name = "matra-core"
-version = "0.2.0"
-
-[[package]]
-name = "matra-hook"
-version = "0.3.0"
-dependencies = [
- "windows 0.58.0",
-]
-
-[[package]]
 name = "combine"
 version = "4.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2234,14 +2223,15 @@ dependencies = [
 
 [[package]]
 name = "matra"
-version = "1.9.0"
+version = "0.2.0"
 dependencies = [
- "matra-core",
  "chrono",
  "dirs 5.0.1",
+ "matra-core",
  "native-tls",
  "notify",
  "png 0.17.16",
+ "raw-window-handle",
  "rusqlite",
  "semver",
  "serde",
@@ -2254,6 +2244,17 @@ dependencies = [
  "tiny_http",
  "ureq",
  "url",
+ "windows 0.58.0",
+]
+
+[[package]]
+name = "matra-core"
+version = "0.2.0"
+
+[[package]]
+name = "matra-hook"
+version = "0.2.0"
+dependencies = [
  "windows 0.58.0",
 ]
 

@@ -19,6 +19,36 @@ fn settings_path() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".claude").join("settings.json"))
 }
 
+fn hook_command(exe: &std::path::Path, event: &str) -> Result<String, String> {
+    let path = exe.to_str().ok_or("Hook executable path must be valid UTF-8.")?;
+    if path.chars().any(char::is_control) { return Err("Hook executable path contains control characters.".into()); }
+    // Migration fixtures and copied Windows hook records keep their original command grammar,
+    // even when the shared tests run on macOS/Linux. POSIX absolute paths still use shell quoting.
+    let windows_path = path.as_bytes().get(1) == Some(&b':') || path.starts_with("\\\\");
+    if cfg!(windows) || windows_path { return Ok(format!("\"{path}\" {event}")); }
+    Ok(format!("'{}' {event}", path.replace('\'', "'\\''")))
+}
+
+#[cfg(unix)]
+fn posix_executable(command: &str) -> Option<String> {
+    let mut out = String::new();
+    let mut quote = None;
+    let mut chars = command.trim_start().chars();
+    while let Some(c) = chars.next() {
+        match (quote, c) {
+            (Some('\''), '\'') | (Some('"'), '"') => quote = None,
+            (None, '\'' | '"') => quote = Some(c),
+            (None, c) if c.is_whitespace() => break,
+            (Some('\''), c) => out.push(c),
+            (_, '\\') => out.push(chars.next()?),
+            // Do not recognise expandable shell commands as an owned executable.
+            (_, '$' | '`') => return None,
+            (_, c) => out.push(c),
+        }
+    }
+    if quote.is_some() || out.is_empty() { None } else { Some(out) }
+}
+
 fn executable(cmd: &str) -> &str {
     let cmd = cmd.trim_start();
     if let Some(s) = cmd.strip_prefix('"') {
@@ -58,7 +88,11 @@ fn owned_at(cmd: &str, expected: &str, legacy_root: &str) -> bool {
 }
 
 pub fn owned_executable(cmd: &str, expected: &std::path::Path) -> bool {
-    let legacy = dirs::data_local_dir().map(|p| p.join("Programs").join("MatraNotch"));
+    #[cfg(unix)]
+    if !expected.to_string_lossy().contains("\\") {
+        return posix_executable(cmd).as_deref() == expected.to_str();
+    }
+    let legacy = if crate::platform::review_build() { None } else { dirs::data_local_dir().map(|p| p.join("Programs").join("MatraNotch")) };
     owned_at(
         cmd,
         &expected.to_string_lossy(),
@@ -74,7 +108,7 @@ fn own_command(h: &Value) -> bool {
     };
     owned_executable(
         h["command"].as_str().unwrap_or(""),
-        &exe.with_file_name("matra-hook.exe"),
+        &exe.with_file_name(if cfg!(windows) { "matra-hook.exe" } else { "matra-development020-hook" }),
     )
 }
 
@@ -159,6 +193,7 @@ fn backup_and_write(path: &PathBuf, root: &Value) -> Result<(), String> {
 }
 
 pub fn is_installed() -> bool {
+    if crate::platform::preview() { return false; }
     settings_path()
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|t| serde_json::from_str::<Value>(&t).ok())
@@ -209,6 +244,8 @@ pub fn prepare_migration() -> Result<Migration, String> {
 }
 
 fn prepare(explicit_opt_in: bool) -> Result<Migration, String> {
+    if !explicit_opt_in { crate::platform::require_automatic_integration("Automatic hook migration")?; }
+    crate::platform::require_integration("Changing provider hooks")?;
     let path = settings_path().ok_or("cannot find the user directory")?;
     let before = snapshot(&path)?;
     let root = parse(before.as_deref())?;
@@ -222,7 +259,7 @@ fn prepare(explicit_opt_in: bool) -> Result<Migration, String> {
     let after = if owns_any || explicit_opt_in {
         let hook_exe = std::env::current_exe()
             .map_err(|e| e.to_string())?
-            .with_file_name("matra-hook.exe");
+            .with_file_name(if cfg!(windows) { "matra-hook.exe" } else { "matra-development020-hook" });
         if !hook_exe
             .try_exists()
             .map_err(|_| "Cannot inspect installed hook executable.")?
@@ -294,7 +331,7 @@ fn merge(
         if !root["hooks"][*event].is_null() && !root["hooks"][*event].is_array() {
             return Err(format!("Invalid {event} hook list; left untouched"));
         }
-        let cmd = format!("\"{}\" {}", hook_exe.display(), internal);
+        let cmd = hook_command(hook_exe, internal)?;
         let wanted = json!({"type": "command", "command": cmd, "timeout": 5});
         let owned: Vec<(&Value, &Value)> = arr
             .iter()
@@ -333,6 +370,7 @@ fn merge(
 }
 
 pub fn uninstall() -> Result<String, String> {
+    crate::platform::require_integration("Changing provider hooks")?;
     let path = settings_path().ok_or("cannot find the user directory")?;
     if !path.exists() {
         return Ok("settings.json does not exist, nothing to uninstall".into());
@@ -361,6 +399,16 @@ pub fn uninstall() -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[test]
+    fn posix_hook_paths_are_quoted_as_data_and_ownership_is_case_sensitive() {
+        let path = std::path::Path::new("/fixture/O'Brien $bin/Matra/matra-hook");
+        let command = hook_command(path, "running").unwrap();
+        assert_eq!(posix_executable(&command).as_deref(), path.to_str());
+        assert!(owned_executable(&command, path));
+        assert!(!owned_executable(&command, std::path::Path::new("/fixture/O'Brien $bin/matra/matra-hook")));
+        assert_eq!(posix_executable("\"$MATRA_HOOK\" running"), None);
+    }
     #[test]
     fn foreign_and_mixed_hooks_survive() {
         let foreign =
@@ -449,5 +497,16 @@ mod tests {
         assert!(plan().apply().is_err());
         assert_eq!(load(&path).unwrap()["sentinel"], 43);
         assert!(parse(Some("{invalid")).is_err());
+    }
+}
+
+#[cfg(test)]
+mod development_ownership_tests {
+    #[test]
+    fn explicit_development_hooks_never_own_production_or_legacy_commands() {
+        let development = std::path::Path::new(r"C:\Apps\Matra Development 0.2.0\matra-hook.exe");
+        assert!(super::owned_executable(r#""C:\Apps\Matra Development 0.2.0\matra-hook.exe" running"#, development));
+        assert!(!super::owned_executable(r#""C:\Apps\Matra\matra-hook.exe" running"#, development));
+        assert!(!super::owned_executable(r#""C:\Users\fixture\AppData\Local\Programs\MatraNotch\1.9.0\matra-hook.exe" running"#, development));
     }
 }

@@ -1,3 +1,6 @@
+//! Per-user startup adapters. Changes happen only after explicit opt-in.
+#[cfg(windows)]
+mod implementation {
 //! Per-user startup. Native UTF-16 registry access, independent of OS language.
 use std::path::Path;
 use windows::core::HSTRING;
@@ -6,7 +9,7 @@ use windows::Win32::System::Registry::*;
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const APPROVED_KEY: &str =
     r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
-const NAME: &str = "MatraNotch";
+const NAME: &str = "MatraDevelopment020";
 
 fn command_for(exe: &Path) -> String {
     format!("\"{}\" --silent", exe.display())
@@ -118,11 +121,13 @@ fn write_command(command: &str) -> Result<(), String> {
 }
 
 pub fn status() -> Result<bool, String> {
+    crate::platform::require_integration("Login startup access")?;
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     Ok(!blocked()? && registered()?.is_some_and(|v| v.eq_ignore_ascii_case(&command_for(&exe))))
 }
 
 pub fn enable() -> Result<String, String> {
+    crate::platform::require_integration("Login startup access")?;
     if blocked()? {
         return Err("Windows disabled startup. Enable Matra in Windows Settings > Apps > Startup, then try again.".into());
     }
@@ -169,6 +174,7 @@ fn migration_for(
 
 /// Read/validate before any integration is mutated. An absent opt-in stays absent.
 pub fn prepare_migration() -> Result<Migration, String> {
+    crate::platform::require_integration("Login startup access")?;
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     Ok(migration_for(registered()?, command_for(&exe), |v| {
         crate::hooks_install::owned_executable(v, &exe)
@@ -199,6 +205,7 @@ impl Migration {
 }
 
 pub fn disable() -> Result<String, String> {
+    crate::platform::require_integration("Login startup access")?;
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let Some(existing) = registered()? else {
         return Ok("Start at login is off.".into());
@@ -268,3 +275,132 @@ mod tests {
         assert!(approval_blocked(&99u32.to_le_bytes()).is_err());
     }
 }
+
+}
+#[cfg(windows)]
+pub use implementation::*;
+
+#[cfg(not(windows))]
+mod posix {
+    use std::path::{Path, PathBuf};
+    const OWNER: &str = "Managed by Matra Development 0.2.0 autostart v1";
+    const LABEL: &str = "com.dydxfx.matra.development020";
+
+    fn path() -> Result<PathBuf, String> {
+        #[cfg(target_os = "macos")]
+        return dirs::home_dir().map(|h| h.join("Library/LaunchAgents").join(format!("{LABEL}.plist")))
+            .ok_or_else(|| "Cannot locate your LaunchAgents directory.".into());
+        #[cfg(not(target_os = "macos"))]
+        return dirs::config_dir().map(|d| d.join("autostart/com.dydxfx.matra.development020.desktop"))
+            .ok_or_else(|| "Cannot locate your XDG configuration directory.".into());
+    }
+
+    fn xml(value: &str) -> String {
+        value.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+            .replace('"', "&quot;").replace('\'', "&apos;")
+    }
+
+    fn desktop_arg(value: &str) -> Result<String, String> {
+        if value.chars().any(char::is_control) { return Err("The application path contains unsupported control characters.".into()); }
+        // The Desktop Entry Exec grammar is not a shell: quoted reserved characters are escaped,
+        // and literal percent must be doubled to avoid interpretation as a field code.
+        let escaped = value.replace('\\', "\\\\").replace('"', "\\\"").replace('`', "\\`")
+            .replace('$', "\\$").replace('%', "%%");
+        Ok(format!("\"{escaped}\""))
+    }
+
+    fn desired(exe: &Path) -> Result<String, String> {
+        let exe = exe.to_str().ok_or("The application path must be valid UTF-8 for login startup.")?;
+        #[cfg(target_os = "macos")]
+        return Ok(format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>{LABEL}</string><key>ProgramArguments</key><array><string>{}</string><string>--silent</string></array><key>RunAtLoad</key><true/><key>ProcessType</key><string>Interactive</string><key>Comment</key><string>{OWNER}</string></dict></plist>\n", xml(exe)));
+        #[cfg(not(target_os = "macos"))]
+        return Ok(format!("[Desktop Entry]\nType=Application\nVersion=1.0\nName=Matra Development 0.2.0\nComment={OWNER}\nExec={} --silent\nTerminal=false\nX-GNOME-Autostart-enabled=true\n", desktop_arg(exe)?));
+    }
+
+    fn read(path: &Path) -> Result<Option<String>, String> {
+        match std::fs::symlink_metadata(path) {
+            Ok(meta) if !meta.is_file() || meta.file_type().is_symlink() =>
+                return Err("Login startup is not a regular owned file; it was left untouched.".into()),
+            Ok(_) => {},
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(_) => return Err("Cannot inspect login startup. Check directory permissions.".into()),
+        }
+        std::fs::read_to_string(path).map(Some).map_err(|_| "Cannot read login startup; it was left untouched.".into())
+    }
+
+    fn owned(value: &str) -> bool { value.contains(OWNER) }
+
+    fn write(path: &Path, value: &str, before: Option<&str>) -> Result<(), String> {
+        if read(path)?.as_deref() != before { return Err("Login startup changed. Retry without overwriting another installation.".into()); }
+        let parent = path.parent().ok_or("Cannot resolve login startup directory.")?;
+        std::fs::create_dir_all(parent).map_err(|_| "Cannot create login startup directory.".to_string())?;
+        let parent = parent.canonicalize().map_err(|_| "Cannot resolve login startup directory.".to_string())?;
+        let path = parent.join(path.file_name().ok_or("Invalid login startup path.")?);
+        let pending = path.with_extension(format!("matra-pending-{}", std::process::id()));
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&pending)
+            .map_err(|_| "Cannot prepare login startup. Existing settings were preserved.".to_string())?;
+        let result = file.write_all(value.as_bytes()).and_then(|_| file.sync_all());
+        drop(file);
+        if result.is_err() { let _ = std::fs::remove_file(&pending); return Err("Cannot write login startup.".into()); }
+        if read(&path)?.as_deref() != before { let _ = std::fs::remove_file(&pending); return Err("Login startup changed; existing settings were preserved.".into()); }
+        std::fs::rename(&pending, &path).map_err(|_| "Cannot save login startup.".to_string())?;
+        if read(&path)?.as_deref() != Some(value) { return Err("Saved login startup could not be verified.".into()); }
+        Ok(())
+    }
+
+    pub fn status() -> Result<bool, String> {
+        crate::platform::require_integration("Reading login startup")?;
+        let exe = std::env::current_exe().map_err(|_| "Cannot locate this application.".to_string())?;
+        Ok(read(&path()?)?.as_deref() == Some(desired(&exe)?.as_str()))
+    }
+
+    pub fn enable() -> Result<String, String> {
+        crate::platform::require_integration("Changing login startup")?;
+        let path = path()?;
+        let before = read(&path)?;
+        let desired = desired(&std::env::current_exe().map_err(|_| "Cannot locate this application.".to_string())?)?;
+        if before.as_ref().is_some_and(|s| !owned(s)) {
+            return Err("Another application owns this login startup file; it was left untouched.".into());
+        }
+        if before.as_deref() != Some(&desired) { write(&path, &desired, before.as_deref())?; }
+        Ok("Start at login registered for the next desktop login. Operating-system login-item policy may still disable it.".into())
+    }
+
+    pub fn disable() -> Result<String, String> {
+        crate::platform::require_integration("Changing login startup")?;
+        let path = path()?;
+        let Some(before) = read(&path)? else { return Ok("Start at login is off.".into()); };
+        if !owned(&before) { return Err("Another application owns this login startup file; it was preserved.".into()); }
+        std::fs::remove_file(path).map_err(|_| "Cannot remove login startup. Check directory permissions.".to_string())?;
+        Ok("Start at login is off.".into())
+    }
+
+    pub struct Migration;
+    impl Migration {
+        pub fn validate(&self) -> Result<(), String> { crate::platform::require_integration("Migrating login startup") }
+        pub fn apply(self) -> Result<&'static str, String> { self.validate()?; Ok("unchanged") }
+    }
+    pub fn prepare_migration() -> Result<Migration, String> {
+        crate::platform::require_integration("Migrating login startup")?;
+        // Windows installer migration has no authority over Swift login items or another Linux
+        // installation. A fresh opt-in uses this app's own shared identity.
+        Ok(Migration)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn startup_paths_are_data_and_foreign_files_have_no_ownership() {
+            let output = desired(Path::new("/fixture/O'Brien $bin/Mātrā%20")).unwrap();
+            assert!(output.contains(OWNER));
+            assert!(!owned("[Desktop Entry]\nExec=another-app"));
+            assert_eq!(xml("a&<b>"), "a&amp;&lt;b&gt;");
+            assert_eq!(desktop_arg("/a/$b\"%c").unwrap(), "\"/a/\\$b\\\"%%c\"");
+            assert!(desktop_arg("/a\nb").is_err());
+        }
+    }
+}
+#[cfg(not(windows))]
+pub use posix::*;

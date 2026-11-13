@@ -640,6 +640,7 @@ pub fn lower_thread_priority() {
 pub fn lower_thread_priority() {}
 
 pub fn start(app: AppHandle) {
+    if crate::platform::preview() { return; }
     std::thread::spawn(move || {
         lower_thread_priority(); // the probe always yields to foreground input
         let mut ctx = Ctx::new();

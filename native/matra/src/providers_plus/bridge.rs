@@ -4,9 +4,9 @@ use serde::Serialize;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
-pub const OWNERSHIP_MARKER: &str = "matra-opencode-bridge";
-pub const TEMPLATE: &str = include_str!("../../resources/matra-opencode.mjs");
-const STEM: &str = "matra";
+pub const OWNERSHIP_MARKER: &str = "matra-development020-opencode-bridge";
+pub const TEMPLATE: &str = include_str!("../../resources/matra-opencode-development.mjs");
+const STEM: &str = "matra-development020";
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Activity {
@@ -171,8 +171,8 @@ mod tests {
     fn the_shipped_resource_is_recognisable_and_targets_windows() {
         assert!(TEMPLATE.contains(OWNERSHIP_MARKER));
         assert!(TEMPLATE.contains("win32"));
-        assert!(TEMPLATE.contains("matra-notch"));
-        assert!(TEMPLATE.contains("MATRA_ACTIVITY_DIR"));
+        assert!(TEMPLATE.contains("matra-development-0.2.0"));
+        assert!(TEMPLATE.contains("MATRA_DEVELOPMENT_ACTIVITY_DIR"));
     }
 
     #[test]
@@ -180,23 +180,23 @@ mod tests {
         let dir = temp("install");
         let plugins = dir.join("opencode").join("plugins");
         install(&plugins, TEMPLATE, 1).unwrap();
-        assert_eq!(std::fs::read_to_string(plugins.join("matra.js")).unwrap(), TEMPLATE);
+        assert_eq!(std::fs::read_to_string(plugins.join("matra-development020.js")).unwrap(), TEMPLATE);
         install(&plugins, TEMPLATE, 2).unwrap();
         assert_eq!(std::fs::read_dir(&plugins).unwrap().count(), 1);
-        std::fs::write(plugins.join("matra.js"), "user's own plugin").unwrap();
+        std::fs::write(plugins.join("matra-development020.js"), "user's own plugin").unwrap();
         install(&plugins, TEMPLATE, 3).unwrap();
-        assert_eq!(std::fs::read_to_string(plugins.join("matra.3.backup")).unwrap(), "user's own plugin");
+        assert_eq!(std::fs::read_to_string(plugins.join("matra-development020.3.backup")).unwrap(), "user's own plugin");
         assert!(remove(&plugins).unwrap());
-        assert_eq!(std::fs::read_to_string(plugins.join("matra.js")).unwrap(), "user's own plugin");
+        assert_eq!(std::fs::read_to_string(plugins.join("matra-development020.js")).unwrap(), "user's own plugin");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn remove_leaves_a_file_that_is_not_ours() {
         let dir = temp("foreign");
-        std::fs::write(dir.join("matra.js"), "not ours").unwrap();
+        std::fs::write(dir.join("matra-development020.js"), "not ours").unwrap();
         assert!(!remove(&dir).unwrap());
-        assert_eq!(std::fs::read_to_string(dir.join("matra.js")).unwrap(), "not ours");
+        assert_eq!(std::fs::read_to_string(dir.join("matra-development020.js")).unwrap(), "not ours");
         assert!(!remove(&dir.join("missing")).unwrap());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -205,9 +205,9 @@ mod tests {
     fn remove_does_not_restore_an_older_bridge() {
         let dir = temp("older");
         install(&dir, TEMPLATE, 1).unwrap();
-        std::fs::write(dir.join("matra.5.backup"), format!("old {OWNERSHIP_MARKER}")).unwrap();
+        std::fs::write(dir.join("matra-development020.5.backup"), format!("old {OWNERSHIP_MARKER}")).unwrap();
         assert!(remove(&dir).unwrap());
-        assert!(!dir.join("matra.js").exists());
+        assert!(!dir.join("matra-development020.js").exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -215,7 +215,7 @@ mod tests {
     fn a_template_without_the_marker_is_refused() {
         let dir = temp("template");
         assert!(install(&dir, "export default 1", 1).is_err());
-        assert!(!dir.join("matra.js").exists());
+        assert!(!dir.join("matra-development020.js").exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -230,7 +230,7 @@ mod tests {
             absolute.join("opencode").join("plugins")
         );
         let status = status(&home.join(".config/opencode/plugins"), &home, &home.join("none"), false);
-        assert_eq!(status.location, "~/.config/opencode/plugins/matra.js");
+        assert_eq!(status.location, "~/.config/opencode/plugins/matra-development020.js");
         assert!(!status.installed);
         assert_eq!(tilde(&PathBuf::from("/other/place/f.js"), &home), "f.js");
     }

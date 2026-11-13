@@ -34,11 +34,11 @@ fn engine() -> &'static Arc<Engine> {
             .unwrap_or_else(|| std::path::PathBuf::from("."));
         Arc::new(Engine::new(Env {
             settings_dir,
-            home: dirs::home_dir(),
-            appdata: dirs::config_dir(),
-            local_appdata: dirs::data_local_dir(),
-            vars: Arc::new(|name| std::env::var(name).ok()),
-            path_var: std::env::var_os("PATH"),
+            home: if crate::platform::preview() { None } else { dirs::home_dir() },
+            appdata: if crate::platform::preview() { None } else { dirs::config_dir() },
+            local_appdata: if crate::platform::preview() { None } else { dirs::data_local_dir() },
+            vars: Arc::new(|name| if crate::platform::preview() { None } else { std::env::var(name).ok() }),
+            path_var: if crate::platform::preview() { None } else { std::env::var_os("PATH") },
             urls: Urls::default(),
         }))
     })
@@ -53,6 +53,7 @@ pub fn snapshot(id: &str) -> crate::usage::UsageSnapshot {
 }
 
 pub fn request_refresh(id: &str) -> bool {
+    if crate::platform::preview() { return false; }
     engine().request_refresh(id)
 }
 
@@ -62,6 +63,7 @@ pub fn enabled_ids() -> Vec<String> {
 
 /// Starts the poll loop and event wiring. Reads nothing for a provider the user has not enabled.
 pub fn start(app: AppHandle) {
+    if crate::platform::preview() { return; }
     let engine = engine().clone();
     let emitter = app.clone();
     engine.set_notify(Arc::new(move || {
@@ -82,31 +84,45 @@ pub fn get_parity_usage() -> BTreeMap<String, ParitySnapshot> {
 
 #[tauri::command]
 pub fn get_provider_registry() -> Vec<ProviderInfo> {
-    engine().registry()
+    let mut registry = engine().registry();
+    if crate::platform::preview() {
+        for provider in &mut registry {
+            provider.accepts_secret = false;
+            provider.has_stored_secret = false;
+            provider.has_env_secret = false;
+            provider.guidance = "SYNTHETIC PREVIEW: provider discovery, credentials and network access are disabled.".into();
+        }
+    }
+    registry
 }
 
 #[tauri::command]
 pub fn set_parity_provider(id: String, on: bool) -> Result<ProviderInfo, String> {
+    crate::platform::require_live("Provider access and integration changes")?;
     engine().set_enabled(&id, on)
 }
 
 #[tauri::command]
 pub fn set_parity_endpoint(id: String, endpoint: Option<String>) -> Result<ProviderInfo, String> {
+    crate::platform::require_live("Provider access and integration changes")?;
     engine().set_endpoint(&id, endpoint.as_deref())
 }
 
 #[tauri::command]
 pub fn set_provider_secret(id: String, secret: String) -> Result<ProviderInfo, String> {
+    crate::platform::require_live("Provider access and integration changes")?;
     engine().set_secret(&id, &secret)
 }
 
 #[tauri::command]
 pub fn clear_provider_secret(id: String) -> Result<ProviderInfo, String> {
+    crate::platform::require_live("Provider access and integration changes")?;
     engine().clear_secret(&id)
 }
 
 #[tauri::command]
 pub fn refresh_parity_provider(id: String) -> bool {
+    if crate::platform::preview() { return false; }
     engine().request_refresh(&id)
 }
 
@@ -122,11 +138,13 @@ pub fn get_custom_presets() -> Vec<Preset> {
 
 #[tauri::command]
 pub fn save_custom_endpoint(endpoint: CustomEndpoint, secret: Option<String>) -> Result<CustomEndpoint, String> {
+    crate::platform::require_live("Provider access and integration changes")?;
     engine().save_custom(endpoint, secret.as_deref())
 }
 
 #[tauri::command]
 pub fn delete_custom_endpoint(id: String) -> Result<(), String> {
+    crate::platform::require_live("Provider access and integration changes")?;
     engine().delete_custom(&id)
 }
 
@@ -134,18 +152,21 @@ pub fn delete_custom_endpoint(id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn test_custom_endpoint(endpoint: CustomEndpoint, secret: Option<String>) -> Result<TestResult, String> {
+    crate::platform::require_live("Provider access and integration changes")?;
     let run = move || engine().test_custom(&endpoint, secret.as_deref());
     tauri::async_runtime::spawn_blocking(run).await.map_err(|_| "The test could not finish.".to_string())
 }
 
 #[tauri::command]
 pub async fn detect_custom_usage(endpoint: CustomEndpoint, secret: Option<String>) -> Result<Detection, String> {
+    crate::platform::require_live("Provider access and integration changes")?;
     let run = move || engine().detect_custom(&endpoint, secret.as_deref());
     tauri::async_runtime::spawn_blocking(run).await.map_err(|_| "Detection could not finish.".to_string())
 }
 
 #[tauri::command]
 pub async fn scan_local_endpoints() -> Result<Vec<Preset>, String> {
+    crate::platform::require_live("Provider access and integration changes")?;
     tauri::async_runtime::spawn_blocking(|| engine().scan()).await.map_err(|_| "The scan could not finish.".to_string())
 }
 
@@ -156,15 +177,18 @@ pub fn import_custom_usage_mapping(base: String, text: String) -> Result<Mapping
 
 #[tauri::command]
 pub fn get_opencode_bridge_status() -> Result<bridge::Status, String> {
+    crate::platform::require_live("Provider access and integration changes")?;
     engine().bridge_status()
 }
 
 #[tauri::command]
 pub fn install_opencode_bridge() -> Result<bridge::Status, String> {
+    crate::platform::require_integration("Installing the OpenCode bridge")?;
     engine().bridge_install()
 }
 
 #[tauri::command]
 pub fn remove_opencode_bridge() -> Result<bridge::Status, String> {
+    crate::platform::require_integration("Removing the OpenCode bridge")?;
     engine().bridge_remove()
 }

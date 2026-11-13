@@ -628,7 +628,9 @@ impl Engine {
             state.backoff.remove(&full);
             settings::save_backoff(&self.env.settings_dir, &state.backoff);
         }
-        forget_key(&retired_key)?;
+        // A platform without a key store could never save this key. Endpoint deletion must not
+        // report a credential-removal failure after its settings have already been removed.
+        if SECRETS_AVAILABLE { forget_key(&retired_key)?; }
         self.changed();
         Ok(())
     }
@@ -1193,8 +1195,11 @@ mod tests {
 
         engine.set_enabled(&id, false).unwrap();
         assert_eq!(engine.snapshot(&id).status, "absent");
+        assert!(!SECRETS_AVAILABLE);
+        assert!(super::super::vault::remove("unsupported-store-fixture").is_err());
         engine.delete_custom(&saved.id).unwrap();
         assert!(!engine.usage_map().contains_key(&id));
+        assert!(!Engine::new(env(&dir, &[])).list_custom().iter().any(|endpoint| endpoint.id == saved.id));
         assert!(engine.delete_custom(&saved.id).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1237,11 +1242,11 @@ mod tests {
     fn bridge_only_moves_on_explicit_calls() {
         let dir = temp("bridge");
         let engine = Engine::new(env(&dir, &[]));
-        let plugin = dir.join("home/.config/opencode/plugins/matra.js");
+        let plugin = dir.join("home/.config/opencode/plugins/matra-development020.js");
         let status = engine.bridge_status().unwrap();
         assert!(!status.installed);
         assert!(!plugin.exists());
-        assert_eq!(status.location, "~/.config/opencode/plugins/matra.js");
+        assert_eq!(status.location, "~/.config/opencode/plugins/matra-development020.js");
         assert!(engine.bridge_install().unwrap().owned);
         assert!(plugin.exists());
         assert!(engine.bridge_status().unwrap().opencode_found);

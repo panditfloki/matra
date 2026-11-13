@@ -31,6 +31,7 @@ fn open_now(app: &AppHandle) {
     // The Mac's window: 860 × 600, centred, not resizable. `shadow` on an undecorated window is what
     // gives it Windows 11's rounded corners.
     let mut builder = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("settings.html".into()))
+        .incognito(crate::platform::preview())
         .title("dy/dx.f(Mātrā) Settings")
         .inner_size(860.0, 600.0)
         .resizable(false)
@@ -38,6 +39,8 @@ fn open_now(app: &AppHandle) {
         .decorations(false)
         .shadow(true)
         .center();
+    #[cfg(not(target_os = "macos"))]
+    { builder = builder.data_directory(crate::config::cache_dir().join("webview").join(LABEL)); }
     // Without Mica the window stays opaque and the page draws solid surfaces instead
     if has_mica() {
         builder = builder.transparent(true).effects(EffectsBuilder::new().effect(Effect::Mica).build());
@@ -61,7 +64,7 @@ pub struct SystemLook {
 #[tauri::command]
 pub fn get_system_look() -> SystemLook {
     SystemLook {
-        mica: has_mica(),
+        mica: has_native_materials(),
         accent: reg_binary(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent", "AccentPalette")
             .map(|bytes| palette(&bytes))
             .unwrap_or_default(),
@@ -92,15 +95,10 @@ pub fn open_github_page() -> Result<(), String> {
 }
 
 fn open_credit_page(url: &'static str) -> Result<(), String> {
-    let mut cmd = std::process::Command::new("cmd");
-    cmd.args(["/C", "start", "", url]);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000);
-    }
-    cmd.spawn().map(|_| ()).map_err(|e| format!("Could not open browser: {e}"))
+    crate::platform::open(std::ffi::OsStr::new(url))
 }
+
+pub fn has_native_materials() -> bool { has_mica() }
 
 fn has_mica() -> bool {
     reg_string(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuildNumber")
