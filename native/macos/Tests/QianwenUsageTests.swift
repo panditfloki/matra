@@ -32,15 +32,15 @@ final class QianwenUsageTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        savedSignedIn = UserDefaults.standard.object(forKey: signedInKey)
-        UserDefaults.standard.removeObject(forKey: signedInKey)
+        savedSignedIn = MatraDefaults.standard.object(forKey: signedInKey)
+        MatraDefaults.standard.removeObject(forKey: signedInKey)
     }
 
     override func tearDown() {
         if let savedSignedIn {
-            UserDefaults.standard.set(savedSignedIn, forKey: signedInKey)
+            MatraDefaults.standard.set(savedSignedIn, forKey: signedInKey)
         } else {
-            UserDefaults.standard.removeObject(forKey: signedInKey)
+            MatraDefaults.standard.removeObject(forKey: signedInKey)
         }
         super.tearDown()
     }
@@ -533,7 +533,7 @@ final class QianwenUsageTests: XCTestCase {
     /// site, and this is the page the console's own route table maps the
     /// individual Token Plan to.
     func testTheManageLinkOpensAPageTheConsoleServes() throws {
-        UserDefaults.standard.set(true, forKey: signedInKey)
+        MatraDefaults.standard.set(true, forKey: signedInKey)
         let account = try XCTUnwrap(WebSessionProvider(site: Sites.qianwen).account())
         XCTAssertEqual(account.manageURL?.absoluteString,
                        "https://platform.qianwenai.com/home/analytics/token-plan/individual")
@@ -599,7 +599,7 @@ final class QianwenUsageTests: XCTestCase {
 
     func testASiteWithAProbeWaitsForItToConfirm() {
         WebSessionProvider(site: Sites.qianwen).signInSheetDidOpen()
-        XCTAssertFalse(UserDefaults.standard.bool(forKey: signedInKey),
+        XCTAssertFalse(MatraDefaults.standard.bool(forKey: signedInKey),
                        "opening the sheet is not a sign-in for a site that can confirm one")
     }
 

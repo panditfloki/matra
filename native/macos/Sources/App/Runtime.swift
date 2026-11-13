@@ -48,6 +48,15 @@ enum Runtime {
     static var allowsCredentialRenewal: Bool {
         MatraStorage.channel.isProduction && allowsExternalIntegrationChanges && !isLivePreview
     }
+    /// Test and explicitly opted-in QA preferences never reach cfprefsd. A
+    /// different HOME/CFFIXED_USER_HOME does not isolate that daemon's writes.
+    static let usesInMemoryDefaults = usesInMemoryDefaults(
+        environment: ProcessInfo.processInfo.environment, underTest: isUnderTest)
+
+    static func usesInMemoryDefaults(environment: [String: String], underTest: Bool) -> Bool {
+        underTest || environment["MATRA_IN_MEMORY_DEFAULTS"] == "1"
+    }
+
     static let isUnderTest: Bool =
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
             || NSClassFromString("XCTestCase") != nil

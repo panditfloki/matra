@@ -6,7 +6,7 @@ import XCTest
 final class SettingsQuitButtonTests: XCTestCase {
     func testSettingsRendersWithQuitAction() throws {
         let name = "SettingsQuitButtonTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
         var didQuit = false
         let settings = SettingsView(

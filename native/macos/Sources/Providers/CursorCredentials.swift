@@ -443,7 +443,7 @@ final class CursorKeychainReader<Secret>: @unchecked Sendable {
 
     init(refusalKey: String,
          now: @escaping () -> Date = Date.init,
-         refusals: UserDefaults? = nil,
+         refusals: MatraDefaults? = nil,
          itemModifiedAt: @escaping () -> Date? = { nil },
          isExpired: @escaping (Secret) -> Bool,
          reader: @escaping (_ interactive: Bool) throws -> Secret) {

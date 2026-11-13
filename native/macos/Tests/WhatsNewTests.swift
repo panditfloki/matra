@@ -68,7 +68,7 @@ final class ReleaseNotesTests: XCTestCase {
 final class WhatsNewMemoryTests: XCTestCase {
     private func preferences() -> Preferences {
         let name = "WhatsNewTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return Preferences(defaults: defaults)
     }
@@ -79,7 +79,7 @@ final class WhatsNewMemoryTests: XCTestCase {
 
     func testWhatHasBeenSeenSurvivesARestart() {
         let name = "WhatsNewTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
 
         Preferences(defaults: defaults).lastSeenVersion = "1.2.3"

@@ -8,7 +8,7 @@ final class ProviderDisconnectionTests: XCTestCase {
                            order: [String] = [])
         -> (UsageStore, UsageArchive) {
         let name = "ProviderDisconnectionTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         addTeardownBlock { defaults.removePersistentDomain(forName: name) }
         let archive = UsageArchive(defaults: defaults)
         return (UsageStore(providers: providers, archive: archive,

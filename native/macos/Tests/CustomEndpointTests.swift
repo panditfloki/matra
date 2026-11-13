@@ -778,7 +778,7 @@ final class CustomEndpointTests: XCTestCase {
 
     @MainActor
     func testPreferencesReconciliationPreservesSampledReadingsWhenMappingUnchanged() {
-        let defaults = UserDefaults(suiteName: "testPreferencesReconciliation")!
+        let defaults = MatraDefaults(suiteName: "testPreferencesReconciliation")!
         defaults.removePersistentDomain(forName: "testPreferencesReconciliation")
         let endpoint = CustomEndpoint(
             id: "ep-1",
@@ -815,7 +815,7 @@ final class CustomEndpointTests: XCTestCase {
 
     @MainActor
     func testPreferencesReconciliationDoesNotMergeWhenMappingChanged() {
-        let defaults = UserDefaults(suiteName: "testPreferencesReconciliationChanged")!
+        let defaults = MatraDefaults(suiteName: "testPreferencesReconciliationChanged")!
         defaults.removePersistentDomain(forName: "testPreferencesReconciliationChanged")
         let endpoint = CustomEndpoint(
             id: "ep-2",
@@ -868,7 +868,7 @@ final class CustomEndpointTests: XCTestCase {
             network: network,
             endpointLoader: { _ in endpoint }
         )
-        let defaults = UserDefaults(suiteName: "CustomEndpointVisibility.\(UUID().uuidString)")!
+        let defaults = MatraDefaults(suiteName: "CustomEndpointVisibility.\(UUID().uuidString)")!
         let store = UsageStore(
             providers: [provider],
             archive: UsageArchive(defaults: defaults)

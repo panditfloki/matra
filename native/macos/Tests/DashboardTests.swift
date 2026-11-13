@@ -5,9 +5,9 @@ import XCTest
 
 @MainActor
 final class DashboardTests: XCTestCase {
-    private func defaults() throws -> UserDefaults {
+    private func defaults() throws -> MatraDefaults {
         let name = "DashboardTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         addTeardownBlock { defaults.removePersistentDomain(forName: name) }
         return defaults
     }

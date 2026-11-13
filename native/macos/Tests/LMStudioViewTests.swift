@@ -171,7 +171,7 @@ final class LMStudioViewTests: XCTestCase {
 
     func testTheSettingsRowRendersOnAndOff() async throws {
         let domain = "LMStudioSettingsTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: domain)!
+        let defaults = MatraDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
         let preferences = Preferences(defaults: defaults)
         let store = UsageStore(providers: [LMStudioLocalProvider(endpoint: URL(string: LMStudioEndpoint.defaultAddress)!,

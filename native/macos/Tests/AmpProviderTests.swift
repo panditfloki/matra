@@ -15,7 +15,7 @@ final class AmpProviderTests: XCTestCase {
         secretsURL = directory.appendingPathComponent("secrets.json")
         try #"{"apiKey@https://ampcode.com/":"sgamp_fixture"}"#.write(to: secretsURL, atomically: true, encoding: .utf8)
         let suite = "AmpProviderTests.\(UUID())"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: suite))
         archive = UsageArchive(defaults: defaults)
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         let config = URLSessionConfiguration.ephemeral

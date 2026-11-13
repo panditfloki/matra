@@ -1015,9 +1015,9 @@ final class StaleAfterMarginTests: XCTestCase {
         nonisolated func forgetCachedCredential() {}
     }
 
-    private func defaults() -> UserDefaults {
+    private func defaults() -> MatraDefaults {
         let name = "StaleAfterMarginTests.\(UUID().uuidString)"
-        let d = UserDefaults(suiteName: name)!
+        let d = MatraDefaults(suiteName: name)!
         d.removePersistentDomain(forName: name)
         return d
     }

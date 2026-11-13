@@ -139,7 +139,7 @@ final class ResetCopyTests: XCTestCase {
     @MainActor
     func testResetTimePreferencePersistsAndFallsBackToAutomatic() throws {
         let name = "ResetCopyTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
 
         let preferences = Preferences(defaults: defaults)

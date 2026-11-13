@@ -327,10 +327,10 @@ final class PlanCatalog: ObservableObject {
     static var fileURL: URL { CostRuntime.directory.appendingPathComponent("plans.json") }
     static let remoteKey = "plansURL"
     var remoteURL: String {
-        get { UserDefaults.standard.string(forKey: Self.remoteKey) ?? "" }
+        get { MatraDefaults.standard.string(forKey: Self.remoteKey) ?? "" }
         set {
             guard !CostRuntime.isInert else { return }
-            UserDefaults.standard.set(newValue, forKey: Self.remoteKey); objectWillChange.send(); refreshIfDue(force: true)
+            MatraDefaults.standard.set(newValue, forKey: Self.remoteKey); objectWillChange.send(); refreshIfDue(force: true)
         }
     }
 

@@ -10,13 +10,13 @@ final class AntigravityQuotaCompletionTests: XCTestCase {
     /// they are about rather than read whatever this Mac has chosen.
     override func setUp() {
         super.setUp()
-        savedFamily = UserDefaults.standard.string(forKey: "antigravityHeadlineModel")
-        UserDefaults.standard.set(AntigravityHeadlineModel.gemini.rawValue, forKey: "antigravityHeadlineModel")
+        savedFamily = MatraDefaults.standard.string(forKey: "antigravityHeadlineModel")
+        MatraDefaults.standard.set(AntigravityHeadlineModel.gemini.rawValue, forKey: "antigravityHeadlineModel")
     }
 
     override func tearDown() {
-        if let savedFamily { UserDefaults.standard.set(savedFamily, forKey: "antigravityHeadlineModel") }
-        else { UserDefaults.standard.removeObject(forKey: "antigravityHeadlineModel") }
+        if let savedFamily { MatraDefaults.standard.set(savedFamily, forKey: "antigravityHeadlineModel") }
+        else { MatraDefaults.standard.removeObject(forKey: "antigravityHeadlineModel") }
         super.tearDown()
     }
 

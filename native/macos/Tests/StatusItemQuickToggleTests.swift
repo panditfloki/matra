@@ -16,9 +16,9 @@ final class StatusItemQuickToggleTests: XCTestCase {
                      waitingFor: nil, since: Date())
     }
 
-    private func makeDefaults() throws -> (UserDefaults, String) {
+    private func makeDefaults() throws -> (MatraDefaults, String) {
         let name = "StatusItemQuickToggleTests.\(UUID().uuidString)"
-        return (try XCTUnwrap(UserDefaults(suiteName: name)), name)
+        return (try XCTUnwrap(MatraDefaults(suiteName: name)), name)
     }
 
     private let title = "Show limit information in menu bar"
@@ -94,7 +94,7 @@ final class StatusItemQuickToggleTests: XCTestCase {
         XCTAssertEqual(preferences.resetTimeFormat, .remaining)
 
         // What Settings would have shown, from the one place that holds it.
-        let reopened = Preferences(defaults: try XCTUnwrap(UserDefaults(suiteName: name)))
+        let reopened = Preferences(defaults: try XCTUnwrap(MatraDefaults(suiteName: name)))
         XCTAssertFalse(reopened.showsLimitsInMenuBar, "the menu's choice survives a relaunch")
 
         controller.limits = preferences.menuBarLimits

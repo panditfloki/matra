@@ -53,7 +53,7 @@ final class DevinUsageTests: XCTestCase {
 
     func testLegacyDevinArchiveGetsNewLogoWithoutChangingReadings() throws {
         let suite = "DevinArchiveTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let archive = UsageArchive(defaults: defaults)
         let captured = Date(timeIntervalSince1970: 100)

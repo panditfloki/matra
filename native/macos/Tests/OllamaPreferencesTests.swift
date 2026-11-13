@@ -3,9 +3,9 @@ import XCTest
 
 @MainActor
 final class OllamaPreferencesTests: XCTestCase {
-    private func defaults() -> UserDefaults {
+    private func defaults() -> MatraDefaults {
         let suite = "OllamaPreferencesTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = MatraDefaults(suiteName: suite)!
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         return defaults
     }

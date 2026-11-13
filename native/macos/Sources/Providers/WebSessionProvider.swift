@@ -156,7 +156,7 @@ final class WebSessionProvider: NSObject, UsageProvider {
     /// usage payload we read, but the persisted session is enough to keep the
     /// settings row in its signed-in state after the sheet is reopened.
     nonisolated func account() -> ProviderAccount? {
-        guard UserDefaults.standard.bool(forKey: "\(id).signedIn") else { return nil }
+        guard MatraDefaults.standard.bool(forKey: "\(id).signedIn") else { return nil }
         return ProviderAccount(
             label: nil,
             plan: nil,
@@ -206,8 +206,8 @@ final class WebSessionProvider: NSObject, UsageProvider {
     /// Keyed by the provider's identity, not `site.id`, so a mistaken
     /// `apply(site:)` cannot rebind DeepSeek's flag onto MiniMax or vice versa.
     private var hasSignedIn: Bool {
-        get { UserDefaults.standard.bool(forKey: "\(id).signedIn") }
-        set { UserDefaults.standard.set(newValue, forKey: "\(id).signedIn") }
+        get { MatraDefaults.standard.bool(forKey: "\(id).signedIn") }
+        set { MatraDefaults.standard.set(newValue, forKey: "\(id).signedIn") }
     }
 
     // MARK: - The browser

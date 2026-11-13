@@ -1268,8 +1268,8 @@ struct ProviderDetailContent: View {
     /// notch passes none; the menu passes its switch, so the switch sits
     /// beside the provider it belongs to rather than somewhere above the card.
     var headerAccessory: AnyView?
-    @AppStorage(Preferences.showUsagePaceKey) private var showUsagePace = false
-    @AppStorage(Preferences.showsRemainingInNotchKey) private var showsRemaining = false
+    @MatraAppStorage(Preferences.showUsagePaceKey) private var showUsagePace = false
+    @MatraAppStorage(Preferences.showsRemainingInNotchKey) private var showsRemaining = false
 
     /// Enough rows that nothing is ever counted instead of drawn — for a
     /// surface that scrolls rather than clips.

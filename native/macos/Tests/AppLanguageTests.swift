@@ -5,7 +5,7 @@ import XCTest
 /// System still hits the XCTest English pin when nothing is stored.
 final class AppLanguageTests: XCTestCase {
     private var suiteName = ""
-    private var previousDefaults: UserDefaults?
+    private var previousDefaults: MatraDefaults?
     private var previousTestLocale: Locale?
 
     /// A scratch suite, not `.standard`. The test host *is* the app, so
@@ -16,7 +16,7 @@ final class AppLanguageTests: XCTestCase {
     override func setUp() {
         super.setUp()
         suiteName = "AppLanguageTests.\(UUID().uuidString)"
-        let scratch = UserDefaults(suiteName: suiteName)!
+        let scratch = MatraDefaults(suiteName: suiteName)!
         scratch.removePersistentDomain(forName: suiteName)
         previousDefaults = L10n.defaults
         previousTestLocale = L10n.testLocale

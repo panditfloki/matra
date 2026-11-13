@@ -13,17 +13,17 @@ final class MiniMaxWebSessionTests: XCTestCase {
     override func setUp() {
         super.setUp()
         for key in [signedInKey, deepSeekSignedInKey] {
-            savedSignedIn[key] = UserDefaults.standard.object(forKey: key)
-            UserDefaults.standard.removeObject(forKey: key)
+            savedSignedIn[key] = MatraDefaults.standard.object(forKey: key)
+            MatraDefaults.standard.removeObject(forKey: key)
         }
     }
 
     override func tearDown() {
         for key in [signedInKey, deepSeekSignedInKey] {
             if let value = savedSignedIn[key] {
-                UserDefaults.standard.set(value, forKey: key)
+                MatraDefaults.standard.set(value, forKey: key)
             } else {
-                UserDefaults.standard.removeObject(forKey: key)
+                MatraDefaults.standard.removeObject(forKey: key)
             }
         }
         super.tearDown()
@@ -69,7 +69,7 @@ final class MiniMaxWebSessionTests: XCTestCase {
 
     func testAProbeMeansOpeningTheSheetIsNotYetASignIn() {
         WebSessionProvider(site: Sites.minimax(region: .international)).signInSheetDidOpen()
-        XCTAssertFalse(UserDefaults.standard.bool(forKey: signedInKey),
+        XCTAssertFalse(MatraDefaults.standard.bool(forKey: signedInKey),
                        "opening the sheet is not a sign-in for a site that can confirm one")
     }
 
@@ -115,7 +115,7 @@ final class MiniMaxWebSessionTests: XCTestCase {
     }
 
     func testSignedInSessionAppearsAsAnAccountInSettings() {
-        UserDefaults.standard.set(true, forKey: signedInKey)
+        MatraDefaults.standard.set(true, forKey: signedInKey)
         let international = WebSessionProvider(site: Sites.minimax(region: .international))
         XCTAssertEqual(international.account()?.source, "MiniMax")
         XCTAssertEqual(international.account()?.manageURL?.host, "platform.minimax.io")
@@ -125,7 +125,7 @@ final class MiniMaxWebSessionTests: XCTestCase {
     }
 
     func testApplySwitchesTheRegionalOriginWithoutChangingIdentity() {
-        UserDefaults.standard.set(true, forKey: signedInKey)
+        MatraDefaults.standard.set(true, forKey: signedInKey)
         let provider = WebSessionProvider(site: Sites.minimax(region: .international))
         XCTAssertEqual(provider.id, "minimax")
         XCTAssertEqual(provider.displayName, "MiniMax")
@@ -142,8 +142,8 @@ final class MiniMaxWebSessionTests: XCTestCase {
                         "MiniMax's signed-in flag must not follow DeepSeek's site id")
         XCTAssertEqual(provider.account()?.manageURL?.host, "platform.minimaxi.com",
                        "a different site id must not replace MiniMax")
-        XCTAssertFalse(UserDefaults.standard.bool(forKey: deepSeekSignedInKey))
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: signedInKey))
+        XCTAssertFalse(MatraDefaults.standard.bool(forKey: deepSeekSignedInKey))
+        XCTAssertTrue(MatraDefaults.standard.bool(forKey: signedInKey))
     }
 
     func testDeepSeekAndPerplexityDoNotPickUpMiniMaxHosts() {

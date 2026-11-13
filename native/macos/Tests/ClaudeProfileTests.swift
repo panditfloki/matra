@@ -218,7 +218,7 @@ final class ClaudeProfileTests: XCTestCase {
     /// penalty in progress survives the update.
     func testBackoffIsRememberedPerProfile() throws {
         let name = "ClaudeProfileTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         defaults.removePersistentDomain(forName: name)
         let archive = UsageArchive(defaults: defaults)
 
@@ -252,7 +252,7 @@ final class ClaudeProfileTests: XCTestCase {
     @MainActor
     func testTwoProfilesAreTwoCells() throws {
         let name = "ClaudeProfileTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         // Signed out, so the names come from the directories rather than from
         // whichever account happens to be signed in on this machine.

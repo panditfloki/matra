@@ -622,7 +622,7 @@ final class CursorProtectedCredentialsTests: XCTestCase {
 
 /// This test double persists a refusal across reader instances entirely in
 /// memory. It never writes a system preferences domain.
-private final class CursorRefusalDefaults: UserDefaults, @unchecked Sendable {
+private final class CursorRefusalDefaults: MatraDefaults, @unchecked Sendable {
     private var flags: [String: Bool] = [:]
     private let flagLock = NSLock()
 
@@ -656,7 +656,7 @@ final class CursorKeychainPermissionTests: XCTestCase {
         var key = CursorProtectedFixtures.key
     }
 
-    private func keychain(_ reads: Reads, refusals: UserDefaults? = nil) -> CursorKeychainReader<Data> {
+    private func keychain(_ reads: Reads, refusals: MatraDefaults? = nil) -> CursorKeychainReader<Data> {
         CursorKeychainReader(refusalKey: "cursor-test", now: { reads.now }, refusals: refusals,
                              itemModifiedAt: { reads.stamp }, isExpired: { _ in true }, reader: { interactive in
             reads.modes.append(interactive)

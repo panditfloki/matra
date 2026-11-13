@@ -60,7 +60,7 @@ final class UsageRefreshDeadlineTests: XCTestCase {
     private func store(_ providers: [any UsageProvider],
                        deadline: TimeInterval = 0.25) -> UsageStore {
         let name = "UsageRefreshDeadlineTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return UsageStore(providers: providers, refreshDeadline: deadline,
                           archive: UsageArchive(defaults: defaults))

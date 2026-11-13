@@ -9,7 +9,7 @@ final class SettingsAppearanceTests: XCTestCase {
     /// SwiftUI's old preferredColorScheme could write Aqua back to this window.
     func testLightToSystemClearsTheHostingWindowOverride() throws {
         let suite = "SettingsAppearanceTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let preferences = Preferences(defaults: defaults)
         let previousAppearance = NSApp.appearance

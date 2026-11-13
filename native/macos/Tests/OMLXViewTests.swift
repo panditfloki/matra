@@ -190,7 +190,7 @@ final class OMLXViewTests: XCTestCase {
 
     func testTheSettingsRowRendersOnAndOff() async throws {
         let domain = "OMLXSettingsTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: domain)!
+        let defaults = MatraDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
         let preferences = Preferences(defaults: defaults)
         let store = UsageStore(providers: [OMLXLocalProvider(endpoint: URL(string: OMLXEndpoint.defaultAddress)!,

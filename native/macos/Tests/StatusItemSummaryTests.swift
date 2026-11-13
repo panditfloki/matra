@@ -76,9 +76,9 @@ final class StatusItemSummaryTests: XCTestCase {
 
     /// A defaults domain of this test's own, so a stored choice is read back
     /// from the same place it was written and never from the installed app's.
-    private func scratchDefaults() -> UserDefaults {
+    private func scratchDefaults() -> MatraDefaults {
         let name = "StatusItemSummaryTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
     }

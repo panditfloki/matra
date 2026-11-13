@@ -1246,7 +1246,7 @@ final class AccountDestinationTests: XCTestCase {
 final class FirstRunCopyTests: XCTestCase {
     private func settings() -> SettingsView {
         let name = "FirstRunCopyTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return SettingsView(preferences: Preferences(defaults: defaults),
                             providers: { [] },
@@ -1326,7 +1326,7 @@ final class AppPresenceTests: XCTestCase {
     @MainActor
     func testMenuBarSwitchUpdatesThePreviewPresenterImmediately() throws {
         let name = "AppPresenceTests.presenter.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         var presenceChanges: [AppPresence] = []
         var visibility: [Bool] = []
@@ -1345,7 +1345,7 @@ final class AppPresenceTests: XCTestCase {
     @MainActor
     func testMenuBarSwitchHidesAndRestoresWithoutLosingReadings() throws {
         let name = "AppPresenceTests.menuSwitch.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let preferences = Preferences(defaults: defaults)
         preferences.showsLimitsInMenuBar = true
@@ -1368,7 +1368,7 @@ final class AppPresenceTests: XCTestCase {
     @MainActor
     func testMenuBarSwitchTracksTheExistingAppIconPicker() throws {
         let name = "AppPresenceTests.picker.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let preferences = Preferences(defaults: defaults)
         for presence in AppPresence.allCases {
@@ -1410,7 +1410,7 @@ final class AppPresenceTests: XCTestCase {
     @MainActor
     func testItDefaultsToTheDockRatherThanNowhere() {
         let name = "AppPresenceTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         XCTAssertEqual(Preferences(defaults: defaults).appPresence, .dock)
     }
@@ -1419,7 +1419,7 @@ final class AppPresenceTests: XCTestCase {
     @MainActor
     func testAnUnknownStoredValueFallsBackToVisible() {
         let name = "AppPresenceTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         defaults.set("skywriting", forKey: "appPresence")
         XCTAssertEqual(Preferences(defaults: defaults).appPresence, .dock)
@@ -1428,7 +1428,7 @@ final class AppPresenceTests: XCTestCase {
     @MainActor
     func testTheChoiceSurvivesARestart() {
         let name = "AppPresenceTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         Preferences(defaults: defaults).appPresence = .menuBar
         XCTAssertEqual(Preferences(defaults: defaults).appPresence, .menuBar)
@@ -1727,7 +1727,7 @@ final class ReauthorizeTests: XCTestCase {
 
     private func store(_ stub: Stub) -> UsageStore {
         let name = "Reauthorize.\(UUID().uuidString)"
-        let d = UserDefaults(suiteName: name)!
+        let d = MatraDefaults(suiteName: name)!
         d.removePersistentDomain(forName: name)
         return UsageStore(providers: [stub], archive: UsageArchive(defaults: d))
     }

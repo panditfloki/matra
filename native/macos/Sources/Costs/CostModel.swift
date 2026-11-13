@@ -38,14 +38,14 @@ final class CostModel: ObservableObject {
     @Published var isExpanded: Bool {
         didSet {
             guard !CostRuntime.isInert else { return }
-            UserDefaults.standard.set(isExpanded, forKey: Self.expandedKey)
+            MatraDefaults.standard.set(isExpanded, forKey: Self.expandedKey)
         }
     }
 
     /// Which range the list is showing. Persisted, like the expanded state.
     @Published var range: CostRange {
         didSet {
-            if !CostRuntime.isInert { UserDefaults.standard.set(range.rawValue, forKey: Self.rangeKey) }
+            if !CostRuntime.isInert { MatraDefaults.standard.set(range.rawValue, forKey: Self.rangeKey) }
             reload()
         }
     }
@@ -88,8 +88,8 @@ final class CostModel: ObservableObject {
     private init(account: CostAccount, store: CostStore?, indexer: CostIndexer?) {
         id = account.id
         initialAccount = account
-        isExpanded = UserDefaults.standard.bool(forKey: Self.expandedKey)
-        let saved = CostRange(rawValue: UserDefaults.standard.string(forKey: Self.rangeKey) ?? "") ?? .session
+        isExpanded = MatraDefaults.standard.bool(forKey: Self.expandedKey)
+        let saved = CostRange(rawValue: MatraDefaults.standard.string(forKey: Self.rangeKey) ?? "") ?? .session
         range = saved == .allTime ? .month : saved
         self.store = store
         self.indexer = indexer

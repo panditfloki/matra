@@ -20,9 +20,9 @@ final class AccountNicknameTests: XCTestCase {
         }
     }
 
-    private func makeDefaults() -> UserDefaults {
+    private func makeDefaults() -> MatraDefaults {
         let name = "AccountNicknameTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
     }

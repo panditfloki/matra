@@ -67,7 +67,7 @@ final class UsagePaceTests: XCTestCase {
 final class UsagePacePreferenceTests: XCTestCase {
     func testDefaultsOffAndSurvivesARelaunch() throws {
         let name = "UsagePacePreferenceTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         XCTAssertFalse(Preferences(defaults: defaults).showUsagePace)
         Preferences(defaults: defaults).showUsagePace = true

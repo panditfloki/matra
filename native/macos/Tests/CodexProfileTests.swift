@@ -23,7 +23,7 @@ final class CodexProfileTests: XCTestCase {
 
     private func archive() -> UsageArchive {
         let name = "CodexProfileTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         addTeardownBlock { defaults.removePersistentDomain(forName: name) }
         return UsageArchive(defaults: defaults)
     }

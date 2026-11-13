@@ -37,7 +37,7 @@ struct MenuUsageCard: View {
     /// Read here rather than passed in, the way `ProviderDetailContent` reads
     /// it: one preference, one reader, and the menu follows a change to it
     /// without anything having to carry the value down.
-    @AppStorage(Preferences.showUsagePaceKey) private var showUsagePace = false
+    @MatraAppStorage(Preferences.showUsagePaceKey) private var showUsagePace = false
 
     /// How wide the card is drawn, and the column its bars get inside it.
     ///

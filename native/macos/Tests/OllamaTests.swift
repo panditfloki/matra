@@ -735,9 +735,9 @@ final class OllamaLifecycleTests: XCTestCase {
         XCTAssertTrue(store.refreshing.isEmpty)
     }
 
-    private func isolatedDefaults() -> UserDefaults {
+    private func isolatedDefaults() -> MatraDefaults {
         let name = "OllamaTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         addTeardownBlock { defaults.removePersistentDomain(forName: name) }
         return defaults
     }
@@ -804,7 +804,7 @@ private func ollamaSnapshot(_ reading: LocalRuntimeReading) -> ProviderSnapshot 
 final class OllamaRenderTests: XCTestCase {
     func testOpenSettingsUpdatesAsModelsAreDetectedReorderedAndHidden() async throws {
         let domain = "OllamaAccountRenderTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: domain)!
+        let defaults = MatraDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
         let preferences = Preferences(defaults: defaults)
         let local = RuntimeStub(), cloud = QuotaStub()
@@ -904,7 +904,7 @@ final class OllamaRenderTests: XCTestCase {
 
     func testSettingsAndNotchRenderWithTheLocalStore() async throws {
         let domain = "OllamaSettingsTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: domain)!
+        let defaults = MatraDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
         let preferences = Preferences(defaults: defaults)
         let store = UsageStore(providers: [RuntimeStub()], archive: UsageArchive(defaults: defaults),

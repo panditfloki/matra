@@ -168,9 +168,9 @@ final class LMStudioProviderTests: XCTestCase {
                                      session: URLSession(configuration: configuration), token: { token })
     }
 
-    private func isolatedDefaults() -> UserDefaults {
+    private func isolatedDefaults() -> MatraDefaults {
         let name = "LMStudioProviderTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         addTeardownBlock { defaults.removePersistentDomain(forName: name) }
         return defaults
     }

@@ -18,28 +18,28 @@ final class WebSessionSignInTests: XCTestCase {
     override func setUp() {
         super.setUp()
         for key in keys {
-            saved[key] = UserDefaults.standard.object(forKey: key)
-            UserDefaults.standard.removeObject(forKey: key)
+            saved[key] = MatraDefaults.standard.object(forKey: key)
+            MatraDefaults.standard.removeObject(forKey: key)
         }
     }
 
     override func tearDown() {
         for key in keys {
-            if let value = saved[key] { UserDefaults.standard.set(value, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
+            if let value = saved[key] { MatraDefaults.standard.set(value, forKey: key) }
+            else { MatraDefaults.standard.removeObject(forKey: key) }
         }
         super.tearDown()
     }
 
     func testASiteWithoutAProbeIsSignedInOnceItsSheetOpens() {
         WebSessionProvider(site: Sites.perplexity).signInSheetDidOpen()
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: "perplexity.signedIn"),
+        XCTAssertTrue(MatraDefaults.standard.bool(forKey: "perplexity.signedIn"),
                       "Perplexity has no probe to confirm a sign-in, so it could never become signed in")
     }
 
     func testASiteWithAProbeWaitsForItToConfirm() {
         WebSessionProvider(site: Sites.deepSeek).signInSheetDidOpen()
-        XCTAssertFalse(UserDefaults.standard.bool(forKey: "deepseek.signedIn"),
+        XCTAssertFalse(MatraDefaults.standard.bool(forKey: "deepseek.signedIn"),
                        "opening the sheet is not a sign-in for a site that can confirm one")
     }
 

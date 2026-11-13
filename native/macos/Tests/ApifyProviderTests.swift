@@ -20,7 +20,7 @@ final class ApifyProviderTests: XCTestCase {
         authURL = directory.appendingPathComponent("auth.json")
         try fileLogin.write(to: authURL, atomically: true, encoding: .utf8)
         let suite = "ApifyProviderTests.\(UUID())"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: suite))
         archive = UsageArchive(defaults: defaults)
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         let config = URLSessionConfiguration.ephemeral

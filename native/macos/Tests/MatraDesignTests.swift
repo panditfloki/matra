@@ -188,7 +188,7 @@ final class MatraDesignTests: XCTestCase {
 
     @MainActor func testThemePersistsWithoutTouchingInstalledApp() {
         let name = "matra.test.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
         let preferences = Preferences(defaults: defaults)
         XCTAssertEqual(preferences.notchSurfaceStyle, .darkGlass)
@@ -208,7 +208,7 @@ final class MatraDesignTests: XCTestCase {
             XCTAssertNil(Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey"))
         }
         let name = "matra.updater.test.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }
         let updater = Updater(defaults: defaults)
         XCTAssertFalse(updater.automaticallyInstallsUpdates)

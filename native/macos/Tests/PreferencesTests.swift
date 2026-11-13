@@ -7,15 +7,15 @@ import XCTest
 /// first-launch basics live with the other PreferencesTests.)
 @MainActor
 final class PreferencesMigrationTests: XCTestCase {
-    private func makeDefaults() -> (UserDefaults, String) {
+    private func makeDefaults() -> (MatraDefaults, String) {
         let name = "PreferencesTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return (defaults, name)
     }
 
     private func setOldDomain(_ values: [String: Any], from name: String) {
-        let old = UserDefaults(suiteName: name)!
+        let old = MatraDefaults(suiteName: name)!
         for (key, value) in values { old.set(value, forKey: key) }
         old.synchronize()
     }
@@ -92,7 +92,7 @@ final class PreferencesMigrationTests: XCTestCase {
         XCTAssertFalse(preferences.isConnected("minimax"))
         XCTAssertTrue(preferences.isConnected("claude"))
 
-        let again = Preferences(defaults: UserDefaults(suiteName: name)!)
+        let again = Preferences(defaults: MatraDefaults(suiteName: name)!)
         again.reconcile(discoveredIDs: ["claude", "codex", "cursor", "glm", "deepseek", "minimax"])
         XCTAssertFalse(again.isConnected("minimax"))
         XCTAssertFalse(again.isConnected("cursor"))
@@ -109,7 +109,7 @@ final class PreferencesMigrationTests: XCTestCase {
         XCTAssertFalse(preferences.isConnected("kiro"))
         XCTAssertTrue(preferences.isConnected("claude"))
 
-        let again = Preferences(defaults: UserDefaults(suiteName: name)!)
+        let again = Preferences(defaults: MatraDefaults(suiteName: name)!)
         again.reconcile(discoveredIDs: ["claude", "codex", "cursor", "glm", "kiro", "deepseek"])
         XCTAssertFalse(again.isConnected("kiro"))
         XCTAssertFalse(again.isConnected("cursor"))
@@ -126,7 +126,7 @@ final class PreferencesMigrationTests: XCTestCase {
         XCTAssertFalse(preferences.isConnected("kiro"))
         XCTAssertFalse(preferences.isConnected("minimax"))
 
-        let again = Preferences(defaults: UserDefaults(suiteName: name)!)
+        let again = Preferences(defaults: MatraDefaults(suiteName: name)!)
         again.reconcile(discoveredIDs: ["claude", "codex", "cursor", "glm", "kiro", "minimax", "claude-work", "deepseek"])
         XCTAssertFalse(again.isConnected("cursor"))
         XCTAssertFalse(again.isConnected("kiro"))
@@ -153,7 +153,7 @@ final class PreferencesMigrationTests: XCTestCase {
         preferences.reconcile(discoveredIDs: ["claude", "codex", "cursor"])
         XCTAssertFalse(preferences.isConnected("cursor"))
 
-        let later = Preferences(defaults: UserDefaults(suiteName: name)!)
+        let later = Preferences(defaults: MatraDefaults(suiteName: name)!)
         later.reconcile(discoveredIDs: ["claude", "codex", "cursor", "claude-work"])
         XCTAssertTrue(later.isConnected("claude-work"))
         XCTAssertFalse(later.isConnected("cursor"))
@@ -189,7 +189,7 @@ final class PreferencesMigrationTests: XCTestCase {
         XCTAssertEqual(preferences.disabledModels, ["ollama-local:model:qwen3"])
         XCTAssertFalse(preferences.connectedProviders.contains { Preferences.isModelCell($0) })
 
-        let again = Preferences(defaults: UserDefaults(suiteName: name)!)
+        let again = Preferences(defaults: MatraDefaults(suiteName: name)!)
         XCTAssertFalse(again.isConnected("ollama-local:model:qwen3"))
         XCTAssertTrue(again.isConnected("ollama-local"))
     }
@@ -236,12 +236,12 @@ final class PreferencesMigrationTests: XCTestCase {
         XCTAssertFalse(preferences.connectedProviders.contains(model))
         XCTAssertFalse(preferences.seenProviders.contains(model))
 
-        let hidden = Preferences(defaults: UserDefaults(suiteName: name)!)
+        let hidden = Preferences(defaults: MatraDefaults(suiteName: name)!)
         XCTAssertFalse(hidden.isConnected(model))
         hidden.setConnected(true, for: model)
         XCTAssertTrue(hidden.disabledModels.isEmpty)
 
-        let shown = Preferences(defaults: UserDefaults(suiteName: name)!)
+        let shown = Preferences(defaults: MatraDefaults(suiteName: name)!)
         XCTAssertTrue(shown.isConnected(model))
         XCTAssertFalse(shown.connectedProviders.contains(model))
     }
@@ -259,7 +259,7 @@ final class PreferencesMigrationTests: XCTestCase {
             ]
         )
 
-        let reloaded = Preferences(defaults: UserDefaults(suiteName: name)!)
+        let reloaded = Preferences(defaults: MatraDefaults(suiteName: name)!)
         XCTAssertFalse(reloaded.deepSeekPricingEnabled)
         XCTAssertEqual(reloaded.deepSeekPricingSchedule.peakWeekdays, [2])
         XCTAssertEqual(reloaded.deepSeekPricingSchedule.windows.count, 3)
@@ -278,7 +278,7 @@ final class PreferencesMigrationTests: XCTestCase {
 
         Preferences(defaults: fresh).weeklyRing = .outside
 
-        XCTAssertEqual(Preferences(defaults: UserDefaults(suiteName: name)!).weeklyRing, .outside)
+        XCTAssertEqual(Preferences(defaults: MatraDefaults(suiteName: name)!).weeklyRing, .outside)
     }
 
     /// The size has to outlive the launch that chose it, or it reads as a
@@ -287,7 +287,7 @@ final class PreferencesMigrationTests: XCTestCase {
         let (fresh, name) = makeDefaults()
         Preferences(defaults: fresh).notchSize = .large
 
-        XCTAssertEqual(Preferences(defaults: UserDefaults(suiteName: name)!).notchSize, .large)
+        XCTAssertEqual(Preferences(defaults: MatraDefaults(suiteName: name)!).notchSize, .large)
     }
 
     /// An install that predates the setting keeps exactly the notch it had.
@@ -349,8 +349,8 @@ final class PreferencesMigrationTests: XCTestCase {
         XCTAssertEqual(preferences.customNotchScale,
                        Preferences.customScaleRange.lowerBound, accuracy: 0.0001)
 
-        UserDefaults(suiteName: name)!.set(99.0, forKey: "customNotchScale")
-        XCTAssertEqual(Preferences(defaults: UserDefaults(suiteName: name)!).customNotchScale,
+        MatraDefaults(suiteName: name)!.set(99.0, forKey: "customNotchScale")
+        XCTAssertEqual(Preferences(defaults: MatraDefaults(suiteName: name)!).customNotchScale,
                        Preferences.customScaleRange.upperBound, accuracy: 0.0001)
     }
 
@@ -361,7 +361,7 @@ final class PreferencesMigrationTests: XCTestCase {
         preferences.usesCustomNotchScale = true
         preferences.customNotchScale = 1.35
 
-        let reloaded = Preferences(defaults: UserDefaults(suiteName: name)!)
+        let reloaded = Preferences(defaults: MatraDefaults(suiteName: name)!)
         XCTAssertTrue(reloaded.usesCustomNotchScale)
         XCTAssertEqual(reloaded.customNotchScale, 1.35, accuracy: 0.0001)
         XCTAssertEqual(reloaded.notchScale, 1.35, accuracy: 0.0001)
@@ -372,7 +372,7 @@ final class PreferencesMigrationTests: XCTestCase {
 final class NotchPositionPersistenceTests: XCTestCase {
     func testEachEdgesPositionSurvivesReopeningPreferences() throws {
         let name = "NotchPositionTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let preferences = Preferences(defaults: defaults)
         for (index, edge) in NotchEdge.allCases.enumerated() {
@@ -389,13 +389,13 @@ final class NotchPositionPersistenceTests: XCTestCase {
 /// never mixed up with which providers are read.
 @MainActor
 final class MenuBarLimitsPreferenceTests: XCTestCase {
-    private func makeDefaults() throws -> (UserDefaults, String) {
+    private func makeDefaults() throws -> (MatraDefaults, String) {
         let name = "MenuBarLimitsPreferenceTests.\(UUID().uuidString)"
-        return (try XCTUnwrap(UserDefaults(suiteName: name)), name)
+        return (try XCTUnwrap(MatraDefaults(suiteName: name)), name)
     }
 
     private func reopen(_ name: String) throws -> Preferences {
-        Preferences(defaults: try XCTUnwrap(UserDefaults(suiteName: name)))
+        Preferences(defaults: try XCTUnwrap(MatraDefaults(suiteName: name)))
     }
 
     /// A fresh install and an upgrade from a version that never had the
@@ -495,9 +495,9 @@ final class MenuBarLimitsPreferenceTests: XCTestCase {
 /// is what every earlier version did; the choice has to survive a relaunch.
 @MainActor
 final class NotificationChannelPreferenceTests: XCTestCase {
-    private func makeDefaults() -> UserDefaults {
+    private func makeDefaults() -> MatraDefaults {
         let name = "PreferencesTests.channel.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
     }

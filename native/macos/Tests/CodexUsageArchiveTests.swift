@@ -2,9 +2,9 @@ import XCTest
 @testable import Matra
 
 final class CodexUsageArchiveTests: XCTestCase {
-    private func makeDefaults() -> UserDefaults {
+    private func makeDefaults() -> MatraDefaults {
         let name = "CodexUsageArchiveTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
     }
@@ -19,7 +19,7 @@ final class CodexUsageArchiveTests: XCTestCase {
     }
 
     private func roundTrip(_ snapshot: ProviderSnapshot,
-                           defaults: UserDefaults? = nil) -> ProviderSnapshot? {
+                           defaults: MatraDefaults? = nil) -> ProviderSnapshot? {
         let defaults = defaults ?? makeDefaults()
         UsageArchive(defaults: defaults).save([snapshot.id: (snapshot, Date())])
         return UsageArchive(defaults: defaults).load()[snapshot.id]?.snapshot

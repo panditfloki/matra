@@ -148,16 +148,16 @@ final class DeepSeekUsageTests: XCTestCase {
 
     func testSignedInSessionAppearsAsAnAccountInSettings() {
         let key = "deepseek.signedIn"
-        let previous = UserDefaults.standard.object(forKey: key)
+        let previous = MatraDefaults.standard.object(forKey: key)
         defer {
             if let previous {
-                UserDefaults.standard.set(previous, forKey: key)
+                MatraDefaults.standard.set(previous, forKey: key)
             } else {
-                UserDefaults.standard.removeObject(forKey: key)
+                MatraDefaults.standard.removeObject(forKey: key)
             }
         }
 
-        UserDefaults.standard.set(true, forKey: key)
+        MatraDefaults.standard.set(true, forKey: key)
         let provider = WebSessionProvider(site: Sites.deepSeek)
         let account = provider.account()
 

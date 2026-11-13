@@ -372,9 +372,9 @@ final class RateLimitTests: XCTestCase {
 /// A cold start that cannot reach the endpoint must still show what it knew
 /// last time, dated, rather than an empty ring.
 final class UsageArchiveTests: XCTestCase {
-    private func makeDefaults() -> UserDefaults {
+    private func makeDefaults() -> MatraDefaults {
         let name = "UsageArchiveTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
     }
@@ -476,9 +476,9 @@ final class BackoffTests: XCTestCase {
 /// The back-off has to outlive the process, or a development loop of `make run`
 /// walks into the rate limit on every launch and keeps it alive.
 final class BackoffPersistenceTests: XCTestCase {
-    private func makeDefaults() -> UserDefaults {
+    private func makeDefaults() -> MatraDefaults {
         let name = "BackoffPersistenceTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
     }
@@ -809,7 +809,7 @@ final class SingleProviderRefreshTests: XCTestCase {
 
     private func store(_ providers: [CountingProvider]) -> UsageStore {
         let name = "SingleProviderRefreshTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return UsageStore(providers: providers, archive: UsageArchive(defaults: defaults))
     }
@@ -938,19 +938,19 @@ final class DisconnectedProviderTests: XCTestCase {
     }
 
     private func store(_ providers: [CountingProvider],
-                       defaults: UserDefaults? = nil) -> UsageStore {
+                       defaults: MatraDefaults? = nil) -> UsageStore {
         let defaults = defaults ?? {
             let name = "DisconnectedProviderTests.\(UUID().uuidString)"
-            let defaults = UserDefaults(suiteName: name)!
+            let defaults = MatraDefaults(suiteName: name)!
             defaults.removePersistentDomain(forName: name)
             return defaults
         }()
         return UsageStore(providers: providers, archive: UsageArchive(defaults: defaults))
     }
 
-    private func freshDefaults() -> UserDefaults {
+    private func freshDefaults() -> MatraDefaults {
         let name = "DisconnectedProviderTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
     }
@@ -1017,9 +1017,9 @@ final class SignOutTests: XCTestCase {
         func signOut() async { signedOut = true }
     }
 
-    private func defaults() -> UserDefaults {
+    private func defaults() -> MatraDefaults {
         let name = "SignOutTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
     }
@@ -1136,7 +1136,7 @@ final class SignInRoutingTests: XCTestCase {
 
     private func store(_ stub: Stub) -> UsageStore {
         let name = "SignInRoutingTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return UsageStore(providers: [stub], archive: UsageArchive(defaults: defaults))
     }
@@ -1261,7 +1261,7 @@ final class SwitchAccountTests: XCTestCase {
 
     private func store(_ stub: Stub) -> UsageStore {
         let name = "SwitchAccountTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return UsageStore(providers: [stub], archive: UsageArchive(defaults: defaults))
     }
@@ -1304,9 +1304,9 @@ final class DisconnectedProviderForgetsTests: XCTestCase {
         }
     }
 
-    private func defaults() -> UserDefaults {
+    private func defaults() -> MatraDefaults {
         let name = "DisconnectForget.\(UUID().uuidString)"
-        let d = UserDefaults(suiteName: name)!
+        let d = MatraDefaults(suiteName: name)!
         d.removePersistentDomain(forName: name)
         return d
     }
@@ -1379,7 +1379,7 @@ final class DisconnectedArchivePruneTests: XCTestCase {
 
     func testAnArchivedReadingIsDroppedAtLaunchWhenSwitchedOff() {
         let name = "ArchivePrune.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
 
         // Seeded directly: what a previous session would have left behind.

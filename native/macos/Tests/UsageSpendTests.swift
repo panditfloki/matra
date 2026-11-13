@@ -213,7 +213,7 @@ final class UsageSpendTests: XCTestCase {
             throw XCTSkip("Explicit native status-button acceptance opt-in")
         }
         let key = "RichMenuNative.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: key))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: key))
         defer { defaults.removePersistentDomain(forName: key) }
         let model = DashboardModel(samples: MatraDesignPreview.samples())
         let item = StatusItemController(isPreview: true, onOpenSettings: {})
@@ -258,7 +258,7 @@ final class UsageSpendTests: XCTestCase {
 
     func testPopoverAndDashboardShareModelAndThemeWithoutPresenting() throws {
         let key = "RichMenuTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: key))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: key))
         defer { defaults.removePersistentDomain(forName: key) }
         let preferences = Preferences(defaults: defaults)
         let model = DashboardModel(samples: MatraDesignPreview.samples())
@@ -320,7 +320,7 @@ final class UsageSpendTests: XCTestCase {
 
     func testPreviewHarnessWiresLocalLogsWithoutRefreshCallbacks() throws {
         let name = "LocalLogPreviewTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         let preview = MatraDesignPreview(defaults: defaults, readsLocalLogs: true,
             localReader: { try Self.fixture($0) }, applyPresence: { _ in }, presentMenuBar: { _, _ in })

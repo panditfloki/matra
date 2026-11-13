@@ -52,12 +52,12 @@ final class PromptPermission: @unchecked Sendable {
 /// not quietly undo it; the designated initialisers take none, so a test never
 /// writes into the installed app's settings.
 final class KeychainRefusal: @unchecked Sendable {
-    private let defaults: UserDefaults?
+    private let defaults: MatraDefaults?
     private let key: String
     private var inMemory = false
     private let lock = NSLock()
 
-    init(key: String, defaults: UserDefaults?) {
+    init(key: String, defaults: MatraDefaults?) {
         self.key = "keychainRefused." + key
         self.defaults = defaults
     }

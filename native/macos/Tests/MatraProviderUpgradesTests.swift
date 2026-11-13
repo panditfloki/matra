@@ -15,7 +15,7 @@ final class MatraProviderUpgradesTests: XCTestCase {
 
     private func isolatedArchive() -> UsageArchive {
         let name = "MatraProviderUpgrades.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         addTeardownBlock { defaults.removePersistentDomain(forName: name) }
         return UsageArchive(defaults: defaults)
     }

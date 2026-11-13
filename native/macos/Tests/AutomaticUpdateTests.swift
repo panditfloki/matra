@@ -6,7 +6,7 @@ import XCTest
 final class AutomaticUpdateTests: XCTestCase {
     private func isolatedUpdater(_ body: (Updater) throws -> Void) rethrows {
         let suite = "AutomaticUpdateTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = MatraDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         try body(Updater(defaults: defaults))
     }

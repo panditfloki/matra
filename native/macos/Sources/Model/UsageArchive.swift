@@ -29,11 +29,11 @@ struct UsageArchive {
         let plan: String?
     }
 
-    private let defaults: UserDefaults
+    private let defaults: MatraDefaults
     private let key = "lastGoodReadings"
     private let backoffKey = "backoffUntil"
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: MatraDefaults = .standard) {
         self.defaults = defaults
     }
 

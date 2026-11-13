@@ -7,9 +7,9 @@ import AppKit
 /// the Dock it is the only way to Settings and to Quit.
 @MainActor
 final class StatusItemClickActionTests: XCTestCase {
-    private func scratchDefaults() throws -> UserDefaults {
+    private func scratchDefaults() throws -> MatraDefaults {
         let name = "StatusItemClickActionTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         defaults.removePersistentDomain(forName: name)
         return defaults
     }

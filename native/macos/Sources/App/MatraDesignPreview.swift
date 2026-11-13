@@ -14,7 +14,7 @@ final class MatraDesignPreview {
 
     // Presenters are injectable so regression tests do not mutate the shared
     // WindowServer through real status items or foreground activation.
-    init(defaults: UserDefaults = UserDefaults(suiteName: MatraStorage.service("design-preview"))!,
+    init(defaults: MatraDefaults = MatraDefaults(suiteName: MatraStorage.service("design-preview"))!,
          readsLocalLogs: Bool = Runtime.previewReadsLocalLogs,
          localReader: @escaping @Sendable (String) throws -> UsageSpendReport = { try UsageSpendReader.read(providerID: $0) },
          applyPresence: @escaping @MainActor (AppPresence) -> Void = { AppWindowPresentation.restore($0) },

@@ -6,9 +6,9 @@ import XCTest
 /// provider mark with exactly the owner-approved colours.
 @MainActor
 final class BrandColorsTests: XCTestCase {
-    private func defaults(_ label: String) -> (UserDefaults, String) {
+    private func defaults(_ label: String) -> (MatraDefaults, String) {
         let name = "BrandColorsTests.\(label).\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return (defaults, name)
     }

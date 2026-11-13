@@ -46,7 +46,7 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
 
     @Published private(set) var outcome: Outcome = .idle
 
-    private let defaults: UserDefaults
+    private let defaults: MatraDefaults
     static let automaticInstallKey = "matraAutomaticallyInstallsUpdates"
     @Published var automaticallyInstallsUpdates: Bool {
         didSet {
@@ -58,7 +58,7 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
         }
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: MatraDefaults = .standard) {
         self.defaults = defaults
         self.automaticallyInstallsUpdates = defaults.bool(forKey: Self.automaticInstallKey)
         super.init()

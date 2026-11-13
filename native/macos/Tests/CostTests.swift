@@ -48,12 +48,12 @@ final class CostTests: XCTestCase {
 
     /// The card's range follows the account's allowance, never "all time".
     @MainActor func testCostRangeNeverStartsOnAllTime() {
-        let previous = UserDefaults.standard.object(forKey: "costRange")
+        let previous = MatraDefaults.standard.object(forKey: "costRange")
         defer {
-            if let previous { UserDefaults.standard.set(previous, forKey: "costRange") }
-            else { UserDefaults.standard.removeObject(forKey: "costRange") }
+            if let previous { MatraDefaults.standard.set(previous, forKey: "costRange") }
+            else { MatraDefaults.standard.removeObject(forKey: "costRange") }
         }
-        UserDefaults.standard.set("allTime", forKey: "costRange")
+        MatraDefaults.standard.set("allTime", forKey: "costRange")
         let account = CostAccount(id: "test-x", provider: "claude", name: "Test", configDirectory: URL(fileURLWithPath: "/nonexistent"))
         let model = CostModel(account: account)
         XCTAssertNotEqual(model.range, .allTime)

@@ -30,7 +30,7 @@ final class RenewalWarningTests: XCTestCase {
 
     private func store(_ provider: Provider) -> UsageStore {
         let name = "RenewalWarningTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return UsageStore(providers: [provider], archive: UsageArchive(defaults: defaults))
     }

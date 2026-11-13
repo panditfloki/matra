@@ -415,7 +415,7 @@ struct SettingsView: View {
     @State private var selection: SettingsSection = Runtime.isDesignPreview ? .appearance : .accounts
     /// Whether Accounts shows its provider panes. Remembered, so someone who
     /// folds the group away finds it folded next time.
-    @AppStorage("settingsAccountsExpanded") private var accountsExpanded = true
+    @MatraAppStorage("settingsAccountsExpanded") private var accountsExpanded = true
     @Namespace private var selectionSpace
     /// The provider being dragged right now.
     ///

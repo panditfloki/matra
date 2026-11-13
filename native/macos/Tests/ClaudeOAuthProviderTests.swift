@@ -201,7 +201,7 @@ final class ClaudeOAuthProviderTests: XCTestCase {
         // A private defaults suite per test: the archive persists the 429 back-off
         // deadline, and a leaked one would silently skip fetches in the next test.
         let name = "ClaudeOAuthProviderTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
 
         // No CLI, because these are the token path's tests. Left to find one,
@@ -728,7 +728,7 @@ final class ClaudeAccountSourceTests: XCTestCase {
     private func provider(_ load: @escaping @Sendable () throws -> ClaudeCredentials)
         -> ClaudeOAuthProvider {
         let name = "ClaudeAccountSourceTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         // `cli: nil` as well as the injected source: `account()` answers from
         // Claude Code's own config where it can find it, so without this the
@@ -859,7 +859,7 @@ final class ClaudeKeychainPromptTests: XCTestCase {
     /// Kept in preferences, so relaunching does not quietly undo a Deny.
     func testARefusalSurvivesARelaunch() {
         let suite = "ClaudeKeychainRefusal.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = MatraDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let service = "matra-test-\(UUID().uuidString)"
         let first = ClaudeKeychain(services: [service], refusals: defaults) { _, _ in

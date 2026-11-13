@@ -211,7 +211,7 @@ final class ClaudeKeychain: @unchecked Sendable {
 
     init(services: [String],
          now: @escaping () -> Date = Date.init,
-         refusals: UserDefaults? = nil,
+         refusals: MatraDefaults? = nil,
          reader: @escaping (_ services: [String], _ interactive: Bool) throws -> ClaudeCredentials
             = { try ClaudeCredentials.read(services: $0, interactive: $1) }) {
         self.services = services

@@ -27,9 +27,9 @@ final class UsageFreshnessTests: XCTestCase {
         nonisolated func forgetCachedCredential() {}
     }
 
-    private func makeDefaults() -> UserDefaults {
+    private func makeDefaults() -> MatraDefaults {
         let name = "UsageFreshnessTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
     }
@@ -185,7 +185,7 @@ final class UsageFreshnessTests: XCTestCase {
     @MainActor
     func testTheSettingIsOffByDefaultAndPersists() throws {
         let name = "UsageFreshnessTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
 
         let preferences = Preferences(defaults: defaults)

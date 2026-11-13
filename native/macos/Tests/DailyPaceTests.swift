@@ -116,7 +116,7 @@ final class DailyPaceTests: XCTestCase {
 final class DailyPacePreferenceTests: XCTestCase {
     func testDefaultsOffAndSurvivesARelaunch() throws {
         let name = "DailyPacePreferenceTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: name))
         defer { defaults.removePersistentDomain(forName: name) }
         XCTAssertFalse(Preferences(defaults: defaults).claudeDailyPaceRing)
         Preferences(defaults: defaults).claudeDailyPaceRing = true
@@ -204,7 +204,7 @@ final class WeeklyHeadlineTests: XCTestCase {
     }
 
     func testThePreferenceIsOffByDefaultAndRemembered() throws {
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: "WeeklyHeadlineTests.\(UUID().uuidString)"))
+        let defaults = try XCTUnwrap(MatraDefaults(suiteName: "WeeklyHeadlineTests.\(UUID().uuidString)"))
         XCTAssertFalse(Preferences(defaults: defaults).weeklyHeadline)
         Preferences(defaults: defaults).weeklyHeadline = true
         XCTAssertTrue(Preferences(defaults: defaults).weeklyHeadline)

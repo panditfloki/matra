@@ -88,7 +88,7 @@ actor AntigravityProvider: UsageProvider {
             )
         }
 
-        if profile.slug == nil && UserDefaults.standard.bool(forKey: "AntigravityEverBridged") {
+        if profile.slug == nil && MatraDefaults.standard.bool(forKey: "AntigravityEverBridged") {
             return ProviderAccount(
                 label: L10n.t("Local Session"),
                 plan: L10n.t("Active"),
@@ -114,7 +114,7 @@ actor AntigravityProvider: UsageProvider {
         if profile.slug == nil {
             if let bridged = await localQuota(), !bridged.isEmpty {
                 everBridged = true
-                UserDefaults.standard.set(true, forKey: "AntigravityEverBridged")
+                MatraDefaults.standard.set(true, forKey: "AntigravityEverBridged")
 
                 // The language server's quota summary covers the groups it
                 // serves, which is not the whole account. Measured against one
@@ -250,7 +250,7 @@ actor AntigravityProvider: UsageProvider {
             if candidate.isRunning, let bridge = AntigravityBridge.discover(processTable: processTable) {
                 if let windows = try? await AntigravityBridge.quota(from: bridge, session: localSession), !windows.isEmpty {
                     everBridged = true
-                    UserDefaults.standard.set(true, forKey: "AntigravityEverBridged")
+                    MatraDefaults.standard.set(true, forKey: "AntigravityEverBridged")
                     return officialSnapshot(windows)
                 }
             }

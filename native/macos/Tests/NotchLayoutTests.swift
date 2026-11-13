@@ -472,16 +472,16 @@ final class SettingsOrbTests: XCTestCase {
 final class PreferencesTests: XCTestCase {
     private func preferences() -> Preferences {
         let name = "PreferencesTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return Preferences(defaults: defaults)
     }
 
     /// The defaults themselves, for the cases that need two `Preferences` over
     /// the same store to stand in for a relaunch.
-    private func scratchDefaults() -> UserDefaults {
+    private func scratchDefaults() -> MatraDefaults {
         let name = "PreferencesTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         addTeardownBlock { defaults.removePersistentDomain(forName: name) }
         return defaults
@@ -489,7 +489,7 @@ final class PreferencesTests: XCTestCase {
 
     func testTheFirstLaunchIsAnnouncedExactlyOnce() {
         let name = "PreferencesTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
 
         XCTAssertTrue(Preferences(defaults: defaults).isFirstLaunch)
@@ -515,7 +515,7 @@ final class PreferencesTests: XCTestCase {
 
     func testChoicesSurviveARestart() {
         let name = "PreferencesTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
 
         Preferences(defaults: defaults).setConnected(false, for: "codex")
@@ -524,7 +524,7 @@ final class PreferencesTests: XCTestCase {
 
     func testDisplayChoiceSurvivesARestart() {
         let name = "PreferencesTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
 
         Preferences(defaults: defaults).displayPreference = .display("monitor-uuid")
@@ -543,7 +543,7 @@ final class PreferencesTests: XCTestCase {
 
     func testAccentColorChoiceSurvivesARestart() {
         let name = "PreferencesAccentTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
 
         Preferences(defaults: defaults).accentColor = .pink
@@ -552,7 +552,7 @@ final class PreferencesTests: XCTestCase {
 
     func testUnknownAccentColorFallsBackToTheDevice() {
         let name = "PreferencesAccentFallbackTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         defaults.set("ultraviolet", forKey: "accentColor")
 
@@ -565,7 +565,7 @@ final class PreferencesTests: XCTestCase {
 
     func testSurfaceStyleSurvivesARestart() {
         let name = "PreferencesSurfaceStyleTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
 
         Preferences(defaults: defaults).notchSurfaceStyle = .solid
@@ -574,7 +574,7 @@ final class PreferencesTests: XCTestCase {
 
     func testDarkGlassSurvivesARestart() {
         let name = "PreferencesDarkGlassTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         addTeardownBlock { defaults.removePersistentDomain(forName: name) }
 
@@ -584,7 +584,7 @@ final class PreferencesTests: XCTestCase {
 
     func testAnUnknownSurfaceStyleFallsBackToDarkGlass() {
         let name = "PreferencesSurfaceStyleFallbackTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         defaults.set("frosted", forKey: "notchSurfaceStyle")
 
@@ -595,7 +595,7 @@ final class PreferencesTests: XCTestCase {
     /// before it survive.
     func testItReadsChoicesStoredUnderTheOldName() {
         let name = "PreferencesTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         defaults.set(["cursor"], forKey: "hiddenProviders")
 
@@ -636,7 +636,7 @@ final class PreferencesTests: XCTestCase {
 
     func testTheGeminiTokenBudgetSurvivesARestart() {
         let name = "PreferencesTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
 
         Preferences(defaults: defaults).geminiAPIMonthlyTokenBudget = 2_000_000
@@ -652,7 +652,7 @@ final class PreferencesTests: XCTestCase {
     /// behind for the next launch to read back.
     func testClearingTheGeminiTokenBudgetForgetsIt() {
         let name = "PreferencesTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
 
         let p = Preferences(defaults: defaults)
@@ -667,7 +667,7 @@ final class PreferencesTests: XCTestCase {
     /// budget at all rather than as a ceiling already blown.
     func testAZeroGeminiTokenBudgetReadsAsNone() {
         let name = "PreferencesTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
 
         Preferences(defaults: defaults).geminiAPIMonthlyTokenBudget = 0
@@ -894,9 +894,9 @@ final class ProviderGlyphTests: XCTestCase {
 /// settings here: get it wrong and a fresh install shows nothing at all, which
 /// is indistinguishable from the app failing to start.
 final class NotchVisibilityTests: XCTestCase {
-    private func defaults() -> UserDefaults {
+    private func defaults() -> MatraDefaults {
         let name = "NotchVisibilityTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
     }
@@ -941,9 +941,9 @@ final class NotchVisibilityTests: XCTestCase {
 /// install with two displays either shows a notch where none was expected or
 /// hides the one that was always there.
 final class NotchScreenScopeTests: XCTestCase {
-    private func defaults() -> UserDefaults {
+    private func defaults() -> MatraDefaults {
         let name = "NotchScreenScopeTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return defaults
     }
@@ -1059,9 +1059,9 @@ final class NotchFleetScopeTests: XCTestCase {
 /// Renaming the app renames its defaults domain, so every setting moves to a
 /// new empty one unless it is carried across.
 final class RenameMigrationTests: XCTestCase {
-    private func suite() -> (UserDefaults, String) {
+    private func suite() -> (MatraDefaults, String) {
         let name = "RenameMigrationTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return (defaults, name)
     }
@@ -1071,7 +1071,7 @@ final class RenameMigrationTests: XCTestCase {
     /// scratch suite.
     private func oldDomain(_ contents: [String: Any]) -> String {
         let name = "RenameMigrationTests.old.\(UUID().uuidString)"
-        UserDefaults.standard.setPersistentDomain(contents, forName: name)
+        MatraDefaults.standard.setPersistentDomain(contents, forName: name)
         return name
     }
 
@@ -1079,7 +1079,7 @@ final class RenameMigrationTests: XCTestCase {
     func testItCarriesSettingsAcrossTheRename() {
         let (defaults, _) = suite()
         let old = oldDomain(["hiddenProviders": ["cursor"], "notchVisibility": "alwaysShow"])
-        defer { UserDefaults.standard.removePersistentDomain(forName: old) }
+        defer { MatraDefaults.standard.removePersistentDomain(forName: old) }
 
         Preferences.migrateFromPreviousName(into: defaults, from: old)
 
@@ -1096,7 +1096,7 @@ final class RenameMigrationTests: XCTestCase {
         _ = Preferences(defaults: defaults)          // stamps hasLaunchedBefore
         defaults.set(["codex"], forKey: "hiddenProviders")
         let old = oldDomain(["hiddenProviders": ["cursor"]])
-        defer { UserDefaults.standard.removePersistentDomain(forName: old) }
+        defer { MatraDefaults.standard.removePersistentDomain(forName: old) }
 
         Preferences.migrateFromPreviousName(into: defaults, from: old)
 

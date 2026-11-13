@@ -46,7 +46,7 @@ final class KiloProviderTests: XCTestCase {
     }
 
     private static func archive() -> UsageArchive {
-        let d = UserDefaults(suiteName: "kilo-tests-\(UUID().uuidString)")!
+        let d = MatraDefaults(suiteName: "kilo-tests-\(UUID().uuidString)")!
         return UsageArchive(defaults: d)
     }
 

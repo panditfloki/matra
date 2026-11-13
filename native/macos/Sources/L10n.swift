@@ -24,7 +24,7 @@ enum L10n {
     /// app's* preferences: without this, choosing 简体中文 in Settings would
     /// turn every copy assertion in the suite Chinese, and a test that stored
     /// a language would leave it behind in the real app.
-    static var defaults: UserDefaults = .standard
+    static var defaults: MatraDefaults = .standard
 
     /// Tests set this to force a locale; nil means production rules.
     static var testLocale: Locale?

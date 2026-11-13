@@ -31,11 +31,11 @@ final class AntigravityQuotaFamilyTests: XCTestCase {
     private func withPreferredModel(_ model: AntigravityHeadlineModel,
                                     _ body: () -> Void) {
         let key = "antigravityHeadlineModel"
-        let previous = UserDefaults.standard.string(forKey: key)
-        UserDefaults.standard.set(model.rawValue, forKey: key)
+        let previous = MatraDefaults.standard.string(forKey: key)
+        MatraDefaults.standard.set(model.rawValue, forKey: key)
         defer {
-            if let previous { UserDefaults.standard.set(previous, forKey: key) } else {
-                UserDefaults.standard.removeObject(forKey: key)
+            if let previous { MatraDefaults.standard.set(previous, forKey: key) } else {
+                MatraDefaults.standard.removeObject(forKey: key)
             }
         }
         body()

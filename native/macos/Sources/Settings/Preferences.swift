@@ -631,7 +631,7 @@ final class Preferences: ObservableObject {
     /// than quietly flipping the switch back.
     @Published private(set) var launchAtLoginProblem: String?
 
-    private let defaults: UserDefaults
+    private let defaults: MatraDefaults
     private enum Keys {
         /// The old off-list. Kept so a 1.9 install can invert it once.
         static let disconnected = "hiddenProviders"
@@ -723,7 +723,7 @@ final class Preferences: ObservableObject {
     /// `@Published` state is main-actor-isolated where `UserDefaults` is
     /// thread-safe — so the provider reads the store, not the object.
     nonisolated static func storedGeminiAPIMonthlyTokenBudget(
-        defaults: UserDefaults = .standard
+        defaults: MatraDefaults = .standard
     ) -> Int? {
         guard let budget = defaults.object(forKey: Keys.geminiAPIMonthlyTokenBudget) as? Int,
               budget > 0
@@ -732,7 +732,7 @@ final class Preferences: ObservableObject {
     }
 
     nonisolated static func storedAntigravityHeadlineLimit(
-        defaults: UserDefaults = .standard
+        defaults: MatraDefaults = .standard
     ) -> AntigravityHeadlineLimit {
         guard let value = defaults.string(forKey: Keys.antigravityHeadlineLimit),
               let limit = AntigravityHeadlineLimit(rawValue: value)
@@ -741,7 +741,7 @@ final class Preferences: ObservableObject {
     }
 
     nonisolated static func storedAntigravityHeadlineModel(
-        defaults: UserDefaults = .standard
+        defaults: MatraDefaults = .standard
     ) -> AntigravityHeadlineModel {
         guard let value = defaults.string(forKey: Keys.antigravityHeadlineModel),
               let model = AntigravityHeadlineModel(rawValue: value)
@@ -758,7 +758,7 @@ final class Preferences: ObservableObject {
     /// means on: a first launch should show them. `bool(forKey:)` cannot stand
     /// in for that default — it answers false for a key that was never written.
     nonisolated static func storedShowCodexExtraLimits(
-        defaults: UserDefaults = .standard
+        defaults: MatraDefaults = .standard
     ) -> Bool {
         defaults.object(forKey: Keys.showCodexExtraLimits) as? Bool ?? true
     }
@@ -777,7 +777,7 @@ final class Preferences: ObservableObject {
     /// keys cleared, so a later encode cannot put them back.
     nonisolated static func movingLegacyKeysToKeychain(
         _ list: [CustomEndpoint],
-        defaults: UserDefaults
+        defaults: MatraDefaults
     ) -> [CustomEndpoint] {
         guard list.contains(where: { $0.legacyAPIKey != nil }) else { return list }
         var migrated = list
@@ -799,7 +799,7 @@ final class Preferences: ObservableObject {
     /// `@Published` state is main-actor-isolated where `UserDefaults` is
     /// thread-safe — so providers read the store, not the object.
     nonisolated static func storedCustomEndpoints(
-        defaults: UserDefaults = .standard
+        defaults: MatraDefaults = .standard
     ) -> [CustomEndpoint] {
         guard let data = defaults.data(forKey: Keys.customEndpoints),
               let endpoints = try? JSONDecoder().decode([CustomEndpoint].self, from: data)
@@ -809,7 +809,7 @@ final class Preferences: ObservableObject {
 
     nonisolated static func updateStoredCustomEndpoint(
         _ endpoint: CustomEndpoint,
-        defaults: UserDefaults = .standard
+        defaults: MatraDefaults = .standard
     ) {
         var endpoints = storedCustomEndpoints(defaults: defaults)
         guard let index = endpoints.firstIndex(where: { $0.id == endpoint.id }) else { return }
@@ -831,7 +831,7 @@ final class Preferences: ObservableObject {
     /// `@Published` state is main-actor-isolated where `UserDefaults` is
     /// thread-safe — so the provider reads the store, not the object.
     nonisolated static func storedMinimaxRegion(
-        defaults: UserDefaults = .standard
+        defaults: MatraDefaults = .standard
     ) -> MiniMaxRegion {
         guard let value = defaults.string(forKey: Keys.minimaxRegion),
               let region = MiniMaxRegion(rawValue: value)
@@ -856,7 +856,7 @@ final class Preferences: ObservableObject {
     /// looks like a reset.
     private static let previousDomain = "com.dydxfx.usagenotch"
 
-    static func migrateFromPreviousName(into defaults: UserDefaults = .standard,
+    static func migrateFromPreviousName(into defaults: MatraDefaults = .standard,
                                         from domain: String = previousDomain) {
         // The emptiness test has to be about the object being written to, not
         // about `Bundle.main` — under test those are different domains, and the
@@ -871,7 +871,7 @@ final class Preferences: ObservableObject {
         Log.usage.info("migrated \(old.count) settings from the previous app name")
     }
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: MatraDefaults = .standard) {
         self.defaults = defaults
         self.isFirstLaunch = !defaults.bool(forKey: Keys.hasLaunched)
         defaults.set(true, forKey: Keys.hasLaunched)
@@ -1337,8 +1337,8 @@ final class Preferences: ObservableObject {
     /// It has to be something the user asks for.
     static func eraseAllData() {
         let bundleID = Bundle.main.bundleIdentifier ?? MatraStorage.namespace
-        UserDefaults.standard.removePersistentDomain(forName: bundleID)
-        UserDefaults.standard.synchronize()
+        MatraDefaults.standard.removePersistentDomain(forName: bundleID)
+        MatraDefaults.standard.synchronize()
 
         let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first
         for relative in ["Caches/\(bundleID)",

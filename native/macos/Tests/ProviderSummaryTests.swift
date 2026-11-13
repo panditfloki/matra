@@ -90,7 +90,7 @@ final class ProviderSummaryTests: XCTestCase {
 
     private func makeStore(_ provider: SwitchableProvider) -> UsageStore {
         let name = "ProviderSummaryTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         return UsageStore(providers: [provider], archive: UsageArchive(defaults: defaults))
     }

@@ -249,7 +249,7 @@ final class KiroProviderTests: XCTestCase {
         locateBinary: @escaping @Sendable () -> URL? = { nil }
     ) -> KiroProvider {
         let suite = "KiroProviderTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
+        let defaults = MatraDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
 

@@ -155,9 +155,9 @@ final class OMLXProviderTests: XCTestCase {
                                  session: URLSession(configuration: configuration), key: { key })
     }
 
-    private func isolatedDefaults() -> UserDefaults {
+    private func isolatedDefaults() -> MatraDefaults {
         let name = "OMLXProviderTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: name)!
+        let defaults = MatraDefaults(suiteName: name)!
         addTeardownBlock { defaults.removePersistentDomain(forName: name) }
         return defaults
     }
