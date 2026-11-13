@@ -13,6 +13,7 @@ struct MatraAppDataView: View {
     static let automaticInstallHelp = "Install verified Mātrā updates and restart the app automatically. When off, you choose when each update is installed."
     static let updateUnavailable = "Automatic updates are not configured for this local Mac build."
     static let updateHelp = "Mātrā checks its Mac release feed at startup and daily. Updates are verified with Mātrā's signing key before installation. Your preferences stay in place."
+    static let developmentUpdateHelp = "Updates are disabled for this development app. Install a verified development package to change versions. Your installed Mātrā uses its own update channel."
     static let folderHelp = "Open Mātrā’s local support files and custom provider icons in Finder. App preferences are managed separately by macOS; provider logins stay in their original tools or Keychain."
 
     var body: some View {
@@ -59,9 +60,9 @@ struct MatraAppDataView: View {
                             .labelsHidden()
                             .toggleStyle(.switch)
                             .tint(preferences.accentColor.color)
-                            .disabled(Runtime.isDesignPreview)
+                            .disabled(!Updater.isEnabled)
                     }
-                    help(Self.automaticInstallHelp)
+                    help(Updater.isEnabled ? Self.automaticInstallHelp : Self.developmentUpdateHelp)
                     rule
                     row {
                         Text("Version")
@@ -89,7 +90,7 @@ struct MatraAppDataView: View {
                     }
                     .padding(16)
                     rule
-                    help(Self.updateHelp)
+                    help(Updater.isEnabled ? Self.updateHelp : Self.developmentUpdateHelp)
                 }
 
                 card {
