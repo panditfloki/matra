@@ -5,11 +5,15 @@ on:
     branches: [main]
     paths:
       - "native/**"
+      - "shared/notch-reference/**"
+      - "scripts/check-mac-notch-reference.mjs"
       - "scripts/build-native-installer.ps1"
       - ".github/workflows/windows.yml"
   pull_request:
     paths:
       - "native/**"
+      - "shared/notch-reference/**"
+      - "scripts/check-mac-notch-reference.mjs"
       - "scripts/build-native-installer.ps1"
       - ".github/workflows/windows.yml"
 
@@ -22,6 +26,10 @@ jobs:
         working-directory: native
     steps:
       - uses: actions/checkout@v7
+      - name: Check Mac reference and Windows adapter
+        run: node ../scripts/check-mac-notch-reference.mjs --check --self-test --runtime
+      - name: Test Mac notch geometry in Windows adapter
+        run: node scripts/test-mac-notch.cjs
       - name: Parse UI scripts
         run: node scripts/check-ui-scripts.mjs
       - name: Test Claude authentication UI
@@ -36,8 +44,9 @@ jobs:
         run: node scripts/test-matra-appearance.cjs
       - name: Test quota controls and boundary colours
         run: node --test scripts/test-matra-quota.cjs
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
+          toolchain: 1.99.1
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:

@@ -5,11 +5,15 @@ on:
     branches: [main]
     paths:
       - "native/**"
+      - "shared/notch-reference/**"
+      - "scripts/check-mac-notch-reference.mjs"
       - "scripts/build-native-installer.ps1"
       - ".github/workflows/windows-package.yml"
   pull_request:
     paths:
       - "native/**"
+      - "shared/notch-reference/**"
+      - "scripts/check-mac-notch-reference.mjs"
       - "scripts/build-native-installer.ps1"
       - ".github/workflows/windows-package.yml"
   release:
@@ -38,13 +42,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        with:
+          toolchain: 1.99.1
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
           cache-on-failure: true
+      - name: Check Mac reference and Windows adapter
+        run: node ../scripts/check-mac-notch-reference.mjs --check --self-test --runtime
       - name: Test UI scripts and preference contracts
         run: |
-          $scripts = @('scripts/check-ui-scripts.mjs', 'scripts/test-claude-auth-ui.cjs', 'scripts/test-ko-i18n.cjs', 'scripts/test-matra-copy.cjs', 'scripts/test-matra-interactions.cjs', 'scripts/test-matra-appearance.cjs', 'scripts/test-matra-quota.cjs', 'test-codex-headline.cjs', 'test-codex-details.cjs', 'scripts/test-installer-contract.cjs')
+          $scripts = @('scripts/check-ui-scripts.mjs', 'scripts/test-mac-notch.cjs', 'scripts/test-claude-auth-ui.cjs', 'scripts/test-ko-i18n.cjs', 'scripts/test-matra-copy.cjs', 'scripts/test-matra-interactions.cjs', 'scripts/test-matra-appearance.cjs', 'scripts/test-matra-quota.cjs', 'test-codex-headline.cjs', 'test-codex-details.cjs', 'scripts/test-installer-contract.cjs')
           foreach ($script in $scripts) {
             node $script
             if ($LASTEXITCODE -ne 0) { throw "UI regression failed: $script" }

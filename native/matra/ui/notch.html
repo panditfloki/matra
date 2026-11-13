@@ -248,10 +248,79 @@
 </style>
 <link rel="stylesheet" href="matra-theme.css">
 <link rel="stylesheet" href="matra-parity.css">
+<style>
+  /* Mac-source notch geometry. Kept after the shared theme so a dashboard's
+     compact capsule rules cannot replace the native notch's proportions. */
+  #root #pill{width:var(--notch-side-body-depth);padding:var(--notch-pad-top) 0 var(--notch-pad-bottom);gap:var(--notch-cell-spacing);
+    border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none;
+    max-height:var(--notch-available-length);overflow:auto;scrollbar-width:none;
+    transition:clip-path var(--notch-unfold) cubic-bezier(.22,.85,.25,1);animation:none}
+  #root #pill::before,#root #pill::after{display:none}
+  #notch-surface{position:absolute;pointer-events:none;overflow:visible;clip-path:var(--clip-open);
+    transition:clip-path var(--notch-unfold) cubic-bezier(.22,.85,.25,1)}
+  #notch-surface path{fill:var(--matra-glass,#0a0908);stroke:var(--matra-stroke,#49413a);stroke-width:1}
+  body.folded #notch-surface{clip-path:var(--clip-rest)}
+  #root #pill .cell{gap:var(--notch-ring-label-gap);height:var(--notch-cell-extent);justify-content:center;flex:none;
+    transition:opacity var(--notch-crossfade) ease var(--cell-delay),translate var(--notch-contents) cubic-bezier(.22,.85,.25,1) var(--cell-delay)}
+  #root .ringwrap{width:var(--notch-ring-diameter);height:var(--notch-ring-diameter);flex:none}
+  #root .pct{font-size:var(--notch-percent-font);font-weight:600;line-height:normal;min-height:var(--notch-percent-line-height)}
+  #root #notch-percent-measure{position:absolute;visibility:hidden;pointer-events:none;min-height:0;display:block}
+  #root .glyph .mark,#root .glyph .mark svg,#root .glyph img.png{width:var(--notch-glyph-size);height:var(--notch-glyph-size)}
+  #root .glyph img.appicon{width:var(--notch-glyph-size);height:var(--notch-glyph-size);border-radius:calc(var(--notch-glyph-size) * .25)}
+  #root .glyph.dim{opacity:var(--notch-render-exhausted-glyph-opacity)}
+  #root .quota-weekly-track{opacity:var(--notch-render-weekly-track-opacity)}
+  #root .quota-weekly{opacity:var(--notch-render-weekly-arc-opacity)}
+  #root .ringwrap.stale > svg.ring,#root .ringwrap.stale > svg.reading,#root .ringwrap.stale > .glyph{opacity:var(--notch-render-stale-opacity)}
+  html[data-matra-material="glass"] #root .ringwrap > svg.ring > circle:first-child{fill:transparent}
+  #root #pill{--clip-open:inset(-1px);--clip-rest:inset(calc(50% - var(--notch-pill-height)/2) 0 calc(50% - var(--notch-pill-height)/2) calc(100% - var(--notch-pill-width)) round 6px 0 0 6px)}
+  body[data-edge="left"] #root #pill{--clip-rest:inset(calc(50% - var(--notch-pill-height)/2) calc(100% - var(--notch-pill-width)) calc(50% - var(--notch-pill-height)/2) 0 round 0 6px 6px 0)}
+  body[data-edge="top"] #root #pill,body[data-edge="bottom"] #root #pill{width:auto;height:var(--notch-body-depth);max-height:none;max-width:var(--notch-available-length);
+    padding:var(--notch-side-ring-margin) var(--notch-horizontal-pad);overflow:auto;align-items:center}
+  body[data-edge="top"] #root #pill{--clip-rest:inset(0 calc(50% - var(--notch-pill-height)/2) calc(100% - var(--notch-pill-width)) calc(50% - var(--notch-pill-height)/2) round 0 0 6px 6px)}
+  body[data-edge="bottom"] #root #pill{--clip-rest:inset(calc(100% - var(--notch-pill-width)) calc(50% - var(--notch-pill-height)/2) 0 calc(50% - var(--notch-pill-height)/2) round 6px 6px 0 0)}
+  #root #rest{width:var(--notch-pill-width);height:var(--notch-pill-height)}
+  body[data-edge="top"] #root #rest,body[data-edge="bottom"] #root #rest{width:var(--notch-pill-height);height:var(--notch-pill-width)}
+  body.folded #root #pill .cell{translate:var(--notch-content-retreat) 0}
+  body.folded[data-edge="left"] #root #pill .cell{translate:calc(-1 * var(--notch-content-retreat)) 0}
+  body.folded[data-edge="top"] #root #pill .cell{translate:0 calc(-1 * var(--notch-content-retreat))}
+  body.folded[data-edge="bottom"] #root #pill .cell{translate:0 var(--notch-content-retreat)}
+  #root #card,#root #card.codex-rich{max-width:none;width:var(--notch-card-width);border-radius:var(--notch-card-corner);padding:var(--notch-card-padding);
+    margin:0;right:auto;transform:scale(var(--notch-card-scale,1));transform-origin:top left;font-size:var(--notch-card-body-font)}
+  #root #tail{right:auto;clip-path:var(--notch-tail-path)}
+  #root .c-head{gap:var(--notch-header-gap);margin-bottom:0}
+  #root .c-head .mark,#root .c-head .mark svg{width:var(--notch-glyph-size);height:var(--notch-glyph-size);margin:0}
+  #root .c-title{font-size:var(--notch-card-title-font);font-weight:600}
+  #root .c-sub,#root .w-row,#root .w-reset,#root .w-used,#root .c-note,#root .s-row,#root .s-more{font-size:var(--notch-card-body-font)}
+  #root .c-sub{margin:var(--notch-usage-detail-identity-gap) 0 var(--notch-header-to-block)}
+  #root .win{margin-top:var(--notch-block-spacing)}
+  #root .w-label{font-weight:400}
+  #root .w-track{height:var(--notch-bar-height);margin:var(--notch-label-to-bar) 0 var(--notch-bar-to-used)}
+  #root .c-sessions{margin-top:var(--notch-block-spacing);padding-top:var(--notch-block-spacing)}
+  #root .s-row{padding:var(--notch-session-row-gap) 0}
+  #root #controls-cue{display:none}
+  #root #orb,#root #move{width:var(--handle-size);height:var(--handle-size);border-radius:50%;opacity:1;pointer-events:auto;z-index:3}
+  #root #orb .h-rest{display:block;width:var(--notch-orb-arc-box);height:var(--notch-orb-arc-box);margin:calc(var(--notch-orb-arc-box)/-2);opacity:1;transform:rotate(var(--arc))}
+  #root #orb .h-disc{width:var(--notch-orb-diameter);height:var(--notch-orb-diameter);margin:calc(var(--notch-orb-diameter)/-2);opacity:0;transform:scale(1.1)}
+  #root #orb .h-glyph{width:var(--notch-orb-glyph);height:var(--notch-orb-glyph);margin:calc(var(--notch-orb-glyph)/-2);opacity:0;transform:rotate(calc(var(--spins,0)*360deg - 60deg)) scale(.5)}
+  #root #orb.hover .h-rest{opacity:0;transform:rotate(var(--arc)) scale(.86)}
+  #root #orb.hover .h-disc{opacity:1;transform:scale(1)}
+  #root #orb.hover .h-glyph{opacity:1;transform:rotate(calc(var(--spins,0)*360deg)) scale(1)}
+  #root #move .h-rest,#root #move .h-disc{display:none}
+  #root #move .h-glyph{width:var(--notch-grip-hot-zone);height:var(--notch-grip-hot-zone);margin:calc(var(--notch-grip-hot-zone)/-2);opacity:0;transform:scale(.6);transition:opacity var(--notch-merge),transform var(--notch-contents)}
+  body.controls-revealed:not(.folded) #root #move .h-glyph{opacity:1;transform:scale(1)}
+  body.controls-revealed:not(.folded) #root #move.hover .h-glyph{transform:scale(var(--notch-grip-hover-scale))}
+  body.folded #root #orb,body.folded #root #move{opacity:0;pointer-events:none}
+  #root #orb:focus-visible,#root #move:focus-visible{outline:2px solid var(--matra-text);outline-offset:2px}
+  @media(prefers-reduced-motion:reduce){#root #pill,#root #notch-surface,#root .cell,#root .handle,#root .handle>*{transition:none!important;animation:none!important}}
+  html[data-matra-motion="off"] #root #pill,html[data-matra-motion="off"] #notch-surface,html[data-matra-motion="off"] #root .cell{transition:none!important;animation:none!important}
+  @media(prefers-reduced-transparency:reduce){#notch-surface path{fill:var(--matra-bg)}html[data-matra-material="glass"] #root .ringwrap > svg.ring > circle:first-child{fill:var(--matra-card)}#root .glyph.dim{opacity:var(--notch-render-exhausted-glyph-reduced-transparency-opacity)}#root .ringwrap.stale > svg.ring,#root .ringwrap.stale > svg.reading,#root .ringwrap.stale > .glyph{opacity:var(--notch-render-stale-reduced-transparency-opacity)}#root .quota-weekly-track{opacity:var(--notch-render-weekly-track-reduced-transparency-opacity)}#root .quota-weekly{opacity:var(--notch-render-weekly-arc-reduced-transparency-opacity)}}
+</style>
 <script defer src="matra-theme.js"></script>
 </head>
 <body data-edge="right">
 <div id="root">
+  <svg id="notch-surface" aria-hidden="true"><path/></svg>
+  <span id="notch-percent-measure" class="pct" aria-hidden="true">100%</span>
   <div id="card"></div>
   <div id="tail"></div>
   <svg id="controls-cue" viewBox="0 0 32 32" aria-hidden="true"><path d="M3 29V23Q3 3 27 3"/></svg>
@@ -266,7 +335,7 @@
       <g fill="currentColor" stroke="none"><circle cx="7" cy="5" r="2.5"/><circle cx="17" cy="5" r="2.5"/><circle cx="7" cy="12" r="2.5"/><circle cx="17" cy="12" r="2.5"/><circle cx="7" cy="19" r="2.5"/><circle cx="17" cy="19" r="2.5"/></g>
     </svg>
   </div>
-  <div id="orb" class="handle" aria-label="Settings" title="Settings">
+  <div id="orb" class="handle" role="button" tabindex="0" aria-label="Settings" title="Settings">
     <svg class="h-rest" viewBox="-36 -36 72 72" aria-hidden="true">
       <circle r="28.5" fill="none" stroke="#2e2e2e" stroke-width="8.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
       <circle r="28.5" fill="none" stroke="#000" stroke-width="6.8" stroke-linecap="round" stroke-dasharray="44.77 179.07"/>
@@ -282,9 +351,21 @@
 <script src="matra-quota.js"></script>
 <script src="matra-parity.js"></script>
 <script src="matra-parity-card.js"></script>
+<script src="matra-notch-reference.js"></script>
 <script>
 const invoke = window.__TAURI__.core.invoke;
 const listen = window.__TAURI__.event.listen;
+const Notch=MatraNotchReference, NotchLayout=Notch.reference.layout, ringMetrics=Notch.ringGeometry();
+let notchScale=1,cardBridge=null;
+const notchCSS=document.documentElement.style;
+for(const [key,value] of Object.entries(NotchLayout))if(typeof value==='number')notchCSS.setProperty('--notch-'+key.replace(/[A-Z]/g,c=>'-'+c.toLowerCase()),value+'px');
+for(const [key,value] of Object.entries(Notch.reference.typography))notchCSS.setProperty('--notch-'+(key==='percentLabel'?'percent':key.replace(/[A-Z]/g,c=>'-'+c.toLowerCase()))+'-font',value.fontSize+'px');
+for(const [key,value] of Object.entries(Notch.reference.motion))if(value.responseSeconds||value.durationSeconds)notchCSS.setProperty('--notch-'+key,(value.responseSeconds||value.durationSeconds)+'s');
+notchCSS.setProperty('--notch-horizontal-pad',(NotchLayout.padTop+NotchLayout.padBottom)/2+'px');
+notchCSS.setProperty('--notch-content-retreat',Notch.reference.rendering.contentRetreat+'px');
+for(const [key,value] of Object.entries(Notch.reference.rendering))if(typeof value==='number')notchCSS.setProperty('--notch-render-'+key.replace(/[A-Z]/g,c=>'-'+c.toLowerCase()),value);
+notchCSS.setProperty('--notch-grip-hover-scale',1+Notch.reference.interaction.gripGrowth);
+notchCSS.setProperty('--notch-orb-arc-box',2*(NotchLayout.orbArcRadius+NotchLayout.orbStroke)+'px');
 
 /* Semantic usage colours, independent of the settings accent. */
 const AMPLE='var(--quota-green)', WATCH='var(--quota-amber)', HIGH='var(--quota-orange)', CRIT='var(--quota-red)';
@@ -1127,7 +1208,7 @@ function renderRing(){
   // Rebuild the DOM only when the structure changes (never swap the element under the cursor)
   const want=ps.map(p=>p.id+':'+(glyphs[p.base]?glyphs[p.base].kind:'-')).join(',');
   if(pill.dataset.cells!==want){
-    pill.innerHTML=ps.map((p,i)=>`<div class="cell" data-p="${p.id}" style="--i:${i}">
+    pill.innerHTML=ps.map((p,i)=>`<div class="cell" data-p="${p.id}" style="--i:${i};--cell-delay:${Math.min(i*Notch.reference.motion.stagger.stepSeconds,Notch.reference.motion.stagger.capSeconds)}s">
       <div class="ringwrap"><svg class="ring" viewBox="0 0 56 56"></svg><svg class="reading" viewBox="0 0 56 56"></svg><svg class="activity" viewBox="0 0 56 56"></svg><svg class="feedback" viewBox="0 0 56 56" aria-hidden="true"><circle cx="28" cy="28" r="22"/></svg><div class="glyph ${(!glyphs[p.base]&&p.glyph.length>1)?'small':''}">${glyphHtml(p)}</div></div>
       <div class="pct">—</div></div>`).join('');
     pill.dataset.cells=want;
@@ -1137,7 +1218,8 @@ function renderRing(){
     const svg=cell.querySelector('svg.ring'), reading=cell.querySelector('svg.reading'), activity=cell.querySelector('svg.activity'), pct=cell.querySelector('.pct'), glyph=cell.querySelector('.glyph'), wrap=cell.querySelector('.ringwrap');
     const h=headlineOf(p.snap,p.base);
     const available=!['needsAuth','none'].includes(p.snap.status)&&metered(h);
-    let inner=`<circle cx="28" cy="28" r="33" fill="var(--matra-ring)"/><circle class="quota-track" cx="28" cy="28" r="25" fill="none" stroke="${TRACK}" stroke-width="5.1" ${available?'':'stroke-dasharray="3 4"'}/>`;
+    const unknownDash=Notch.reference.rendering.unknownTrackDash.map(n=>n*56/NotchLayout.ringDiameter).join(' ');
+    let inner=`<circle cx="28" cy="28" r="28" fill="var(--matra-ring)"/><circle class="quota-track" cx="28" cy="28" r="${ringMetrics.trackRadius}" fill="none" stroke="${TRACK}" stroke-width="${ringMetrics.trackStroke}" ${available?'':`stroke-dasharray="${unknownDash}"`}/>`;
     wrap.classList.toggle('pressed',!!refreshing[p.id]);
     const wk=weeklyOf(p.snap,p.base);
     // Sweep and figure may read what is left. The colour always judges by what is spent, and a spent
@@ -1145,13 +1227,13 @@ function renderRing(){
     const left=parity.shows_remaining, shut=available&&MatraParity.isShut(parity,h,metered(wk)?wk:null);
     const ringColor=f=>shut?MatraParity.shutColor(parity):tone(f);
     const sweep=f=>Math.min(MatraParity.shown(f,left),1);
-    reading.innerHTML=available?svgArc(25,sweep(h.used),ringColor(h.used),5.1,'class="quota-current"'):'';
+    reading.innerHTML=available?svgArc(ringMetrics.trackRadius,sweep(h.used),ringColor(h.used),ringMetrics.progressStroke,'class="quota-current"'):'';
     const delta=motionTracker.reading(p.id,h&&h.id,available?h.used:NaN,available&&p.snap.status==='ok'&&!staleOf(p.snap));
     if(delta){
       const arc=reading.querySelector('.quota-current');
       if(arc&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
-        const c=2*Math.PI*25;
-        arc.animate([{strokeDasharray:`${c*sweep(delta.from)} ${c}`},{strokeDasharray:`${c*sweep(delta.to)} ${c}`}],{duration:650,easing:'ease-out'});
+        const c=2*Math.PI*ringMetrics.trackRadius;
+        arc.animate([{strokeDasharray:`${c*sweep(delta.from)} ${c}`},{strokeDasharray:`${c*sweep(delta.to)} ${c}`}],{duration:Notch.reference.motion.reading.responseSeconds*1000,easing:'ease-out'});
       }
       ringFeedback(p.id,`${p.name} usage updated to ${pctText(h.used)}%.`);
     }
@@ -1159,17 +1241,17 @@ function renderRing(){
       // Inside, it shares the gap with the working indicator, so it stands down while that is showing
       const taken=weeklyRing==='inside'&&workState(p.base)!=='idle';
       if(metered(wk)&&!['needsAuth','none'].includes(p.snap.status)&&(!h||wk.id!==h.id)&&!taken){
-        const r=weeklyRing==='inside'?16:31;
-        inner+=`<circle cx="28" cy="28" r="${r}" fill="none" stroke="${TRACK}" stroke-width="3.2"/>`
-          +svgArc(r,sweep(wk.used),ringColor(wk.used),3.2,'class="quota-weekly"');
+        const r=weeklyRing==='inside'?ringMetrics.weeklyInside:ringMetrics.weeklyOutside;
+        inner+=`<circle cx="28" cy="28" r="${r}" fill="none" stroke="${TRACK}" stroke-width="${ringMetrics.weeklyStroke}" class="quota-weekly-track"/>`
+          +svgArc(r,sweep(wk.used),ringColor(wk.used),ringMetrics.weeklyStroke,'class="quota-weekly"');
       }
     }
     svg.innerHTML=inner;
     { // thin inner arc: spinning white = working, yellow pulse = waiting on you (one animation for all four, different sources)
       // Its own layer, so a stale reading can dim around it without dimming it: see `.ringwrap.stale`
       const ws=workState(p.base);
-      if(ws==='running') activity.innerHTML=`<g class="arc-spin">${svgArc(19,0.28,INK,2.5)}</g>`;
-      else if(ws==='attention') activity.innerHTML=`<g class="arc-pulse"><circle cx="28" cy="28" r="19" fill="none" stroke="${INK}" stroke-width="2.5"/></g>`;
+      if(ws==='running') activity.innerHTML=`<g class="arc-spin">${svgArc(ringMetrics.activityRadius,Notch.reference.rendering.activityArcFraction,INK,ringMetrics.activityStroke)}</g>`;
+      else if(ws==='attention') activity.innerHTML=`<g class="arc-pulse"><circle cx="28" cy="28" r="${ringMetrics.activityRadius}" fill="none" stroke="${INK}" stroke-width="${ringMetrics.activityStroke}"/></g>`;
       else activity.innerHTML='';
     }
     if(p.snap.status==='needsAuth'||p.snap.status==='none') pct.textContent='—';
@@ -1177,7 +1259,7 @@ function renderRing(){
     else if(available) pct.textContent=(h.derived?'~':'')+pctText(MatraParity.shown(h.used,parity.shows_remaining))+'%';
     else pct.textContent=p.snap.windows.length?'—':'…'; // its declared window is missing: a dash, not a wait
     glyph.classList.toggle('dim', !!(h && h.used>=1));
-    wrap.classList.toggle('stale', staleOf(p.snap));
+    wrap.classList.toggle('stale', staleOf(p.snap)||(!available&&!(h&&h.count!=null)));
   }
   reportHot(); // a provider appearing or leaving resizes the pill
 }
@@ -1443,39 +1525,54 @@ function renderCard(){
 // The card follows the hovered cell: centred on it along the pill (kept inside the window), tail pointing at it.
 // On the upright edges that means matching its vertical centre; on the flat ones, its horizontal centre,
 // and the card is pushed clear of a pill whose thickness follows the cells it holds.
+function layoutRect(el){
+  const z=parseFloat(document.documentElement.style.zoom)||1,r=el.getBoundingClientRect();
+  return {left:r.left/z,top:r.top/z,right:r.right/z,bottom:r.bottom/z,width:r.width/z,height:r.height/z};
+}
+function updateNotchGeometry(){
+  const z=parseFloat(document.documentElement.style.zoom)||1;
+  const lineHeight=document.getElementById('notch-percent-measure').offsetHeight;
+  const length=(edgeIsVertical()?innerHeight:innerWidth)/z;
+  const ends=edgeIsVertical()?insets[0]+insets[2]:insets[1]+insets[3];
+  // The fixed Windows overlay has less space than a full Mac screen. Compress
+  // vertical gaps first, then retain scrolling if the readings themselves do not fit.
+  const handleRoom=NotchLayout.curlRadius+NotchLayout.orbDiameter/2+NotchLayout.gripGap+NotchLayout.gripWidth/2+NotchLayout.gripHotZone/2;
+  const available=Math.max(NotchLayout.ringDiameter,length-ends-2*handleRoom);
+  const geometry=Notch.stackGeometry({edge:notchEdge,count:pill.children.length,lineHeight,availableLength:available});
+  notchCSS.setProperty('--notch-percent-line-height',lineHeight+'px');
+  notchCSS.setProperty('--notch-cell-extent',geometry.cellExtent+'px');
+  notchCSS.setProperty('--notch-cell-spacing',geometry.spacing+'px');
+  notchCSS.setProperty('--notch-body-depth',geometry.depth+'px');
+  notchCSS.setProperty('--notch-available-length',available+'px');
+  const r=layoutRect(pill),surface=document.getElementById('notch-surface');
+  const bleed=Notch.reference.rendering.bezelBleed/notchScale;
+  const shape=Notch.silhouette(notchEdge,edgeIsVertical()?r.width:r.height,edgeIsVertical()?r.height:r.width,bleed);
+  surface.style.left=(r.left-(edgeIsVertical()?0:shape.flare)+(notchEdge==='right'?bleed:notchEdge==='left'?-bleed:0))+'px';
+  surface.style.top=(r.top-(edgeIsVertical()?shape.flare:0)+(notchEdge==='bottom'?bleed:notchEdge==='top'?-bleed:0))+'px';
+  surface.style.width=shape.width+'px';surface.style.height=shape.height+'px';
+  surface.setAttribute('viewBox',`0 0 ${shape.width} ${shape.height}`);
+  surface.querySelector('path').setAttribute('d',shape.path);
+  surface.style.setProperty('--clip-open','inset(-1px)');
+  surface.style.setProperty('--clip-rest',getComputedStyle(pill).getPropertyValue('--clip-rest'));
+  return geometry;
+}
 function placeCard(){
+  updateNotchGeometry();
   const cell=pill.querySelector(`.cell[data-p="${hoverId}"]`)||pill;
-  // Client rectangles include CSS zoom; offset sizes and assigned styles do not.
-  const zoom=parseFloat(document.documentElement.style.zoom)||1;
-  const layoutRect=el=>{const r=el.getBoundingClientRect();return {left:r.left/zoom,top:r.top/zoom,right:r.right/zoom,bottom:r.bottom/zoom,width:r.width/zoom,height:r.height/zoom};};
-  const cr=layoutRect(cell),pr=layoutRect(pill);
-  // The point sits on the ring, not the cell, which includes the label below it
-  const rr=layoutRect(cell.querySelector('.ringwrap')||cell);
+  const pr=layoutRect(pill),rr=layoutRect(cell.querySelector('.ringwrap')||cell);
+  const zoom=parseFloat(document.documentElement.style.zoom)||1,scale=1/notchScale;
   const W=innerWidth/zoom,H=innerHeight/zoom;
-  const room=CodexDetails.cardSpace(notchEdge,W,H,insets,pr);
-  card.style.maxHeight=room.maxHeight+'px';
-  card.style.width=edgeIsVertical()?'':Math.min(card.classList.contains('codex-rich')?346:246,room.maxWidth)+'px';
-  card.style.transform='none';
-  if(edgeIsVertical()){
-    const cy=cr.top+cr.height/2;
-    const ch=card.offsetHeight||0;
-    let top=Math.round(cy-ch/2); top=Math.max(room.topLimit,Math.min(top,room.bottomLimit-ch));
-    card.style.top=top+'px'; card.style.left='';
-    const ry=rr.top+rr.height/2;
-    const th=tail.offsetHeight||36, ty=Math.max(top+16+th/2,Math.min(top+ch-16-th/2,ry));
-    tail.style.top=Math.round(ty-th/2)+'px'; tail.style.left='';
-  }else{
-    const cx=cr.left+cr.width/2;
-    const cw=card.offsetWidth||0, ch=card.offsetHeight||0;
-    let left=Math.round(cx-cw/2); left=Math.max(8+insets[3],Math.min(left,W-insets[1]-cw-8));
-    card.style.left=left+'px';
-    const rx=rr.left+rr.width/2;
-    const tw=tail.offsetWidth||36, tx=Math.max(left+16+tw/2,Math.min(left+cw-16-tw/2,rx));
-    tail.style.left=Math.round(tx-tw/2)+'px';
-    // 30 px of clear gap, the same the upright edges leave, with the tail spanning it 1 px under the pill
-    if(notchEdge==='top'){ card.style.top=Math.round(room.topLimit)+'px'; tail.style.top=Math.round(pr.bottom-1)+'px'; }
-    else{ card.style.top=Math.round(room.bottomLimit-ch)+'px'; tail.style.top=Math.round(pr.top-31)+'px'; }
-  }
+  const room=Notch.cardSpace(notchEdge,W,H,insets,pr,scale);
+  card.style.maxHeight=room.maxHeight/scale+'px';
+  card.style.width=Math.min(NotchLayout.cardWidth,room.maxWidth/scale)+'px';
+  card.style.transform=`scale(${scale})`;
+  const measured=layoutRect(card);
+  const geometry=Notch.cardGeometry({edge:notchEdge,width:W,height:H,insets,pill:pr,ring:rr,
+    card:{width:measured.width,height:measured.height},scale});
+  card.style.left=geometry.card.left+'px';card.style.top=geometry.card.top+'px';card.style.right='auto';
+  for(const [key,value] of Object.entries(geometry.tail))tail.style[key]=value+'px';
+  tail.style.setProperty('--notch-tail-path',`path('${Notch.tailPath(notchEdge,geometry.tail.width,geometry.tail.height)}')`);
+  cardBridge=geometry.bridge;
 }
 
 function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
@@ -1492,9 +1589,20 @@ function refreshClock(){
     if(card.classList.contains('show')) renderCard();
   }).catch(()=>{});
 }
-function hideCard(){card.classList.remove('show');reportHot();}
+function hideCard(){card.classList.remove('show');cardBridge=null;reportHot();}
 pill.addEventListener('scroll',()=>{hideCard();},{passive:true});
-function scheduleHide(){clearTimeout(hideTimer);hideTimer=setTimeout(hideCard,250);}
+// A standard Windows mouse supplies vertical wheel deltas. Route those along
+// a horizontal overflowed stack; horizontal/diagonal trackpad gestures retain
+// the browser's native scrolling. Consume the wheel only when the stack moves.
+pill.addEventListener('wheel',event=>{
+  if(edgeIsVertical()||event.deltaX!==0||event.deltaY===0||pill.scrollWidth<=pill.clientWidth)return;
+  const unit=event.deltaMode===1?16:event.deltaMode===2?pill.clientWidth:1;
+  const next=Math.max(0,Math.min(pill.scrollWidth-pill.clientWidth,pill.scrollLeft+event.deltaY*unit));
+  if(next===pill.scrollLeft)return;
+  pill.scrollLeft=next;
+  event.preventDefault();
+},{passive:false});
+function scheduleHide(){clearTimeout(hideTimer);hideTimer=setTimeout(hideCard,Notch.reference.interaction.hoverGraceSeconds*1000);}
 // ===== Diagnostics + geometry =====
 function jslog(m){invoke('log_js',{msg:String(m)}).catch(()=>{});}
 function callq(cmd,args){ // invoke with visible failure: any command error is reported on screen (a silent .catch used to swallow them)
@@ -1505,9 +1613,14 @@ function rectOf(el){const r=el.getBoundingClientRect(),k=window.devicePixelRatio
 /* Rust gates click-through on these, so they are reported whenever the pill or card moves, not only
    when the card opens: a stale pill rectangle is a pill that cannot be clicked. */
 function reportHot(){
+  updateNotchGeometry();
   if(folded){ callq('set_hot',{rects:[wakeRect()],expanded:false}).catch(()=>{}); return; }
   const open=card.classList.contains('show');
   const rects=open?[rectOf(pill),rectOf(tail),rectOf(card)]:[rectOf(pill)];
+  if(open&&cardBridge){
+    const k=(window.devicePixelRatio||1)*(parseFloat(document.documentElement.style.zoom)||1);
+    rects.push([cardBridge.left*k,cardBridge.top*k,cardBridge.width*k,cardBridge.height*k]);
+  }
   if(placeHandles()){
     const addHandle=el=>{
       const a=rectOf(pill),b=rectOf(el);
@@ -1519,14 +1632,14 @@ function reportHot(){
     // The grip stays clickable whenever the notch is expanded. Its bridge crosses the settings slot,
     // which is how the pointer reveals settings on the way.
     if(moveAt) addHandle(moveHandle);
-    if(dockActive&&(hovered||carrying)) addHandle(orb);
+    addHandle(orb);
   }
   callq('set_hot',{rects,expanded:open}).catch(()=>{});
 }
 /* What wakes the folded notch: the resting pill, as long along the edge as the pill and deepened into
    the screen by the Mac's pillHotZone — Design.px(90), 34 here — because the pill is small and the
    place that opens it should not be (NotchViewModel.wakeLength and wakeDepth). */
-const WAKE_BAND=34;
+const WAKE_BAND=NotchLayout.pillHotZone;
 function wakeRect(){
   const r=document.getElementById('rest').getBoundingClientRect(), k=window.devicePixelRatio||1;
   const b=WAKE_BAND*(parseFloat(document.documentElement.style.zoom)||1); // rects come back zoomed
@@ -1556,6 +1669,11 @@ function reportDpr(settled){
   const z=fitZoom();
   jslog(`dpr=${window.devicePixelRatio} inner=${innerWidth}x${innerHeight} cssZoom=${z.toFixed(3)}`);
   callq('report_dpr',{dpr:window.devicePixelRatio||1,w:innerWidth,h:innerHeight,settled:settled===true}).catch(()=>{});
+  invoke('get_scale').then(value=>{
+    if(!Object.values(Notch.reference.sizes).includes(value)||value===notchScale)return;
+    notchScale=value;notchCSS.setProperty('--notch-card-scale',1/value);
+    if(card.classList.contains('show'))placeCard();reportHot();
+  }).catch(()=>{});
 }
 // Not measured yet: the width to measure against depends on the edge, and only Rust knows it. The
 // ask is at the bottom of this file and answers in a round trip; measuring first would zoom a flat
@@ -1583,9 +1701,14 @@ function pointerInHot(x,y){
   const p=pill.getBoundingClientRect();
   if(inRect(x,y,p,4))return true;
   if(near(moveAt,x,y))return true;
+  if(near(orbAt,x,y))return true;
   if(!card.classList.contains('show'))return false;
   const c=card.getBoundingClientRect();
   if(inRect(x,y,c,4))return true;
+  if(cardBridge){
+    const z=parseFloat(document.documentElement.style.zoom)||1,b=cardBridge;
+    if(inRect(x,y,{left:b.left*z,top:b.top*z,right:(b.left+b.width)*z,bottom:(b.top+b.height)*z},0))return true;
+  }
   return inRect(x,y,tail.getBoundingClientRect(),4);
 }
 let hideLogged=0;
@@ -1685,7 +1808,6 @@ function notice(msg){
    the lower border together; the card gives way while either is under the pointer.
    A click on the settings orb opens Settings; holding the move handle carries the notch. */
 const orb=document.getElementById('orb'), moveHandle=document.getElementById('move'), controlsCue=document.getElementById('controls-cue');
-const HANDLE_REACH=16, HANDLE_GAP=2; // Docked: separate circles, a shared axis and a small gap
 let dockActive=false, dockTimer=null;
 function setDockActive(active){
   clearTimeout(dockTimer);
@@ -1700,35 +1822,35 @@ function scheduleDockHide(){
   clearTimeout(dockTimer);
   dockTimer=setTimeout(()=>{if(!pointerIn&&!carrying&&!dragging&&!menuOpen)setDockActive(false);},300);
 }
-let orbAt=null, moveAt=null, hovered=null, orbSpins=0, moveSpins=0, showMove=true, carrying=false;
-function put(el,x,y,z){
-  el.style.left=(x/z-HANDLE_REACH)+'px'; el.style.top=(y/z-HANDLE_REACH)+'px';
+let orbAt=null, moveAt=null, hovered=null, orbSpins=0, moveSpins=0, showMove=true, carrying=false,handleReturnUntil=0;
+function put(el,point,z){
+  el.style.left=(point.x-point.reach)+'px';el.style.top=(point.y-point.reach)+'px';
+  el.style.setProperty('--handle-size',2*point.reach+'px');
   el.classList.add('placed');
-  return {x,y,reach:HANDLE_REACH*z};
+  return {x:point.x*z,y:point.y*z,reach:point.reach*z};
 }
 function placeHandles(){
-  const r=pill.getBoundingClientRect();
+  const r=layoutRect(pill);
   if(!r.width) return false;
-  // Measurements come back zoomed when fitZoom has zoomed the page; styles are written unzoomed
   const z=parseFloat(document.documentElement.style.zoom)||1;
-  const inset=(HANDLE_REACH+HANDLE_GAP)*z;
-  const vertical=edgeIsVertical();
-  const far=vertical?[r.left+r.width/2,r.bottom+inset]:[r.right+inset,r.top+r.height/2];
-  const next=vertical?[far[0],far[1]+(2*HANDLE_REACH+HANDLE_GAP)*z]:[far[0]+(2*HANDLE_REACH+HANDLE_GAP)*z,far[1]];
-  orbAt=put(orb,far[0],far[1],z);
-  // No point at all when it is switched off, since hover, the press and the hot area all read this
-  moveAt=showMove?put(moveHandle,next[0],next[1],z):null;
+  const handles=Notch.handleGeometry(notchEdge,r);
+  orbAt=put(orb,handles.orb,z);
+  // The hidden grip remains discoverable. A disabled grip has no target at all.
+  moveAt=showMove?put(moveHandle,handles.move,z):null;
   if(!showMove) moveHandle.classList.remove('placed','hover');
-  controlsCue.style.left=(vertical?(notchEdge==='left'?r.left:r.right-32*z):r.right+HANDLE_GAP*z)/z+'px';
-  controlsCue.style.top=(vertical?r.bottom+HANDLE_GAP*z:(notchEdge==='top'?r.top:r.bottom-32*z))/z+'px';
+  const size=NotchLayout.gripHotZone;
+  const grip=moveHandle.querySelector('.h-glyph');
+  grip.setAttribute('viewBox',`${-size/2} ${-size/2} ${size} ${size}`);
+  grip.innerHTML=Notch.gripDots(notchEdge).map(p=>`<circle cx="${p.x}" cy="${p.y}" r="${p.r}"/>`).join('');
+  const radius=NotchLayout.orbArcRadius,stroke=NotchLayout.orbStroke,box=radius+stroke;
+  const rest=orb.querySelector('.h-rest');rest.setAttribute('viewBox',`${-box} ${-box} ${box*2} ${box*2}`);
+  rest.innerHTML=`<circle r="${radius}" fill="none" stroke="var(--matra-stroke)" stroke-width="${stroke+1}" stroke-linecap="round" stroke-dasharray="${Math.PI*radius/2} ${2*Math.PI*radius}"/><circle r="${radius}" fill="none" stroke="var(--matra-bg)" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${Math.PI*radius/2} ${2*Math.PI*radius}"/>`;
   return true;
 }
 function near(at,x,y){ return !!at&&Math.hypot(x-at.x,y-at.y)<=at.reach; }
 // The grip answers whenever the notch is expanded. Settings still waits for the pointer to reach the dock.
 function onHandle(x,y){
-  if(folded) return null;
-  if(near(moveAt,x,y)) return 'move';
-  return dockActive&&near(orbAt,x,y)?'orb':null;
+  return Notch.handleAt({x,y},{orb:orbAt,move:moveAt},{folded,showMove});
 }
 // Reveal settings from the lower border. Include both gaps so the pointer can
 // travel from the capsule to settings and then to the grip without losing them.
@@ -1750,19 +1872,24 @@ function handleIntent(x,y){
 }
 function setHovered(which){
   if(which===hovered) return;
+  if(hovered&&!which)handleReturnUntil=Date.now()+Notch.reference.interaction.settingsTurnBackSeconds*1000;
   hovered=which;
   document.body.classList.toggle('controls-revealed',!!which||carrying);
-  orb.classList.toggle('hover',which==='orb');
+  orb.classList.toggle('hover',!!which||carrying);
   moveHandle.classList.toggle('hover',which==='move'||carrying);
   reportHot();
 }
 document.addEventListener('mouseout',e=>{ if(!e.relatedTarget&&!carrying) setHovered(null); });
 orb.addEventListener('click',e=>{
-  if(hovered!=='orb'||onHandle(e.clientX,e.clientY)!=='orb') return;
+  if(folded)return;
+  if(e.detail!==0&&(hovered!=='orb'||onHandle(e.clientX,e.clientY)!=='orb')) return;
   orb.style.setProperty('--spins',++orbSpins);
   pressIn(orb);
   callq('open_settings').catch(()=>{});
 });
+orb.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();orb.click();}});
+orb.addEventListener('focus',()=>{if(!folded){setDockActive(true);setHovered('orb');}});
+orb.addEventListener('blur',()=>{setHovered(null);scheduleFold();});
 // The Mac's press: down fast, back with a little bounce
 function pressIn(el){
   if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -1778,12 +1905,9 @@ function pressIn(el){
    outlines of two sizes, which reads as four different things instead of one notch offered a place. */
 function pillShapes(){
   const cells=Math.max(1,pill.querySelectorAll('.cell').length);
-  const ring=(pill.querySelector('.ringwrap')||{}).offsetHeight||44;
-  // With readings off the cell is the ring alone, so the zones must not reserve a label's height.
-  const readings=parity.shows_notch_readings;
-  const label=readings?((pill.querySelector('.pct')||{}).offsetHeight||20):0;
-  const ends=28, between=10, underRing=readings?6:0;
-  return { depth:62, length:ends+cells*(ring+underRing+label)+(cells-1)*between };
+  const shape=Notch.stackGeometry({edge:'right',count:cells,lineHeight:document.getElementById('notch-percent-measure').offsetHeight,
+    availableLength:parseFloat(getComputedStyle(pill).getPropertyValue('--notch-available-length'))});
+  return {depth:shape.depth,length:shape.length};
 }
 moveHandle.addEventListener('mousedown',e=>{
   if(!MatraParity.gripPress({button:e.button,folded,showMove,onGrip:onHandle(e.clientX,e.clientY)==='move'})) return;
@@ -1800,11 +1924,12 @@ listen('move_end',()=>{ carrying=false; moveHandle.classList.remove('armed'); se
    Rust says which (notch_pointer): once click-through is back on, the page is sent nothing at all. It
    never folds mid-carry, mid-drag or under the right-click menu, all of which take the pointer off the
    notch on purpose — folding under them is what #239's reviewers caught, so it is ruled out here. */
-const FOLD_GRACE=450; // NotchWindowController.foldGrace
+const FOLD_GRACE=Notch.reference.interaction.foldGraceSeconds*1000;
 function foldAllowed(){ return onHover&&!pointerIn&&!carrying&&!dragging&&!menuOpen&&Date.now()>=peekUntil; }
 function setFolded(f){
   if(f===folded) return;
   folded=f;
+  orb.tabIndex=f?-1:0;
   if(f){ setDockActive(false); clearTimeout(hideTimer); hideCard(); setHovered(null); }
   document.body.classList.toggle('folded',f);
   document.body.classList.toggle('expanding',!f);
@@ -1814,7 +1939,7 @@ function unfold(){ clearTimeout(foldTimer); setFolded(false); }
 function scheduleFold(){
   clearTimeout(foldTimer);
   if(!onHover){ setFolded(false); return; }
-  if(foldAllowed()) foldTimer=setTimeout(()=>{ if(foldAllowed()) setFolded(true); },FOLD_GRACE);
+  if(foldAllowed()) foldTimer=setTimeout(()=>{ if(foldAllowed()) setFolded(true); },FOLD_GRACE+Math.max(0,handleReturnUntil-Date.now()));
 }
 function applyUiFlags(f){ onHover=!!(f&&f.notch_on_hover); scheduleFold(); }
 /* Looking at the meter is the moment a fresh reading matters. Rust applies its own freshness floor;
