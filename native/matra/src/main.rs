@@ -1315,7 +1315,7 @@ pub fn apply_visibility(app: &AppHandle) {
     // when Keep open changed them from the notch's own menu
     let _ = app.emit("ui_flags", flags);
     if let Some(w) = app.get_webview_window("notch") {
-        if notch {
+        if notch && platform::global_pointer_available() {
             let _ = w.show();
             place_notch(app);
         } else {
@@ -1863,8 +1863,13 @@ fn main() {
         .setup(move |app| {
             let handle = app.handle().clone();
             place_notch(&handle);
-            if let Some(w) = handle.get_webview_window("notch") {
-                let _ = w.show();
+            if platform::global_pointer_available() {
+                if let Some(w) = handle.get_webview_window("notch") { let _ = w.show(); }
+            } else {
+                // Keep saved placement preferences for a later X11 session.
+                // Wayland still has a normal, usable application entry point.
+                if let Some(w) = handle.get_webview_window("notch") { let _ = w.hide(); }
+                settings_window::open(&handle);
             }
             if let Err(error) = tray::setup(&handle) {
                 applog(&format!("System tray is unavailable: {error}"));
