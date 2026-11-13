@@ -32,7 +32,7 @@ jobs:
         id: cargo-cache
         uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809
         with:
-          key: matra-development-v1-${{ runner.os }}-rust-1.97.1-${{ hashFiles('native/Cargo.lock', 'native/**/Cargo.toml') }}
+          key: matra-development-v2-${{ runner.os }}-rust-1.97.1-apt20261029-${{ hashFiles('native/Cargo.lock', 'native/**/Cargo.toml') }}
           path: |
             .build/development/cargo/registry
             .build/development/target
@@ -42,12 +42,43 @@ jobs:
         shell: bash
         run: |
           sudo cp /etc/apt/sources.list .build-sources-before.txt
-          sudo sed -i -E 's@https?://([a-z0-9.-]+\.)?(archive|security).ubuntu.com/ubuntu/?@https://snapshot.ubuntu.com/ubuntu/20261029T000000Z/@g' /etc/apt/sources.list
+          mkdir -p artifacts/development/linux-environment/sources-before
+          # Hosted images may put Ubuntu mirrors in deb822 .sources files.
+          # Retain a receipt and disable all Ubuntu mirror entries before
+          # writing the complete dated source list; never rely on one regex edit.
+          sudo python3 - "$PWD/artifacts/development/linux-environment/sources-before" <<'PY_SOURCES'
+          import pathlib, re, shutil, sys
+          receipt = pathlib.Path(sys.argv[1])
+          for source in pathlib.Path('/etc/apt/sources.list.d').iterdir():
+              if source.suffix not in ('.list', '.sources'):
+                  continue
+              if re.search(r'(?:archive|security|ports|snapshot)\.ubuntu\.com', source.read_text()):
+                  shutil.copy2(source, receipt / source.name)
+                  source.rename(source.with_suffix(source.suffix + '.matra-disabled'))
+          PY_SOURCES
+          printf '%s\n' \
+            'deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/20261029T000000Z/ jammy main restricted universe multiverse' \
+            'deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/20261029T000000Z/ jammy-updates main restricted universe multiverse' \
+            'deb [check-valid-until=no] https://snapshot.ubuntu.com/ubuntu/20261029T000000Z/ jammy-security main restricted universe multiverse' \
+            | sudo tee /etc/apt/sources.list
           printf '%s\n' 'Package: *' 'Pin: origin "snapshot.ubuntu.com"' 'Pin-Priority: 1001' | sudo tee /etc/apt/preferences.d/matra-development-snapshot
           sudo apt-get update
-          sudo apt-get install -y --allow-downgrades libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libnotify-bin libsecret-1-dev libx11-dev xvfb xdotool openbox imagemagick dbus-x11
+          sudo apt-get install -y --allow-downgrades libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libnotify-bin libsecret-1-dev libx11-dev libxcb1-dev xvfb xdotool openbox imagemagick dbus-x11
           mkdir -p artifacts/development/linux-environment
           dpkg-query -W > artifacts/development/linux-environment/packages.txt
+          cp /etc/apt/sources.list artifacts/development/linux-environment/snapshot-sources.list
+          apt-cache policy libwebkit2gtk-4.1-dev libgtk-3-dev libsecret-1-dev libx11-dev libxcb1-dev > artifacts/development/linux-environment/link-library-policy.txt
+          python3 - <<'PY_AGE'
+          import re, subprocess
+          packages = ['libwebkit2gtk-4.1-dev','libgtk-3-dev','libsecret-1-dev','libx11-dev','libxcb1-dev']
+          for name in packages:
+              policy = subprocess.check_output(['apt-cache','policy',name], text=True)
+              installed = re.search(r'Installed: (.+)', policy).group(1)
+              candidate = re.search(r'Candidate: (.+)', policy).group(1)
+              assert installed == candidate and installed != '(none)', (name, policy)
+              assert 'snapshot.ubuntu.com/ubuntu/20261029T000000Z' in policy, (name, policy)
+          print('PASS: installed native link dependencies match the dated snapshot candidate')
+          PY_AGE
       - name: Pinned Rust, no moving stable toolchain
         run: rustup toolchain install 1.97.1 --profile minimal
       - name: Locked age-eligible packaging tools

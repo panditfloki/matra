@@ -117,7 +117,15 @@ try {
     if ($elevated) { $uiArgs += '--expected-elevated' }
     & node @uiArgs
     $uiFailed = $LASTEXITCODE -ne 0
-    if (!$uiFailed) { & (Join-Path $PSScriptRoot 'test-windows-topmost.ps1') -AppProcessId $native.Id }
+    if (!$uiFailed) {
+        try {
+            & (Join-Path $PSScriptRoot 'test-windows-development-carry.ps1') -AppProcessId $native.Id -ConfigPath $configFile
+            & (Join-Path $PSScriptRoot 'test-windows-topmost.ps1') -AppProcessId $native.Id
+        } catch {
+            $uiFailed = $true
+            Write-Warning "Native carry/topmost acceptance failed: $_"
+        }
+    }
 } finally {
     Remove-ItemProperty -Path $debugKey -Name 'matra.exe'
     Remove-Item Env:\WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
