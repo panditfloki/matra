@@ -53,12 +53,24 @@ final class DashboardWindowController: NSObject, NSWindowDelegate {
         appearanceSubscription = SettingsWindowController.followAppearance(in: window, preferences: preferences)
         window.contentView = NSHostingView(rootView: DashboardView(
             model: model, preferences: preferences, openSettings: openSettings))
-        window.setFrameAutosaveName(model.isPreview ? "MatraDashboardPreview" : "MatraDashboard")
-        if !window.setFrameUsingName(window.frameAutosaveName) { window.center() }
+        if let name = Self.frameAutosaveName(isPreview: model.isPreview,
+                                             inMemoryDefaults: Runtime.usesInMemoryDefaults) {
+            window.setFrameAutosaveName(name)
+            if !window.setFrameUsingName(window.frameAutosaveName) { window.center() }
+        } else {
+            window.center()
+        }
         self.window = window
         AppWindowPresentation.register(window)
         layoutTrafficLights(window)
         return window
+    }
+
+    /// AppKit persists an autosaved frame through cfprefsd under the app's own
+    /// domain, around MatraDefaults; a different HOME does not contain it.
+    /// Test and in-memory QA runs therefore never register one.
+    nonisolated static func frameAutosaveName(isPreview: Bool, inMemoryDefaults: Bool) -> String? {
+        inMemoryDefaults ? nil : (isPreview ? "MatraDashboardPreview" : "MatraDashboard")
     }
 
     func windowWillClose(_ notification: Notification) {

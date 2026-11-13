@@ -45,6 +45,12 @@ def main():
                 code = line.split('//', 1)[0]
                 if re.search(r'\b(?:UserDefaults|NSUserDefaults|CFPreferences\w*)\b|@AppStorage\s*\(', code):
                     violations.append(f'{path.relative_to(root)}:{number}: {line.strip()}')
+                # AppKit autosave writes through cfprefsd. The dashboard is the one
+                # reviewed caller, gated by Runtime.usesInMemoryDefaults.
+                if (re.search(r'\b(?:setFrameAutosaveName|saveFrame|autosaveName|autosaveTableColumns|'
+                              r'autosaveExpandedItems)\b', code)
+                        and path.name != 'DashboardWindowController.swift'):
+                    violations.append(f'{path.relative_to(root)}:{number}: {line.strip()}')
     if violations:
         raise RuntimeError('Preferences boundary bypass:\n' + '\n'.join(violations))
 

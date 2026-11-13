@@ -119,8 +119,30 @@ final class DashboardTests: XCTestCase {
         let first = controller.prepareWindow()
         defer { first.close() }
         XCTAssertTrue(controller.prepareWindow() === first)
-        XCTAssertEqual(first.frameAutosaveName, "MatraDashboardPreview")
         XCTAssertEqual(first.title, "Mātrā Dashboard · Sample preview")
+        // Normal launches keep separate live/preview frame keys.
+        XCTAssertEqual(DashboardWindowController.frameAutosaveName(isPreview: true, inMemoryDefaults: false),
+                       "MatraDashboardPreview")
+        XCTAssertEqual(DashboardWindowController.frameAutosaveName(isPreview: false, inMemoryDefaults: false),
+                       "MatraDashboard")
+    }
+
+    func testIsolatedRunNeverRegistersFrameAutosave() throws {
+        // AppKit writes "NSWindow Frame <name>" through cfprefsd, not MatraDefaults,
+        // so an isolated run must not register any autosave name at all.
+        XCTAssertNil(DashboardWindowController.frameAutosaveName(isPreview: true, inMemoryDefaults: true))
+        XCTAssertNil(DashboardWindowController.frameAutosaveName(isPreview: false, inMemoryDefaults: true))
+        XCTAssertTrue(Runtime.usesInMemoryDefaults)
+        let models = [DashboardModel(samples: []),
+                      DashboardModel(store: UsageStore(providers: [], archive: UsageArchive(defaults: try defaults())))]
+        XCTAssertEqual(models.map { $0.isPreview }, [true, false])
+        for model in models {
+            let controller = DashboardWindowController(model: model,
+                preferences: Preferences(defaults: try defaults()), openSettings: {})
+            let window = controller.prepareWindow()
+            defer { window.close() }
+            XCTAssertEqual(window.frameAutosaveName, "", "isPreview=\(model.isPreview)")
+        }
     }
 
     func testRefreshFromTwoSurfacesSharesOneInFlightFetch() async throws {
