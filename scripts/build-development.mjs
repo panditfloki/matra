@@ -33,7 +33,7 @@ const cargo=process.platform==='win32'?'cargo.exe':'cargo';
 run(cargo,['+1.97.1','--version']);
 const common=['--locked','--manifest-path',join(root,'native/Cargo.toml'),...(args.includes('--offline')?['--offline']:[])];
 run(cargo,['+1.97.1','build','--release',...common,'-p','matra-hook','--target-dir',owned(join(root,'native/target/hook'))],root,os==='windows'?{RUSTFLAGS:'-C target-feature=+crt-static'}:{});
-const checks=['check-ui-scripts.mjs','test-claude-auth-ui.cjs','test-ko-i18n.cjs','test-matra-interactions.cjs','test-matra-appearance.cjs','test-matra-copy.cjs','test-matra-quota.cjs','test-parity-ui.cjs','test-mac-notch.cjs','test-platform-capabilities.cjs','test-fixed-providers.cjs','test-carry.cjs','test-presentation.cjs'];
+const checks=['check-ui-scripts.mjs','test-claude-auth-ui.cjs','test-ko-i18n.cjs','test-matra-interactions.cjs','test-matra-appearance.cjs','test-matra-copy.cjs','test-matra-quota.cjs','test-parity-ui.cjs','test-mac-notch.cjs','test-platform-capabilities.cjs','test-fixed-providers.cjs','test-carry.cjs','test-presentation.cjs','test-native-scale.cjs'];
 for(const name of checks)run(process.execPath,[join(root,'native/scripts',name)]);
 for(const name of ['test-codex-details.cjs','test-codex-headline.cjs'])run(process.execPath,[join(root,'native',name)]);
 run(cargo,['+1.97.1',modes[0]==='--check'?'check':'test',...common,'--workspace']);

@@ -180,6 +180,32 @@ PY_PAINT
   echo "Native GTK/WebKit settings did not remain visible and paint ($phase)" >&2
   return 1
 }
+# X11 connection reuse. The 20 Hz pointer watchdog samples through the X11 carry adapter for the
+# whole run; every sample must use GTK's own (borrowed) X connection. Tauri's Linux display_handle()
+# opened a new, never-closed X client per call, so socket descriptors grew ~20 per second. Count the
+# app's sockets across ~60 further samples and require exactly one borrowed-connection log line.
+socket_fds(){ local n; n="$(find "$1" -mindepth 1 -maxdepth 1 -lname 'socket:*' 2>/dev/null | wc -l)"; echo $((n)); return 0; }
+check_x11_connections(){
+  local log="$work/profile/run.log" before after borrowed unavailable
+  check_app || return 1
+  before="$(socket_fds "/proc/$app/fd")"
+  sleep 3
+  check_app || return 1
+  after="$(socket_fds "/proc/$app/fd")"
+  borrowed="$(grep -c "carry: X11 pointer uses GTK's display connection" "$log" 2>/dev/null || true)"
+  unavailable="$(grep 'watchdog: pointer sample unavailable' "$log" 2>/dev/null || true)"
+  printf 'PID=%s socket_fds_before=%s socket_fds_after=%s borrowed_connection_lines=%s sample_unavailable=%s\n' \
+    "$app" "$before" "$after" "${borrowed:-missing}" "${unavailable:-none}" | tee "$work/x11-connections.txt"
+  if (( before < 1 || after - before > 8 )); then
+    echo 'X11 client sockets grew while the pointer watchdog sampled (per-sample connection leak)' >&2
+    return 1
+  fi
+  if [[ "$borrowed" != 1 || -n "$unavailable" ]]; then
+    echo 'Pointer sampling did not run on exactly one borrowed GTK X11 connection' >&2
+    return 1
+  fi
+  return 0
+}
 # DIAGNOSTIC ONLY, after an application phase has already failed. Two isolated, time-bounded
 # reproductions of the extracted Debian binary in fresh fixture profiles (preview mode, so no
 # provider, hook, credential or update service starts): gdb records native stacks at
@@ -254,6 +280,7 @@ native_trace(){
 phase=settings
 "$exe" --silent > "$work/stdout.log" 2> "$work/stderr.log" & app=$!
 wait_settings
+check_x11_connections
 python3 - "$work/profile/config.json" <<'PY'
 import json,sys
 p=json.load(open(sys.argv[1]));assert p['theme']=='light' and p['notch_edge']=='left' and p['scale']==0.8

@@ -175,12 +175,15 @@ function Begin-PhysicalCarry([bool]$Grip = $true) {
     Assert-Native ($drawn.cells -gt 0 -and $drawn.cells -eq $scene.presentation.cells.Count -and $drawn.body -gt 0) 'Real overlay painted the carried provider cells and body'
     return $scene
 }
-function End-PhysicalCarry([long]$Id, [string]$Status) {
+function End-PhysicalCarry([long]$Id, [string]$Status, [int]$SettleMs = 0) {
     [MatraCarryNative]::Mouse($false)
     [MatraCarryNative]::Key(0x12,$false)
     Wait-Native { Query "!carrying && !dragging && !document.body.classList.contains('carry-hidden') && window.__nativeCarryEvents.some(e=>e.id===$Id)" } 'Carry did not restore the normal body' 12
     Wait-Native { (Find-Overlay) -eq [IntPtr]::Zero } 'Carry overlay survived terminal cleanup'
     Assert-Native ([MatraCarryNative]::Capture($notch) -eq [IntPtr]::Zero) 'Native pointer capture is released after terminal cleanup'
+    # A carry that already ended while held must stay ended after the hardware
+    # release: many 8 ms native samples pass here before the events are counted.
+    if ($SettleMs -gt 0) { Start-Sleep -Milliseconds $SettleMs }
     # @() keeps a single-event result an array; the failure names every observed payload.
     $terminal = @(Query "window.__nativeCarryEvents.filter(e=>e.id===$Id)")
     if (!($terminal.Count -eq 1 -and $terminal[0].status -eq $Status)) {
@@ -188,6 +191,26 @@ function End-PhysicalCarry([long]$Id, [string]$Status) {
     }
     Write-Host "PASS: One native carry terminal event reports $Status"
     return $terminal[0]
+}
+function Wait-HeldCancellation([long]$Id, [string]$Path, [System.Diagnostics.Stopwatch]$Clock) {
+    # carry_session::pointer_verdict deliberately treats button-up as a release
+    # even when capture vanished in the same sample (tao's WM_LBUTTONUP calls
+    # ReleaseCapture). A cancel is therefore only defined while the button is
+    # still down, so the physical button stays held until the cancelled terminal,
+    # body restoration and overlay removal are all observed. Only then does
+    # End-PhysicalCarry release the hardware through the normal path.
+    Wait-Native { Query "!carrying && !dragging && !document.body.classList.contains('carry-hidden') && window.__nativeCarryEvents.some(e=>e.id===$Id)" } "$Path did not end the carry and restore the body while the physical button stayed held" 12
+    $observedMs = $Clock.ElapsedMilliseconds
+    Assert-Native ([MatraCarryNative]::GetAsyncKeyState(1) -lt 0) "$Path terminal and body restoration were observed while Windows still reports the left button held"
+    Wait-Native { (Find-Overlay) -eq [IntPtr]::Zero } "$Path carry overlay survived cancellation while the button was held"
+    $capture = [MatraCarryNative]::Capture($notch)
+    Assert-Native ($capture -ne $notch) "$Path leaves the notch without native capture while the button is held"
+    $terminal = @(Query "window.__nativeCarryEvents.filter(e=>e.id===$Id)")
+    if (!($terminal.Count -eq 1 -and $terminal[0].status -eq 'cancelled')) {
+        throw "$Path expected one cancelled terminal while the button was held for id $Id; observed $($terminal.Count): $(ConvertTo-Json -InputObject $terminal -Depth 6 -Compress)"
+    }
+    Write-Host "PASS: $Path produced exactly one cancelled terminal before any hardware release (${observedMs} ms after the trigger)"
+    return [ordered]@{terminalObservedMs=$observedMs;buttonHeldAtTerminal=$true;captureWhileHeld=('0x{0:X}' -f $capture.ToInt64());reason=$terminal[0].reason}
 }
 function Invoke-Cleanup([string]$Name, [scriptblock]$Step) {
     # One failed restoration step must neither hide the primary failure nor
@@ -245,21 +268,35 @@ try {
         $before = Placement
         $originalBounds = [MatraCarryNative]::Bounds($notch)
         $scene = Begin-PhysicalCarry
+        $id = [long]$scene.frame.id
         Move-Native (($work.Left+$work.Right)/2) ($work.Bottom-4)
+        # The cancel must be caused by this trigger, not by an earlier event.
+        Assert-Native (Query "carrying && document.body.classList.contains('carry-hidden') && !window.__nativeCarryEvents.some(e=>e.id===$id)") "$cancel trigger starts from an active, unterminated carry"
+        Assert-Native ([MatraCarryNative]::Capture($notch) -eq $notch) "$cancel trigger starts with the notch holding native capture"
+        $clock = [System.Diagnostics.Stopwatch]::StartNew()
+        $trigger = [ordered]@{}
         if ($cancel -eq 'escape') {
+            # An ordinary Escape tap. The left button stays down throughout.
             [MatraCarryNative]::Key(0x1b,$true)
             Start-Sleep -Milliseconds 160
             [MatraCarryNative]::Key(0x1b,$false)
+            $trigger.escapeTapMs = 160
         } else {
             # DefWindowProc's WM_CANCELMODE handling releases capture on the
-            # owning UI thread. GetGUIThreadInfo proves actual native loss.
+            # owning UI thread. GetGUIThreadInfo proves actual native loss while
+            # GetAsyncKeyState proves the physical button is still held.
             [MatraCarryNative]::CancelCapture($notch)
-            Assert-Native ([MatraCarryNative]::Capture($notch) -ne $notch) 'External WM_CANCELMODE removed actual native capture'
+            $lost = [MatraCarryNative]::Capture($notch)
+            $trigger.captureAfterCancelMode = ('0x{0:X}' -f $lost.ToInt64())
+            Assert-Native ($lost -ne $notch) 'External WM_CANCELMODE removed actual native capture'
         }
-        $terminal = End-PhysicalCarry $scene.frame.id 'cancelled'
+        $trigger.buttonHeldAfterTrigger = [MatraCarryNative]::GetAsyncKeyState(1) -lt 0
+        Assert-Native $trigger.buttonHeldAfterTrigger "Windows still reports the held physical left button after the $cancel trigger"
+        $held = Wait-HeldCancellation $id $cancel $clock
+        $terminal = End-PhysicalCarry $id 'cancelled' 300
         Assert-Native ((Placement) -ceq $before) "$cancel leaves all saved placement fields unchanged"
         Assert-Native (Is-SameRect ([MatraCarryNative]::Bounds($notch)) $originalBounds) "$cancel restores the original native window rectangle"
-        $results.Add(@{case=$cancel;terminal=$terminal;placement=$before;bounds=$originalBounds})
+        $results.Add(@{case=$cancel;terminal=$terminal;trigger=$trigger;held=$held;placement=$before;bounds=$originalBounds})
     }
 
     $scene = Begin-PhysicalCarry $false
@@ -269,7 +306,7 @@ try {
     $results.Add(@{case='physical-alt-body';terminal=$terminal;placement=(Placement)})
     Assert-Native ($results.Count -eq 4) 'All four physical native carry cases completed'
     $results | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $output -Encoding utf8NoBOM
-    Write-Output 'PASS: actual Windows physical grip traversal across the top-left corner with release, Escape cancellation, external capture loss and Alt-body carry; native HWND capture, overlay paint, corner split frames, placement persistence and cleanup.'
+    Write-Output 'PASS: actual Windows physical grip traversal across the top-left corner with release, Escape cancellation and external capture loss each observed while the button stayed held, and Alt-body carry; native HWND capture, overlay paint, corner split frames, placement persistence and cleanup.'
 } catch {
     $primaryError = $_
     throw

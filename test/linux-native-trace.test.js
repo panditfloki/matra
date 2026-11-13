@@ -275,3 +275,56 @@ test('strace summary finds the ending thread, X11 operations and compresses the 
   assert.ok(!fs.existsSync(capture), 'raw capture is replaced by the compressed one');
   fs.rmSync(scratch, { recursive: true, force: true });
 });
+
+test('X11 connection gate: counts socket descriptors and rejects growth or missing borrowed-connection evidence', () => {
+  const text = fs.readFileSync(path.join(root, 'scripts/test-linux-development.sh'), 'utf8');
+  // The real settings phase runs the gate right after the unchanged paint gate.
+  assert.match(text, /phase=settings\n"\$exe" --silent [^\n]*& app=\$!\nwait_settings\ncheck_x11_connections\n/);
+  const functions = ['socket_fds', 'check_x11_connections'].map(n => shellFunction(text, n)).join('\n');
+  const scratch = path.join(root, '.build', 'test-linux-x11-connections');
+  fs.rmSync(scratch, { recursive: true, force: true });
+  // socket_fds counts only socket links (link text, so targets need not exist).
+  const fds = path.join(scratch, 'fd');
+  fs.mkdirSync(fds, { recursive: true });
+  fs.symlinkSync('socket:[101]', path.join(fds, '3'));
+  fs.symlinkSync('socket:[102]', path.join(fds, '4'));
+  fs.symlinkSync('/dev/null', path.join(fds, '5'));
+  fs.symlinkSync('pipe:[7]', path.join(fds, '6'));
+  const count = spawnSync('bash', ['-c', `${functions}\nsocket_fds "$1"; socket_fds "$2"`, 'x', fds, path.join(scratch, 'absent')], { encoding: 'utf8' });
+  assert.equal(count.status, 0, count.stderr);
+  assert.deepEqual(count.stdout.trim().split('\n'), ['2', '0']);
+  const run = (name, before, after, log) => {
+    const work = path.join(scratch, name);
+    fs.mkdirSync(path.join(work, 'profile'), { recursive: true });
+    if (log !== null) fs.writeFileSync(path.join(work, 'profile', 'run.log'), log);
+    // socket_fds, sleep and check_app are shadowed: the first count is `before`, later ones `after`.
+    const script = `set -euo pipefail
+${functions}
+# Command substitution runs socket_fds in a subshell, so the call count lives in a file.
+socket_fds(){ if [[ -e "$work/counted" ]]; then echo ${after}; else : > "$work/counted"; echo ${before}; fi; return 0; }
+sleep(){ :; }
+check_app(){ return 0; }
+work="${work}" app=4242
+if check_x11_connections; then echo GATE=0; else echo GATE=1; fi`;
+    const r = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    return { out: r.stdout, err: r.stderr, record: fs.readFileSync(path.join(work, 'x11-connections.txt'), 'utf8') };
+  };
+  const borrowed = "carry: X11 pointer uses GTK's display connection 0x55d0 (borrowed; never opened or closed here)\n";
+  const ok = run('ok', 12, 14, `watchdog: cursor_rel=(1,2)\n${borrowed}`);
+  assert.match(ok.out, /GATE=0/);
+  assert.match(ok.record, /socket_fds_before=12 socket_fds_after=14 borrowed_connection_lines=1 sample_unavailable=none/);
+  // ~60 leaked connections over three seconds of 20 Hz sampling (the old display_handle path).
+  const leak = run('leak', 12, 72, borrowed);
+  assert.match(leak.out, /GATE=1/);
+  assert.match(leak.err, /per-sample connection leak/);
+  assert.match(run('no-sockets', 0, 0, borrowed).out, /GATE=1/);
+  // Bounded descriptors are not enough: sampling must be proven to have run on one borrowed connection.
+  assert.match(run('no-log', 12, 12, null).out, /GATE=1/);
+  assert.match(run('never-sampled', 12, 12, 'ISOLATED PREVIEW\n').out, /GATE=1/);
+  assert.match(run('two-connections', 12, 12, borrowed + borrowed.replace('0x55d0', '0x77e0')).out, /GATE=1/);
+  const failing = run('unavailable', 12, 12, `${borrowed}watchdog: pointer sample unavailable: position=None pointer=Some("x")\n`);
+  assert.match(failing.out, /GATE=1/);
+  assert.match(failing.record, /sample_unavailable=watchdog: pointer sample unavailable/);
+  fs.rmSync(scratch, { recursive: true, force: true });
+});

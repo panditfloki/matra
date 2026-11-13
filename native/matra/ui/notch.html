@@ -363,9 +363,59 @@
 <script src="matra-alert-peek.js"></script>
 <script src="matra-notch-reference.js"></script>
 <script src="matra-carry.js"></script>
+<script src="matra-native-scale.js"></script>
 <script>
 const invoke = window.__TAURI__.core.invoke;
 const listen = window.__TAURI__.event.listen;
+/* Physical pixels per CSS px for everything reported to Rust, measured from the window's actual
+   physical inner size (matra-native-scale.js). Raw devicePixelRatio is only that on WebView2; on
+   WebKitGTK the page zoom leaves it at the GDK scale. Created before any geometry is reported. */
+const notchWindow=(()=>{try{return window.__TAURI__.window?.getCurrentWindow?.()||null;}catch(_){return null;}})();
+const nativeScale=MatraNativeScale.create({
+  dpr:()=>window.devicePixelRatio||1,
+  viewport:()=>[innerWidth,innerHeight],
+  measure:notchWindow&&typeof notchWindow.innerSize==='function'?()=>notchWindow.innerSize():null,
+  log:m=>invoke('log_js',{msg:String(m)}).catch(()=>{}),
+  onChange:k=>invoke('log_js',{msg:`native scale=${k.toFixed(4)} dpr=${window.devicePixelRatio} inner=${innerWidth}x${innerHeight}`}).catch(()=>{}),
+  // reportHot withholds its rectangles until the scale is ready, so every accepted measurement reports
+  // them once, even when the factor is unchanged (WebView2, where it is DPR). reportHot itself never
+  // invalidates, so this cannot loop.
+  onAccept:()=>reportHot(),
+  // No valid scale for the page as it is: rectangles from an earlier page state are withdrawn rather
+  // than left in place, until a resize or scale event measures again.
+  onFail:reason=>withdrawHot('no valid display scale ('+reason+')')
+});
+// Every change of page or window size voids the measurement at once, even when the viewport returns
+// to a size measured before (a resize undone by a zoom correction leaves a different physical window).
+function remeasureScale(){nativeScale.invalidate();nativeScale.refresh().catch(()=>{});}
+/* Rust gates click-through on the hot rectangles. Ones converted by a stale or unmeasured scale are
+   in the wrong physical place (WebKitGTK's DPR ignores its page zoom), so none are published until the
+   scale is ready; a failed measurement withdraws the last ones. */
+let hotPublished=false;
+function publishHot(rects,expanded){hotPublished=true;return callq('set_hot',{rects,expanded});}
+function withdrawHot(why){
+  if(!hotPublished)return;
+  hotPublished=false;
+  invoke('log_js',{msg:'hot rectangles withdrawn: '+why}).catch(()=>{});
+  invoke('set_hot',{rects:[],expanded:false}).catch(()=>{});
+}
+window.addEventListener('resize',remeasureScale);
+if(notchWindow){
+  for(const name of ['onResized','onScaleChanged'])if(typeof notchWindow[name]==='function'){
+    try{Promise.resolve(notchWindow[name](remeasureScale)).catch(()=>{});}catch(_){}
+  }
+}
+// Resolves once the factor belongs to the page as it is now; bounded, and false if it could not be.
+// Never rejects: a failure is false, which every caller must treat as "no valid scale".
+async function settledScale(){
+  try{
+    for(let i=0;i<2;i++){if(nativeScale.ready())return true;await nativeScale.refresh();}
+    return nativeScale.ready();
+  }catch(error){
+    invoke('log_js',{msg:'native scale: settle failed: '+(error&&error.message||error)}).catch(()=>{});
+    return false;
+  }
+}
 const Notch=MatraNotchReference, NotchLayout=Notch.reference.layout, ringMetrics=Notch.ringGeometry();
 let notchScale=1,cardBridge=null;
 const notchCSS=document.documentElement.style;
@@ -1637,23 +1687,27 @@ function jslog(m){invoke('log_js',{msg:String(m)}).catch(()=>{});}
 function callq(cmd,args){ // invoke with visible failure: any command error is reported on screen (a silent .catch used to swallow them)
   return invoke(cmd,args).catch(e=>{notice(cmd+' failed: '+(e&&e.message||e));throw e;});
 }
-// Hot rectangles are reported in physical pixels (multiplied by this page's real DPR), so the Rust side does no conversion — WebView2's DPR and the window scale can disagree
-function rectOf(el){const r=el.getBoundingClientRect(),k=window.devicePixelRatio||1;return [r.left*k,r.top*k,r.width*k,r.height*k];}
+// Hot rectangles are reported in physical pixels (by the measured CSS-to-physical scale, nativeScale), so the Rust side does no conversion — WebView2's DPR and the window scale can disagree, and WebKitGTK's DPR ignores its page zoom
+function rectOf(el){return nativeScale.rect(el);}
 /* Rust gates click-through on these, so they are reported whenever the pill or card moves, not only
    when the card opens: a stale pill rectangle is a pill that cannot be clicked. */
 let lastBodyReport='';
 function reportHot(){
+  // A stale scale is measured once per page state; its result reports again only if the factor changed
+  nativeScale.ensure();
   updateNotchGeometry();
   const measured=carryLayout(notchEdge,true),bodyKey=JSON.stringify([notchEdge,measured]);
   if(bodyKey!==lastBodyReport){lastBodyReport=bodyKey;invoke('report_notch_body',{edge:notchEdge,layout:measured}).catch(()=>{});}
   if(carrying||dragging){placeHandles();return;}
-  if(folded){ callq('set_hot',{rects:[wakeRect()],expanded:false}).catch(()=>{}); return; }
+  // Withheld, not guessed: the accepted measurement reports again (nativeScale onAccept).
+  if(!nativeScale.ready())return;
+  if(folded){ publishHot([wakeRect()],false).catch(()=>{}); return; }
   const open=card.classList.contains('show');
   const rects=open?[rectOf(pill),rectOf(tail),rectOf(card)]:[rectOf(pill)];
   const alertRect=window.matraAlertPeek?.rect();
-  if(alertRect){const k=window.devicePixelRatio||1;rects.push([alertRect.left*k,alertRect.top*k,alertRect.width*k,alertRect.height*k]);}
+  if(alertRect)rects.push(nativeScale.box(alertRect));
   if(open&&cardBridge){
-    const k=(window.devicePixelRatio||1)*(parseFloat(document.documentElement.style.zoom)||1);
+    const k=nativeScale.factor()*(parseFloat(document.documentElement.style.zoom)||1); // the bridge is in unzoomed layout px
     rects.push([cardBridge.left*k,cardBridge.top*k,cardBridge.width*k,cardBridge.height*k]);
   }
   if(placeHandles()){
@@ -1669,14 +1723,14 @@ function reportHot(){
     if(moveAt) addHandle(moveHandle);
     addHandle(orb);
   }
-  callq('set_hot',{rects,expanded:open||!!alertRect}).catch(()=>{});
+  publishHot(rects,open||!!alertRect).catch(()=>{});
 }
 /* What wakes the folded notch: the resting pill, as long along the edge as the pill and deepened into
    the screen by the Mac's pillHotZone — Design.px(90), 34 here — because the pill is small and the
    place that opens it should not be (NotchViewModel.wakeLength and wakeDepth). */
 const WAKE_BAND=NotchLayout.pillHotZone;
 function wakeRect(){
-  const r=document.getElementById('rest').getBoundingClientRect(), k=window.devicePixelRatio||1;
+  const r=document.getElementById('rest').getBoundingClientRect(), k=nativeScale.factor();
   const b=WAKE_BAND*(parseFloat(document.documentElement.style.zoom)||1); // rects come back zoomed
   let x=r.left,y=r.top,w=r.width,h=r.height;
   if(notchEdge==='left') w+=b; else if(notchEdge==='top') h+=b; else if(notchEdge==='bottom'){ y-=b; h+=b; } else { x-=b; w+=b; }
@@ -1701,6 +1755,7 @@ function fitZoom(){
 }
 // `settled` only from the end of a burst of resizes, which is what a landing waits for (land_on_another_screen)
 function reportDpr(settled){
+  remeasureScale();
   const z=fitZoom();
   jslog(`dpr=${window.devicePixelRatio} inner=${innerWidth}x${innerHeight} cssZoom=${z.toFixed(3)}`);
   callq('report_dpr',{dpr:window.devicePixelRatio||1,w:innerWidth,h:innerHeight,settled:settled===true}).catch(()=>{});
@@ -1819,6 +1874,7 @@ document.addEventListener('mousemove',e=>{
 });
 document.addEventListener('mouseup',e=>{
   if(e.button!==0)return;
+  cancelPendingCarry();
   if(carryLifecycle.active())releaseCarry(false);
   else if(press&&!press.alt&&press.id&&!carrying&&!dragging)refreshRing(press.id);
   press=null;
@@ -1966,13 +2022,34 @@ const carryLifecycle=new MatraCarry.Lifecycle(event=>{
   if(event.reason)notice(event.reason);
   requestAnimationFrame(()=>requestAnimationFrame(()=>invoke('carry_revealed',{id:event.id}).catch(()=>{})));
 });
+/* A carry is only begun with a scale measured for the page as it is, since its pointer and body
+   centre anchor the whole native gesture. Until then the press waits (normally one IPC round trip);
+   releasing the button, Escape or losing focus abandons it, so no late carry can start. Abandoning it
+   also forgets the press, so a later mousemove with the button still held cannot start it again.
+   The waiting point is CSS px of the page as it was: if the viewport, DPR or native epoch changes
+   meanwhile, it no longer names the same physical spot and the press is abandoned, not converted. */
+let pendingCarry=null;
+function cancelPendingCarry(){if(!pendingCarry)return;pendingCarry=null;press=null;}
 function startCarry(command,point,grip){
-  if(carryLifecycle.active())return;
+  if(carryLifecycle.active()||pendingCarry)return;
+  if(!nativeScale.ready()){
+    const pending=pendingCarry={command,point:{x:point.x,y:point.y},grip,key:nativeScale.key()};
+    const abandon=message=>{if(pendingCarry!==pending)return;cancelPendingCarry();if(message)notice(message);};
+    settledScale().then(ok=>{
+      if(pendingCarry!==pending)return;
+      if(!ok)return abandon('Carry unavailable: the display scale could not be measured');
+      if(nativeScale.key()!==pending.key){jslog('carry press abandoned: the page geometry changed while its scale was measured');return abandon();}
+      pendingCarry=null;
+      if(!carrying&&!dragging&&!folded)startCarry(command,pending.point,grip);
+      else press=null;
+    }).catch(error=>abandon('Carry unavailable: '+(error&&error.message||error)));
+    return;
+  }
   let presentation;
   try{presentation=carryPresentation(grip);}catch(error){notice('Carry unavailable: '+error.message);press=null;return;}
   const id=carryLifecycle.begin();if(!id)return;
-  const r=pill.getBoundingClientRect(),dpr=devicePixelRatio||1;
-  const request={id,pointer:[point.x*dpr,point.y*dpr],body_center:[(r.left+r.right)/2*dpr,(r.top+r.bottom)/2*dpr],presentation};
+  const r=pill.getBoundingClientRect();
+  const request={id,pointer:nativeScale.point(point.x,point.y),body_center:nativeScale.point((r.left+r.right)/2,(r.top+r.bottom)/2),presentation};
   carrying=true;dragging=command==='drag_begin';
   clearTimeout(hideTimer);clearTimeout(foldTimer);clearTimeout(dockTimer);clearTimeout(peekTimer);hideCard();
   document.body.classList.add('carrying');moveHandle.classList.add('armed','hover');
@@ -1993,14 +2070,28 @@ listen('carry_layout',e=>{
   reportDpr();reportHot();
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
     if(task.id!==carryLifecycle.id)return;
-    reportHot();const r=pill.getBoundingClientRect(),k=devicePixelRatio||1;
-    invoke('carry_layout_ready',{id:task.id,stage:task.stage,center:[(r.left+r.right)/2*k,(r.top+r.bottom)/2*k],layout:carryLayout(notchEdge,true)}).catch(()=>releaseCarry(true));
+    // The landing may have resized and re-zoomed the window: its centre is converted by a scale measured
+    // after that, never by the one from the screen it left.
+    // With no valid scale the landing is never acknowledged with a guessed centre: the carry is
+    // cancelled through its own cancel path, which restores the notch where it was.
+    remeasureScale();
+    const cancelLanding=why=>{
+      if(task.id!==carryLifecycle.id)return;
+      jslog(`carry ${task.id} stage ${task.stage}: landing not confirmed: ${why}`);
+      releaseCarry(true);
+    };
+    settledScale().then(ok=>{
+      if(task.id!==carryLifecycle.id)return;
+      if(!ok||!nativeScale.ready())return cancelLanding('the display scale could not be measured');
+      reportHot();const r=pill.getBoundingClientRect();
+      invoke('carry_layout_ready',{id:task.id,stage:task.stage,center:nativeScale.point((r.left+r.right)/2,(r.top+r.bottom)/2),layout:carryLayout(notchEdge,true)}).catch(()=>releaseCarry(true));
+    }).catch(error=>cancelLanding(error&&error.message||String(error)));
   }));
 }).catch(()=>{});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&carryLifecycle.active()){e.preventDefault();releaseCarry(true);}});
-document.addEventListener('pointercancel',()=>releaseCarry(true));
-window.addEventListener('blur',()=>{if(carryLifecycle.active())releaseCarry(true);});
-window.addEventListener('pagehide',()=>releaseCarry(true));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){cancelPendingCarry();if(carryLifecycle.active()){e.preventDefault();releaseCarry(true);}}});
+document.addEventListener('pointercancel',()=>{cancelPendingCarry();releaseCarry(true);});
+window.addEventListener('blur',()=>{cancelPendingCarry();if(carryLifecycle.active())releaseCarry(true);});
+window.addEventListener('pagehide',()=>{cancelPendingCarry();releaseCarry(true);});
 
 /* Show on hover, the Mac's .onHover. It opens on contact and folds a moment after the pointer has gone.
    Rust says which (notch_pointer): once click-through is back on, the page is sent nothing at all. It
