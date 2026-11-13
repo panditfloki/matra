@@ -41,6 +41,13 @@ enum Runtime {
             : previewReadsLocalLogs ? "LOCAL-LOG PREVIEW · Real local logs · Quotas not polled"
             : "DESIGN PREVIEW · Sample data only · No accounts accessed"
     }
+    /// Sample/test runs never register login items or install external hooks.
+    static var allowsExternalIntegrationChanges: Bool {
+        !isUnderTest && (!isDesignPreview || isLivePreview)
+    }
+    static var allowsCredentialRenewal: Bool {
+        MatraStorage.channel.isProduction && allowsExternalIntegrationChanges && !isLivePreview
+    }
     static let isUnderTest: Bool =
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
             || NSClassFromString("XCTestCase") != nil

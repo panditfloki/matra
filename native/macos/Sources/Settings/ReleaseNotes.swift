@@ -19,6 +19,13 @@ struct ReleaseNote: Equatable {
 enum ReleaseNotes {
     static var all: [ReleaseNote] {
         [ReleaseNote(
+            version: "0.2.0",
+            headline: "The native Mac app, with a shared cross-platform foundation.",
+            changes: [
+                .init(title: "Native Mac interface", detail: "Your existing notch, dashboard and settings retain their native Mac design. Normal launch reads your enabled providers. Sample data is an explicit preview mode."),
+                .init(title: "Separate development app", detail: "Development settings, app storage and integration names are separate from the installed app. Production updates and automatic installation are disabled in this channel."),
+                .init(title: "Shared calculations", detail: "Usage selection and cost calculations share the same tested core with Windows and Linux. Missing prices and readings remain unavailable.")
+            ]), ReleaseNote(
             version: "1.8.5",
             headline: "The menu bar, with the detail beside it.",
             changes: [

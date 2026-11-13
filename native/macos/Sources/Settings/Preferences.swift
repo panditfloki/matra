@@ -947,7 +947,7 @@ final class Preferences: ObservableObject {
         // A stored choice wins; otherwise LM Studio's own configuration file
         // says where it listens, and 1234 is what it ships with.
         self.phoneLinkEnabled = defaults.object(forKey: Keys.phoneLinkEnabled) as? Bool ?? false
-        self.phoneLinkPort = defaults.object(forKey: Keys.phoneLinkPort) as? Int ?? 8788
+        self.phoneLinkPort = defaults.object(forKey: Keys.phoneLinkPort) as? Int ?? MatraStorage.channel.phonePort
 
         self.lmstudioEndpoint = (try? LMStudioEndpoint.parse(
             defaults.string(forKey: Keys.lmstudioEndpoint)
@@ -1355,10 +1355,15 @@ final class Preferences: ObservableObject {
     // MARK: - Login item
 
     static var isRegisteredForLogin: Bool {
-        SMAppService.mainApp.status == .enabled
+        Runtime.allowsExternalIntegrationChanges && SMAppService.mainApp.status == .enabled
     }
 
     private func applyLaunchAtLogin() {
+        guard Runtime.allowsExternalIntegrationChanges else {
+            launchAtLoginProblem = "Launch at login is unavailable in sample mode."
+            launchAtLogin = false
+            return
+        }
         do {
             if launchAtLogin {
                 try SMAppService.mainApp.register()

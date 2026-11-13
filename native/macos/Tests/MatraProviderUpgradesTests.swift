@@ -335,7 +335,7 @@ final class MatraProviderUpgradesTests: XCTestCase {
 
     func testTheActivityFolderFollowsThisAppsIdentity() {
         let path = OpenCodeActivityMonitor.directory.path
-        XCTAssertTrue(path.hasSuffix(MatraStorage.isPreviewIdentity ? "/Matra Preview/OpenCode" : "/Matra/OpenCode"), path)
+        XCTAssertTrue(path.hasSuffix("/\(MatraStorage.channel.supportFolder)/OpenCode"), path)
     }
 
     func testAPreviewBridgeDiffersOnlyInItsFolderAndTheInstalledCopyIsUnchanged() throws {

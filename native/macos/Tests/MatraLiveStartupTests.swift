@@ -15,7 +15,7 @@ final class MatraLiveStartupTests: XCTestCase {
 
     func testAppOwnedStorageUsesDistinctProductNamespaces() {
         let support = URL(fileURLWithPath: "/test/Application Support", isDirectory: true)
-        let folder = Bundle.main.bundleIdentifier == MatraStorage.previewBundleID ? "Matra Preview" : "Matra"
+        let folder = MatraStorage.channel.supportFolder
         XCTAssertEqual(MatraStorage.supportRoot(in: support).path, "/test/Application Support/\(folder)")
         XCTAssertEqual(ClaudeUsageCLI.scratchLocation(applicationSupport: support).path,
                        "/test/Application Support/\(folder)/usage-scratch")

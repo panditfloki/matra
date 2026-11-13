@@ -3,7 +3,7 @@ import Foundation
 
 @MainActor
 final class OllamaActivityRelay: ObservableObject {
-    static let address = "http://127.0.0.1:11435"
+    static let address = "http://127.0.0.1:\(MatraStorage.channel.relayPort)"
     @Published private(set) var status = "Off"
     @Published private(set) var ready = false
     @Published private(set) var thinkingModels: [String: Date] = [:]
@@ -26,7 +26,7 @@ final class OllamaActivityRelay: ObservableObject {
             await previous?.value
             guard let self else { return }
             if let server = self.server { await server.stop(); self.server = nil }
-            guard self.revision == revision, enabled else { return }
+            guard self.revision == revision, enabled, MatraStorage.channel.relayPort > 0 else { return }
             do {
                 let endpoint = try OllamaEndpoint.parse(endpoint)
                 let server = OllamaRelayServer(upstream: endpoint, onPerformance: { [weak self] model, measurement in
@@ -43,14 +43,14 @@ final class OllamaActivityRelay: ObservableObject {
                     }
                 }
                 self.server = server
-                _ = try await server.start()
+                _ = try await server.start(port: MatraStorage.channel.relayPort)
                 guard self.revision == revision else { return }
                 self.ready = true
                 self.status = "Ready · \(Self.address)"
             } catch {
                 if let server = self.server { await server.stop(); self.server = nil }
                 guard self.revision == revision else { return }
-                self.status = "Cannot start relay. Check that port 11435 is free and the server uses a different port."
+                self.status = "Cannot start relay. Check that port \(MatraStorage.channel.relayPort) is free and the server uses a different port."
             }
         }
     }

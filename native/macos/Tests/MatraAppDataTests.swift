@@ -24,7 +24,7 @@ final class MatraAppDataTests: XCTestCase {
         let first = try MatraStorage.prepareSupportRoot(in: temporary)
         let second = try MatraStorage.prepareSupportRoot(in: temporary)
         XCTAssertEqual(first, second)
-        XCTAssertEqual(first.lastPathComponent, MatraStorage.isPreviewIdentity ? "Matra Preview" : "Matra")
+        XCTAssertEqual(first.lastPathComponent, MatraStorage.channel.supportFolder)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: temporary.path), [first.lastPathComponent])
     }
 
@@ -45,7 +45,7 @@ final class MatraAppDataTests: XCTestCase {
     }
 
     @MainActor func testCurrentReleaseDescribesLiveStartup() throws {
-        let note = try XCTUnwrap(ReleaseNotes.all.first)
+        let note = try XCTUnwrap(ReleaseNotes.note(for: Updater().currentVersion))
         XCTAssertEqual(note.version, Updater().currentVersion)
         let details = note.changes.map(\.detail).joined(separator: " ")
         XCTAssertTrue(details.contains("Normal launch reads"))

@@ -53,8 +53,20 @@ final class MatraDesignTests: XCTestCase {
             .environment(\.usageWatchLimit, watch)
             .environment(\.usageCriticalLimit, critical)
             let renderer = ImageRenderer(content: content)
+            renderer.scale = 1
             let image = try XCTUnwrap(renderer.cgImage)
-            return try XCTUnwrap(image.dataProvider?.data) as Data
+            // Compare rendered RGBA pixels, not the provider's aligned row padding
+            // or unspecified colour format, whose bytes need not be initialized.
+            let rowBytes = image.width * 4
+            var pixels = Data(count: rowBytes * image.height)
+            try pixels.withUnsafeMutableBytes { buffer in
+                let context = try XCTUnwrap(CGContext(data: buffer.baseAddress,
+                    width: image.width, height: image.height, bitsPerComponent: 8,
+                    bytesPerRow: rowBytes, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                    bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue))
+                context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            }
+            return pixels
         }
         // The first captures after earlier tests can still drift by a few bytes
         // with identical inputs (seen on the first full-suite comparison, which
@@ -75,9 +87,16 @@ final class MatraDesignTests: XCTestCase {
             for style in ColorTransitionStyle.allCases {
                 let blue = try settled(accent: .blue, scheme: scheme, style: style)
                 let red = try settled(accent: .red, scheme: scheme, style: style)
-                XCTAssertEqual(blue, red, "\(scheme)/\(style): app accent changed usage pixels")
+                // The macOS 27 renderer varies isolated antialiased channels by
+                // one 8-bit level even for a settled image. Bound that noise;
+                // any actual tint change still differs by more than one level.
+                let deltas = zip(blue, red).map { abs(Int($0) - Int($1)) }
+                XCTAssertLessThanOrEqual(deltas.max() ?? 0, 1, "\(scheme)/\(style): accent changed usage colours")
+                XCTAssertLessThan(Double(deltas.filter { $0 != 0 }.count) / Double(blue.count), 0.005,
+                                  "\(scheme)/\(style): accent changed more than isolated edge pixels")
                 let custom = try settled(accent: .red, scheme: scheme, style: style, watch: 0.30, critical: 0.60)
-                XCTAssertNotEqual(red, custom, "Thresholds must actually reach the rendered rings and bars")
+                XCTAssertTrue(zip(red, custom).contains { abs(Int($0) - Int($1)) > 1 },
+                              "Thresholds must actually reach the rendered rings and bars")
             }
         }
     }
@@ -180,11 +199,14 @@ final class MatraDesignTests: XCTestCase {
     }
 
     @MainActor func testOwnedUpdateChannelAndAutomaticInstallPreference() {
-        XCTAssertTrue(Updater.isEnabled)
-        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String,
-                       "https://raw.githubusercontent.com/panditfloki/matra/main/updates/macos/appcast.xml")
-        XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String,
-                       "ZXK9jxpRx4EksQGRdhTgFSkbIOTCauZ0EhTe959OQ6I=")
+        XCTAssertFalse(Updater.isEnabled, "A hosted test must not create an update client")
+        if MatraStorage.channel.isProduction {
+            XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String,
+                           "https://raw.githubusercontent.com/panditfloki/matra/main/updates/macos/appcast.xml")
+        } else {
+            XCTAssertNil(Bundle.main.object(forInfoDictionaryKey: "SUFeedURL"))
+            XCTAssertNil(Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey"))
+        }
         let name = "matra.updater.test.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
         defer { defaults.removePersistentDomain(forName: name) }

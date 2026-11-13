@@ -339,12 +339,12 @@ final class UsageSpendTests: XCTestCase {
         XCTAssertFalse(Runtime.usesLocalLogPreview(environment: ["MATRA_DESIGN_PREVIEW": "1", "MATRA_PREVIEW_DATA": "live"]))
     }
 
-    func testOnlyThePreviewIdentityGetsSeparateStorage() {
+    func testBundleIdentityDeterminesStorage() {
         let preview = Bundle.main.bundleIdentifier == MatraStorage.previewBundleID
         XCTAssertEqual(MatraStorage.isPreviewIdentity, preview)
-        XCTAssertEqual(MatraStorage.namespace, preview ? MatraStorage.previewBundleID : MatraStorage.installedBundleID)
+        XCTAssertEqual(MatraStorage.namespace, Bundle.main.bundleIdentifier)
         XCTAssertEqual(MatraStorage.supportRoot(in: URL(fileURLWithPath: "/x")).lastPathComponent,
-                       preview ? "Matra Preview" : "Matra")
+                       MatraStorage.channel.supportFolder)
         XCTAssertNotEqual(MatraStorage.previewBundleID, MatraStorage.installedBundleID)
     }
 

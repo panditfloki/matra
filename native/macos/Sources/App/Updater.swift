@@ -91,7 +91,8 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
         set { if Self.isEnabled { sparkle.automaticallyChecksForUpdates = newValue } }
     }
 
-    static let isEnabled = true
+    static let isEnabled = MatraStorage.channel.allowsUpdates(
+        underTest: Runtime.isUnderTest, sample: Runtime.isDesignPreview)
 
     var currentVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
@@ -266,7 +267,7 @@ final class Updater: NSObject, ObservableObject, SPUUpdaterDelegate {
     /// broken button.
     func checkNow() {
         guard Self.isEnabled else {
-            outcome = .failed("Automatic updates are not configured for this Mātrā Mac preview.")
+            outcome = .failed("Updates are disabled for this Mātrā development or preview build.")
             return
         }
         start()

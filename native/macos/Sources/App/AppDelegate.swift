@@ -125,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // replaces this a moment later, once preferences exist.
         NSApp.setActivationPolicy(.regular)
         guard !isRunningTests else { return }
-        if Runtime.isLivePreview && !Self.livePreviewMayStart() { return }
+        if Runtime.isLivePreview && !MatraStorage.isDevelopmentIdentity && !Self.livePreviewMayStart() { return }
         if Runtime.isDesignPreview && !Runtime.isLivePreview {
             let preview = MatraDesignPreview()
             self.designPreview = preview
@@ -1072,7 +1072,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // with two of them, and an unverified guess is worse here than a ring
         // that ages the way it already does.
         // A live preview reads credentials but never renews them.
-        if !Runtime.isLivePreview, let defaultProvider = claudeProviders.first(where: { $0.profile.slug == nil }) {
+        if Runtime.allowsCredentialRenewal, let defaultProvider = claudeProviders.first(where: { $0.profile.slug == nil }) {
             let refresher = ClaudeTokenRefresher(
                 expiry: { await defaultProvider.tokenExpiry },
                 reload: { await defaultProvider.reloadTokenExpiry() }
@@ -1203,7 +1203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     if enabled {
                         self.phoneLinkServerStatus?.state = .starting
                         do {
-                            let prefPort = self.preferences?.phoneLinkPort ?? 8788
+                            let prefPort = self.preferences?.phoneLinkPort ?? MatraStorage.channel.phonePort
                             let port = try await srv.start(port: prefPort)
                             self.preferences?.phoneLinkPort = port
                             self.phoneLinkServerStatus?.state = .ready(port: port)
@@ -1463,7 +1463,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor func openConnectPhone() {
         guard PhoneLink.isAvailable, let pairing = phoneLinkPairing, let registry = phoneLinkRegistry, let status = phoneLinkServerStatus else { return }
         if preferences?.phoneLinkEnabled == false { preferences?.phoneLinkEnabled = true }
-        PhoneLinkWindowController.shared.show(pairing: pairing, registry: registry, port: preferences?.phoneLinkPort ?? 8788, serverStatus: status)
+        PhoneLinkWindowController.shared.show(pairing: pairing, registry: registry, port: preferences?.phoneLinkPort ?? MatraStorage.channel.phonePort, serverStatus: status)
     }
 
     func applicationWillTerminate(_ notification: Notification) {

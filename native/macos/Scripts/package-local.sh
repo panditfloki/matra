@@ -30,7 +30,7 @@ strip -S "$STAGING/Matra.app/Contents/MacOS/Matra"
 printf '%s\n' '<?xml version="1.0"?><plist version="1.0"><dict/></plist>' > "$OUTPUT_DIR/.package-entitlements.plist"
 codesign --force --sign - --options 0 --timestamp=none \
   --entitlements "$OUTPUT_DIR/.package-entitlements.plist" "$STAGING/Matra.app"
-python3 -B "$PROJECT_DIR/scripts/verify-package-launch.py" \
+python3 -B "$PROJECT_DIR/Scripts/verify-package-launch.py" \
   "$STAGING/Matra.app" "$OUTPUT_DIR/launch-verification"
 ln -s /Applications "$STAGING/Applications"
 cp "$PROJECT_DIR/INSTALL-MAC.md" "$STAGING/INSTALL-MAC.md"

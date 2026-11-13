@@ -9,6 +9,7 @@ import Foundation
 enum OpenCodePluginInstaller {
     enum Failure: Error {
         case missingResource
+        case unavailableInSampleMode
         /// Something already sits at the target and cannot be read, so it
         /// cannot be backed up. It is left alone.
         case unreadableExisting
@@ -20,7 +21,6 @@ enum OpenCodePluginInstaller {
     /// In the plugin's source. A file carrying it is this app's to remove.
     static let ownershipMarker = "matra-opencode-bridge"
     private static let supportFolderLine = #""Matra" /* matra:support-folder */"#
-    private static let previewSupportFolderLine = #""Matra Preview" /* matra:support-folder */"#
 
     static var pluginsDirectory: URL {
         let configured = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"]?
@@ -30,24 +30,33 @@ enum OpenCodePluginInstaller {
         return root.appendingPathComponent("opencode/plugins")
     }
 
-    static func pluginStem(isPreview: Bool = MatraStorage.isPreviewIdentity) -> String {
-        isPreview ? "matra-preview" : "matra"
+    private static func channel(isPreview: Bool?) -> MatraChannel {
+        guard let isPreview else { return MatraStorage.channel }
+        return MatraChannel(bundleID: isPreview ? MatraStorage.previewBundleID : MatraStorage.installedBundleID)
     }
 
-    /// The bytes installed for an identity. The installed app's copy is the
-    /// bundled file unchanged; a preview's differs only in its support folder.
-    static func rendered(template: Data, isPreview: Bool) throws -> Data {
-        guard isPreview else { return template }
+    static func pluginStem(isPreview: Bool? = nil) -> String {
+        channel(isPreview: isPreview).pluginStem
+    }
+
+    static func rendered(template: Data, isPreview: Bool? = nil) throws -> Data {
+        let identity = channel(isPreview: isPreview)
+        guard !identity.isProduction else { return template }
         guard let text = String(data: template, encoding: .utf8), text.contains(supportFolderLine) else {
             throw Failure.unrecognizedTemplate
         }
-        return Data(text.replacingOccurrences(of: supportFolderLine, with: previewSupportFolderLine).utf8)
+        let replacement = "\"\(identity.supportFolder)\" /* matra:support-folder */"
+        return Data(text.replacingOccurrences(of: supportFolderLine, with: replacement).utf8)
     }
 
     /// Only called by the explicit Settings button. Preserve an earlier or
     /// user-edited file outside the loader's .js/.ts extension set.
-    static func install(directory: URL = pluginsDirectory, source: URL? = nil,
-                        isPreview: Bool = MatraStorage.isPreviewIdentity) throws {
+    static func install(directory: URL? = nil, source: URL? = nil,
+                        isPreview: Bool? = nil) throws {
+        guard directory != nil || Runtime.allowsExternalIntegrationChanges else {
+            throw Failure.unavailableInSampleMode
+        }
+        let directory = directory ?? pluginsDirectory
         guard let source = source ?? Bundle.main.url(forResource: "matra-opencode", withExtension: "mjs")
         else { throw Failure.missingResource }
         let data = try rendered(template: try Data(contentsOf: source), isPreview: isPreview)
@@ -69,8 +78,12 @@ enum OpenCodePluginInstaller {
     /// Returns whether anything was removed. A target the user has since
     /// replaced with their own file stays exactly as it is.
     @discardableResult
-    static func uninstall(directory: URL = pluginsDirectory,
-                          isPreview: Bool = MatraStorage.isPreviewIdentity) throws -> Bool {
+    static func uninstall(directory: URL? = nil,
+                          isPreview: Bool? = nil) throws -> Bool {
+        guard directory != nil || Runtime.allowsExternalIntegrationChanges else {
+            throw Failure.unavailableInSampleMode
+        }
+        let directory = directory ?? pluginsDirectory
         let stem = pluginStem(isPreview: isPreview)
         let target = directory.appendingPathComponent("\(stem).js")
         guard let installed = try? Data(contentsOf: target), isOwned(installed) else { return false }
